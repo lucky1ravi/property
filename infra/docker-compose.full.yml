@@ -1,0 +1,25 @@
+# Whole backend in Docker (no JDK or Maven needed): docker compose -f infra/docker-compose.full.yml up --build
+# API gateway on http://localhost:8080. Give Docker Desktop at least 3 GB RAM.
+services:
+  postgres:
+    image: postgres:16
+    container_name: propertyos-db
+    environment: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: propertyos }
+    ports: ["5432:5432"]
+    volumes: [propertyos-data:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 3s, retries: 30 }
+  backend:
+    build: ../backend
+    container_name: propertyos-backend
+    depends_on: { postgres: { condition: service_healthy } }
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: propertyos
+      PORT: "8080"
+      AI_PROVIDER: ${AI_PROVIDER:-none}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports: ["8080:8080"]
+volumes:
+  propertyos-data:
