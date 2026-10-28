@@ -1,0 +1,91 @@
+package com.propertyos.ai.llm;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+
+/** OpenAI-compatible chat completions with function calling (works with any compatible gateway via OPENAI_BASE_URL). */
+public class OpenAiLlm implements Llm {
+    private final ObjectMapper mapper;
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final String key, model, baseUrl;
+
+    public OpenAiLlm(ObjectMapper mapper, String key, String model, String baseUrl) {
+        this.mapper = mapper;
+        this.key = key;
+        this.model = model;
+        this.baseUrl = baseUrl;
+    }
+
+    @Override
+    public String provider() {
+        return "openai";
+    }
+
+    @Override
+    public String model() {
+        return model;
+    }
+
+    @Override
+    public Reply chat(String system, List<Msg> messages, List<ToolSpec> tools, boolean jsonOutput) throws Exception {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("model", model);
+        body.put("temperature", 0.2);
+        ArrayNode msgs = body.putArray("messages");
+        msgs.addObject().put("role", "system").put("content", system);
+        for (Msg m : messages) {
+            ObjectNode n = msgs.addObject();
+            n.put("role", m.role());
+            if ("tool".equals(m.role())) {
+                n.put("tool_call_id", m.toolCallId());
+                n.put("content", m.content());
+            } else {
+                n.put("content", m.content() == null ? "" : m.content());
+                if (!m.toolCalls().isEmpty()) {
+                    ArrayNode tc = n.putArray("tool_calls");
+                    for (ToolCall c : m.toolCalls()) {
+                        ObjectNode t = tc.addObject();
+                        t.put("id", c.id()).put("type", "function");
+                        t.putObject("function").put("name", c.name()).put("arguments", c.arguments().toString());
+                    }
+                }
+            }
+        }
+        if (tools != null && !tools.isEmpty()) {
+            ArrayNode ts = body.putArray("tools");
+            for (ToolSpec t : tools) {
+                ObjectNode f = ts.addObject().put("type", "function").putObject("function");
+                f.put("name", t.name()).put("description", t.description());
+                f.set("parameters", t.schema());
+            }
+        }
+        if (jsonOutput) body.putObject("response_format").put("type", "json_object");
+        HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + "/chat/completions"))
+                .timeout(Duration.ofSeconds(45)).header("Authorization", "Bearer " + key).header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
+        HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (res.statusCode() / 100 != 2) throw new IllegalStateException("OpenAI returned " + res.statusCode() + ": " + trim(res.body()));
+        JsonNode root = mapper.readTree(res.body());
+        JsonNode msg = root.path("choices").path(0).path("message");
+        List<ToolCall> calls = new ArrayList<>();
+        for (JsonNode c : msg.path("tool_calls")) {
+            String args = c.path("function").path("arguments").asText("{}");
+            calls.add(new ToolCall(c.path("id").asText(), c.path("function").path("name").asText(), mapper.readTree(args.isBlank() ? "{}" : args)));
+        }
+        return new Reply(msg.path("content").asText(""), calls, root.path("usage").path("prompt_tokens").asInt(), root.path("usage").path("completion_tokens").asInt());
+    }
+
+    private static String trim(String s) {
+        return s.length() > 300 ? s.substring(0, 300) : s;
+    }
+}
