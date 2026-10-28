@@ -27,7 +27,7 @@ You never put secrets in the repository. Set every value below in the host's das
 | `OPENAI_MODEL` | model name, for example `gpt-6-luna` |
 | `OPENAI_REASONING_EFFORT` | optional, for example `none` (needed for tool calling on some GPT-6 models) |
 
-For Bedrock use `AI_PROVIDER=bedrock`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `BEDROCK_MODEL_ID`.
+For Bedrock use `AI_PROVIDER=bedrock`, `AWS_REGION`, `BEDROCK_MODEL_ID` (for example `global.openai.gpt-6-luna`) and either a Bedrock API key in `AWS_BEARER_TOKEN_BEDROCK` or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`.
 
 4. Under **Settings, Networking**, click **Generate Domain**. Note the URL, e.g. `https://propertyos-api.up.railway.app`.
 5. Size: with no `SERVICE` variable, the container runs all six services plus the gateway. Give it **2 GB RAM**. First start takes 1 to 2 minutes (migrations and demo data).
