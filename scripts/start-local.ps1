@@ -20,7 +20,8 @@ New-Item -ItemType Directory -Force -Path logs | Out-Null
 foreach ($s in $services) {
     $jar = "backend\$s\target\app.jar"
     if (-not (Test-Path $jar)) { Write-Host "skip $s (not built yet)"; continue }
-    Start-Process -FilePath java -ArgumentList "-jar", $jar -WorkingDirectory "backend\$s" -RedirectStandardOutput "logs\$s.log" -RedirectStandardError "logs\$s.err.log" -WindowStyle Hidden
+    $dir = Join-Path $root "backend\$s"
+    Start-Process -FilePath java -ArgumentList "-jar", "target\app.jar" -WorkingDirectory $dir -RedirectStandardOutput (Join-Path $root "logs\$s.log") -RedirectStandardError (Join-Path $root "logs\$s.err.log") -WindowStyle Hidden
     Write-Host "started $s  (log: logs\$s.log)"
 }
 Write-Host "Gateway: http://localhost:8080   Health: http://localhost:8080/actuator/health"
