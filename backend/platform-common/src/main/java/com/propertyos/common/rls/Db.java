@@ -28,7 +28,7 @@ public class Db {
     }
 
     public List<Map<String, Object>> list(String sql, Object... args) {
-        return jdbc.queryForList(sql, args).stream().map(this::clean).toList();
+        return jdbc.queryForList(sql, args).stream().map(this::clean).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     public Optional<Map<String, Object>> find(String sql, Object... args) {

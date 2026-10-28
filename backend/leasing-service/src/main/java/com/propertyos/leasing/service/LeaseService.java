@@ -125,7 +125,7 @@ public class LeaseService {
             case "ENDED" -> {
                 db.update("update leasing.unit set status = 'VACANT', current_rent = null, vacant_since = current_date, updated_at = now() where id = ?", l.get("unit_id"));
                 events.publish("LeaseEnded", "Lease", id, Map.of("unitId", l.get("unit_id").toString(), "tenantId", l.get("tenant_id").toString(),
-                        "deposit", l.get("deposit").toString()));
+                        "deposit", l.get("deposit").toString(), "state", l.get("state").toString()));
             }
             default -> { }
         }
@@ -137,9 +137,13 @@ public class LeaseService {
         db.update("update leasing.lease set manager_signature = ?, manager_signed_at = now() where id = ?", ctx.name(), id);
         db.update("update leasing.unit set status = 'OCCUPIED', current_rent = ?, vacant_since = null, updated_at = now() where id = ?", l.get("rent"), l.get("unit_id"));
         db.update("update leasing.listing set status = 'LEASED', updated_at = now() where unit_id = ? and status <> 'LEASED'", l.get("unit_id"));
-        events.publish("LeaseActivated", "Lease", id, Map.of("unitId", l.get("unit_id").toString(), "tenantId", l.get("tenant_id").toString(),
-                "rent", l.get("rent").toString(), "deposit", l.get("deposit").toString(), "propertyId", l.get("property_id").toString(),
-                "ownerId", l.get("owner_id").toString(), "startDate", l.get("start_date").toString()));
+        Map<String, Object> payload = new HashMap<>();
+        for (String k : List.of("unit_id:unitId", "tenant_id:tenantId", "rent:rent", "deposit:deposit", "property_id:propertyId", "owner_id:ownerId",
+                "start_date:startDate", "tenant_name:tenantName", "unit_label:unitLabel", "property_name:propertyName", "state:state")) {
+            String[] kv = k.split(":");
+            payload.put(kv[1], l.get(kv[0]).toString());
+        }
+        events.publish("LeaseActivated", "Lease", id, payload);
     }
 
     /** Offers a renewal; the rent is AI-suggested from market and tenant reliability, capped by the organisation's maximum increase. */
