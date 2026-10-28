@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, Mail, ShieldCheck } from 'lucide-react';
+import { ArrowDown, KeyRound, Mail, ShieldCheck } from 'lucide-react';
 import { api, setToken, Button, Input, Field, Avatar, Spinner, toastError } from '@propertyos/ui';
 import { Streetscape } from './Streetscape';
 import { Logo } from '../layout/Logo';
@@ -21,7 +21,24 @@ export function SignIn() {
 
   const demo = useQuery({ queryKey: ['demo-users'], queryFn: () => api.get<{ enabled: boolean; users: DemoUser[] }>('/api/identity/public/demo-users') });
   const [busy, setBusy] = useState<string | null>(null);
-  const [mode, setMode] = useState<'persona' | 'email'>('persona');
+  const [mode, setMode] = useState<'password' | 'persona' | 'email'>('password');
+  const options = useQuery({ queryKey: ['signin-options'], queryFn: () => api.get<{ demo: boolean; demoPassword?: string }>('/api/identity/public/options'), retry: false });
+  const [password, setPassword] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const apiDown = options.isError && demo.isError;
+
+  const signInWithPassword = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setFormError(null);
+    setBusy('password');
+    try {
+      const r = await api.post<{ token: string }>('/api/identity/public/login', { email: email.trim(), password });
+      finish(r.token);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Sign-in failed.');
+      setBusy(null);
+    }
+  };
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState<{ demoCode?: string } | null>(null);
@@ -99,15 +116,43 @@ export function SignIn() {
             <div className="border-b border-limestone-200 px-6 pb-4 pt-5">
               <h2 className="text-xl font-extrabold tracking-[-0.01em] text-graphite-950">Sign in</h2>
               <p className="mt-1 text-sm text-graphite-600">
-                {params.get('expired') ? 'Your session ended. Sign in again to continue.' : 'Choose a demo persona to explore each role, or use your email.'}
+                {params.get('expired') ? 'Your session ended. Sign in again to continue.' : 'Sign in with your email and password, or pick a demo persona.'}
               </p>
-              <div className="mt-4 grid grid-cols-2 gap-1 rounded bg-limestone-100 p-1 text-sm font-semibold">
+              <div className="mt-4 grid grid-cols-3 gap-1 rounded bg-limestone-100 p-1 text-sm font-semibold">
+                <button onClick={() => setMode('password')} className={`rounded py-1.5 ${mode === 'password' ? 'bg-white text-federal-900 shadow-sm' : 'text-graphite-500'}`}>Password</button>
                 <button onClick={() => setMode('persona')} className={`rounded py-1.5 ${mode === 'persona' ? 'bg-white text-federal-900 shadow-sm' : 'text-graphite-500'}`}>Demo personas</button>
                 <button onClick={() => setMode('email')} className={`rounded py-1.5 ${mode === 'email' ? 'bg-white text-federal-900 shadow-sm' : 'text-graphite-500'}`}>Email code</button>
               </div>
             </div>
 
-            {mode === 'persona' ? (
+            {apiDown && (
+              <div role="alert" className="mx-6 mt-4 rounded border border-crit-200 bg-crit-50 px-3 py-2 text-sm text-crit-800">
+                Can’t reach the PropertyOS API. Start the backend (<code>docker compose -f infra/docker-compose.full.yml up</code>), then check <code>http://localhost:8080/actuator/health</code> and reload.
+              </div>
+            )}
+            {mode === 'password' ? (
+              <form onSubmit={signInWithPassword} className="space-y-4 px-6 py-5">
+                <Field label="Work email">
+                  <Input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
+                </Field>
+                <Field label="Password">
+                  <Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                </Field>
+                {formError && <p role="alert" className="text-sm font-semibold text-crit-700">{formError}</p>}
+                <Button type="submit" variant="primary" className="w-full" icon={<KeyRound className="h-4 w-4" />} loading={busy === 'password'} disabled={!email.includes('@') || !password}>Sign in</Button>
+                {options.data?.demo && (
+                  <div className="rounded bg-limestone-100 p-3 text-xs text-graphite-600">
+                    <p className="font-semibold text-graphite-800">Demo environment</p>
+                    <p className="mt-1">Every demo user shares the password <code className="font-bold">{options.data.demoPassword}</code>. Pick a role to fill the form:</p>
+                    <select aria-label="Fill in a demo user" className="mt-2 w-full rounded border border-limestone-300 bg-white px-2 py-1.5 text-sm"
+                      value="" onChange={(e) => { const u = users.find((x) => x.id === e.target.value); if (u) { setEmail(u.email); setPassword(options.data?.demoPassword ?? ''); } }}>
+                      <option value="">Choose a persona…</option>
+                      {users.map((u) => <option key={u.id} value={u.id}>{u.persona.replace(' (second company)', ' (company 2)')}: {u.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </form>
+            ) : mode === 'persona' ? (
               <ul className="scrollbar-thin max-h-[52vh] overflow-y-auto px-2 py-2">
                 {demo.isLoading && <li className="flex items-center gap-2 px-4 py-6 text-sm text-graphite-500"><Spinner /> Loading personas…</li>}
                 {demo.isError && <li className="px-4 py-6 text-sm text-crit-700">Can’t reach the API. Check that the gateway is running.</li>}

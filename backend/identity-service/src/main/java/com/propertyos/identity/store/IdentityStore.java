@@ -67,6 +67,10 @@ public class IdentityStore {
                 "status = coalesce(?, status), updated_at = now() where id = ?", name, title, phone, status, id);
     }
 
+    public void setPassword(UUID id, String hash) {
+        jdbc.update("update identity.app_user set password_hash = ?, updated_at = now() where id = ?", hash, id);
+    }
+
     public void touchLogin(UUID id) {
         jdbc.update("update identity.app_user set last_login_at = now() where id = ?", id);
     }

@@ -32,10 +32,13 @@ public class AuthService {
     private final AuditService audit;
     private final TransactionTemplate tx;
     private final boolean demoMode;
+    private final String demoPassword;
     private final SecureRandom random = new SecureRandom();
 
     public AuthService(IdentityStore store, JwtService jwt, ObjectMapper mapper, AuditService audit,
-                       PlatformTransactionManager tm, @Value("${propertyos.demo.enabled:true}") boolean demoMode) {
+                       PlatformTransactionManager tm, @Value("${propertyos.demo.enabled:true}") boolean demoMode,
+                       @Value("${propertyos.demo.password:PropertyOS@2026}") String demoPassword) {
+        this.demoPassword = demoPassword;
         this.store = store;
         this.jwt = jwt;
         this.mapper = mapper;
@@ -116,6 +119,51 @@ public class AuthService {
     public Map<String, Object> demoLogin(UUID userId) {
         if (!demoMode) throw ApiException.forbidden("Demo sign-in is disabled");
         return issue(userId, "DEMO_PERSONA");
+    }
+
+    /** Email and password sign-in. Demo accounts without a stored password accept the shared demo password. */
+    public Map<String, Object> login(String email, String password) {
+        String normalized = email == null ? "" : email.trim().toLowerCase();
+        Map<String, Object> user = UserContextHolder.runAsSystem(null, () -> tx.execute(s -> store.userByEmail(normalized))).orElse(null);
+        boolean ok = false;
+        if (user != null && password != null && !password.isEmpty()) {
+            Object stored = user.get("password_hash");
+            if (stored != null) ok = verifyPassword(password, stored.toString());
+            else ok = demoMode && MessageDigest.isEqual(password.getBytes(StandardCharsets.UTF_8), demoPassword.getBytes(StandardCharsets.UTF_8));
+        }
+        if (!ok) throw ApiException.unauthorized("Incorrect email or password.");
+        return issue((UUID) user.get("id"), "PASSWORD");
+    }
+
+    public String demoPassword() {
+        return demoPassword;
+    }
+
+    /** PBKDF2-HMAC-SHA256, 120k iterations, random salt. Format: pbkdf2$iterations$salt$hash (base64). */
+    public static String hashPassword(String password) {
+        try {
+            byte[] salt = new byte[16];
+            new SecureRandom().nextBytes(salt);
+            byte[] h = pbkdf2(password, salt, 120_000);
+            return "pbkdf2$120000$" + Base64.getEncoder().encodeToString(salt) + "$" + Base64.getEncoder().encodeToString(h);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    static boolean verifyPassword(String password, String stored) {
+        try {
+            String[] p = stored.split("\\$");
+            byte[] h = pbkdf2(password, Base64.getDecoder().decode(p[2]), Integer.parseInt(p[1]));
+            return MessageDigest.isEqual(h, Base64.getDecoder().decode(p[3]));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static byte[] pbkdf2(String password, byte[] salt, int iterations) throws Exception {
+        var spec = new javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, iterations, 256);
+        return javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
     }
 
     /** Sends a one-time sign-in code. In demo mode the code is returned so reviewers can sign in. */

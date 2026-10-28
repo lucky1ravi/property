@@ -58,6 +58,11 @@ public class AccessAdminService {
         UUID id = UUID.randomUUID();
         store.insertUser(id, orgId, email, req(body, "name"), str(body, "title"), str(body, "phone"),
                 str(body, "partyType"), uuid(body.get("partyId")), str(body, "title"));
+        String pw = str(body, "password");
+        if (pw != null && !pw.isBlank()) {
+            if (pw.length() < 10) throw ApiException.badRequest("Password must be at least 10 characters");
+            store.setPassword(id, AuthService.hashPassword(pw));
+        }
         store.setUserRoles(id, orgId, uuids(body.get("roleIds")));
         store.setUserProperties(id, orgId, uuids(body.get("propertyIds")));
         audit.record("User", id, "USER_CREATED", null, "ACTIVE", Map.of("email", email, "roles", String.valueOf(body.get("roleIds"))));

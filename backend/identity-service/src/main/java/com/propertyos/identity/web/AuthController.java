@@ -44,6 +44,20 @@ public class AuthController {
         return auth.demoLogin(UUID.fromString(id));
     }
 
+    @PostMapping("/login")
+    public Map<String, Object> login(@RequestBody Map<String, String> body) {
+        return auth.login(body.get("email"), body.get("password"));
+    }
+
+    /** Tells the sign-in page whether to show demo hints. */
+    @GetMapping("/options")
+    public Map<String, Object> options() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("demo", auth.demoMode());
+        if (auth.demoMode()) m.put("demoPassword", auth.demoPassword());
+        return m;
+    }
+
     @PostMapping("/otp/request")
     public Map<String, Object> requestOtp(@RequestBody Map<String, String> body) {
         return auth.requestOtp(body.get("email"));
