@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import {
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Modal, Field, Input, Select, Textarea, KeyValues, Timeline,
-  AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction,
-} from '@propertyos/ui';
+  AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction, QuickLink } from '@propertyos/ui';
 
 const BASE = '/app/maintenance';
 const inv = ['/api/maintenance'];
@@ -31,9 +30,9 @@ function List() {
   const [creating, setCreating] = useState(false);
   const cols: Column<any>[] = [
     { key: 'priority', header: 'Priority', width: '110px', render: (w) => <Badge tone={prioTone(w.priority) as any}>{w.priority}</Badge> },
-    { key: 'title', header: 'Request', render: (w) => (<div><div className="font-semibold">{w.title}</div><div className="text-xs text-graphite-500">{w.property_name} · {w.unit_label}</div></div>) },
+    { key: 'title', header: 'Request', render: (w) => (<div><div className="font-semibold">{w.title}</div><div className="text-xs text-graphite-500"><QuickLink kind="property" id={w.property_id}>{w.property_name}</QuickLink> · <QuickLink kind="unit" id={w.unit_id}>{w.unit_label}</QuickLink></div></div>) },
     { key: 'status', header: 'Status', render: (w) => <StatusPill status={w.status} /> },
-    { key: 'vendor_name', header: 'Vendor', hideOnMobile: true, render: (w) => w.vendor_name ?? '—' },
+    { key: 'vendor_name', header: 'Vendor', hideOnMobile: true, render: (w) => (w.vendor_id ? <QuickLink kind="vendor" id={w.vendor_id}>{w.vendor_name}</QuickLink> : '—') },
     { key: 'sla', header: 'Due', render: (w) => <SlaClock dueAt={w.sla_due_at} done={['COMPLETED', 'VERIFIED', 'CLOSED', 'CANCELLED'].includes(w.status)} /> },
   ];
   return (<>
@@ -90,7 +89,7 @@ function Detail() {
   const A = dlg?.action.action;
   return (<>
     <PageHeader title={w.title} back={<Link to={BASE} className="text-sm font-semibold text-federal-900">All requests</Link>}
-      meta={<><Badge tone={prioTone(w.priority) as any}>{w.priority}</Badge><StatusPill status={w.status} /><span>{w.property_name} · {w.unit_label}</span></>}
+      meta={<><Badge tone={prioTone(w.priority) as any}>{w.priority}</Badge><StatusPill status={w.status} /><span><QuickLink kind="property" id={w.property_id}>{w.property_name}</QuickLink> · <QuickLink kind="unit" id={w.unit_id}>{w.unit_label}</QuickLink></span></>}
       actions={<>{(w.actions as WorkflowAction[] ?? []).map((a) => (
         <Button key={a.action} size="sm" variant={/CANCEL|REJECT|DECLINE/.test(a.action) ? 'danger' : ['APPROVE', 'ASSIGN', 'COMPLETE', 'VERIFY'].includes(a.action) ? 'primary' : 'secondary'}
           onClick={() => (needsForm.includes(a.action) || a.requiresReason ? setDlg({ action: a }) : act.mutate({ a: a.action, body: {} }))}>{a.label}</Button>))}</>} />
@@ -98,7 +97,7 @@ function Detail() {
     <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
       <div className="space-y-6">
         <Panel title="Details"><p className="mb-4 max-w-[70ch] text-graphite-800">{w.description || 'No description provided.'}</p>
-          <KeyValues cols={3} items={[{ label: 'Resident', value: w.tenant_name }, { label: 'Category', value: w.category }, { label: 'Vendor', value: w.vendor_name ?? 'Not assigned' }, { label: 'Estimate', value: w.estimate ? fmt.usd(w.estimate) : '—' }, { label: 'Permission to enter', value: w.permission_to_enter ? 'Yes' : 'No' }, { label: 'Response due', value: <SlaClock dueAt={w.sla_due_at} done={['COMPLETED', 'VERIFIED', 'CLOSED'].includes(w.status)} /> }]} /></Panel>
+          <KeyValues cols={3} items={[{ label: 'Resident', value: <QuickLink kind="tenant" id={w.tenant_id} name={w.tenant_name}>{w.tenant_name}</QuickLink> }, { label: 'Category', value: w.category }, { label: 'Vendor', value: w.vendor_id ? <QuickLink kind="vendor" id={w.vendor_id}>{w.vendor_name}</QuickLink> : 'Not assigned' }, { label: 'Estimate', value: w.estimate ? fmt.usd(w.estimate) : '—' }, { label: 'Permission to enter', value: w.permission_to_enter ? 'Yes' : 'No' }, { label: 'Response due', value: <SlaClock dueAt={w.sla_due_at} done={['COMPLETED', 'VERIFIED', 'CLOSED'].includes(w.status)} /> }]} /></Panel>
         <Panel title="Conversation">
           <ul className="mb-4 space-y-3">{(w.comments ?? []).length === 0 && <li className="text-sm text-graphite-500">No messages yet.</li>}{(w.comments ?? []).map((c: any) => (
             <li key={c.id} className={`rounded px-3 py-2 text-sm ${c.internal ? 'bg-warn-50' : 'bg-limestone-100'}`}><div className="mb-0.5 text-xs text-graphite-500">{c.author_name} · {fmt.date(c.created_at)}{c.internal && ' · internal note'}</div>{c.body}</li>))}</ul>
@@ -126,7 +125,7 @@ function Detail() {
 function Vendors() {
   const { data, isLoading } = useApi<any[]>('/api/maintenance/vendors');
   const cols: Column<any>[] = [
-    { key: 'name', header: 'Vendor', render: (r) => (<div><div className="font-semibold">{r.name}</div><div className="text-xs text-graphite-500">{r.contact} · {r.phone}</div></div>) },
+    { key: 'name', header: 'Vendor', render: (r) => (<div><div className="font-semibold"><QuickLink kind="vendor" id={r.id}>{r.name}</QuickLink></div><div className="text-xs text-graphite-500">{r.contact} · {r.phone}</div></div>) },
     { key: 'trades', header: 'Trades', value: (r) => (r.trades ?? []).join(', ') },
     { key: 'rating', header: 'Rating', align: 'right', value: (r) => Number(r.rating), render: (r) => `${r.rating} ★` },
     { key: 'jobs_completed', header: 'Jobs', align: 'right', hideOnMobile: true },

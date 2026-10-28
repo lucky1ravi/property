@@ -3,7 +3,7 @@ import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-route
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import clsx from 'clsx';
-import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast } from '@propertyos/ui';
+import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast, QuickViewHost } from '@propertyos/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Logo } from './Logo';
 import { visibleNav } from './nav';
@@ -101,6 +101,7 @@ export function AppLayout() {
           </div>
         </main>
       </div>
+      <ErrorBoundary label="quick view" compact><QuickViewHost /></ErrorBoundary>
       {aiEnabled && <ErrorBoundary label="assistant" compact><Assistant open={assistant} onClose={() => setAssistant(false)} persona={persona} /></ErrorBoundary>}
     </div>
   );

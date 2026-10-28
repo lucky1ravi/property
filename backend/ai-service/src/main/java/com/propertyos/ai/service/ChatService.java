@@ -89,6 +89,36 @@ public class ChatService {
                         .put("rent", l.path("rent").asText()).put("endsInDays", l.path("days_left").asInt()));
             return out;
         }, null));
+        t.add(new Tool("broker_workload", "Each broker's workload: number of properties, doors (units), occupied and vacant units, and open work orders. Use for questions about how many doors or properties each broker manages.", "USER:VIEW", false, schema(), (b, a) -> {
+            JsonNode users = up.get(b, "/api/identity/users");
+            JsonNode props = up.get(b, "/api/leasing/properties");
+            JsonNode wos = up.tryGet(b, "/api/maintenance/work-orders");
+            ArrayNode out = mapper.createArrayNode();
+            for (JsonNode u : users) {
+                boolean broker = false;
+                for (JsonNode r : u.path("roles")) if ("Broker".equals(r.path("name").asText())) broker = true;
+                if (!broker) continue;
+                java.util.Set<String> ids = new java.util.HashSet<>();
+                for (JsonNode id : u.path("property_ids")) ids.add(id.asText());
+                int properties = 0, doors = 0, occupied = 0, vacant = 0, open = 0;
+                for (JsonNode p : props) if (ids.contains(p.path("id").asText())) { properties++; doors += p.path("units").asInt(); occupied += p.path("occupied").asInt(); vacant += p.path("vacant").asInt(); }
+                if (wos != null) for (JsonNode w : wos) if (ids.contains(w.path("property_id").asText()) && !java.util.Set.of("COMPLETED", "CLOSED", "CANCELLED").contains(w.path("status").asText())) open++;
+                out.add(mapper.createObjectNode().put("broker", u.path("name").asText()).put("properties", properties).put("doors", doors).put("occupied", occupied).put("vacant", vacant).put("openWorkOrders", open));
+            }
+            return out;
+        }, null));
+        t.add(new Tool("list_vendors", "Vendors with trades, rating, open jobs and average response time.", "VENDOR:VIEW", false, schema(),
+                (b, a) -> compact(up.get(b, "/api/maintenance/vendors"), "name", "trades", "rating", "open_jobs", "avg_response_hours", "avg_job_cost", "insurance_expires"), null));
+        t.add(new Tool("list_sla_breaches", "Open work orders that have breached or are about to breach their service-level deadline.", "WORK_ORDER:VIEW", false, schema(), (b, a) -> {
+            ArrayNode out = mapper.createArrayNode();
+            for (JsonNode w : up.get(b, "/api/maintenance/work-orders"))
+                if (w.path("sla_breached").asBoolean(false) || (w.hasNonNull("sla_hours_left") && w.path("sla_hours_left").asDouble() < 4 && !java.util.Set.of("COMPLETED", "CLOSED", "CANCELLED").contains(w.path("status").asText())))
+                    out.add(mapper.createObjectNode().put("title", w.path("title").asText()).put("property", w.path("property_name").asText()).put("unit", w.path("unit_label").asText())
+                            .put("priority", w.path("priority").asText()).put("status", w.path("status").asText()).put("breached", w.path("sla_breached").asBoolean(false)).put("hoursLeft", w.path("sla_hours_left").asDouble(0)));
+            return out;
+        }, null));
+        t.add(new Tool("list_recent_payments", "Most recent rent payments received, with resident, amount and method.", "PAYMENT:VIEW", false, schema(),
+                (b, a) -> compact(up.get(b, "/api/billing/payments"), "tenant_name", "amount", "method", "status", "created_at"), null));
         t.add(new Tool("find_opportunities", "Ways to increase profit: renewals toward market rent, vacancy cost, price tests, collections and repair hotspots.", "OPPORTUNITY:VIEW", false, schema(), (b, a) -> {
             JsonNode r = mapper.valueToTree(insights.opportunities(b));
             ObjectNode o = mapper.createObjectNode().put("totalAnnualImpact", r.path("totalAnnualImpact").asLong());
@@ -259,6 +289,10 @@ public class ChatService {
         if (s.matches(".*(expir|renew|lease end).*")) pick.add("list_expiring_leases");
         if (s.matches(".*(opportunit|profit|increase|revenue|save|grow).*")) pick.add("find_opportunities");
         if (s.matches(".*(my balance|what do i owe|rent due|my account|next payment).*")) pick.add("my_account");
+        if (s.matches(".*(broker|doors).*")) pick.add("broker_workload");
+        if (s.matches(".*(vendor|contractor|plumber).*")) pick.add("list_vendors");
+        if (s.matches(".*(sla|breach|overdue work|late repair).*")) pick.add("list_sla_breaches");
+        if (s.matches(".*(payment|paid|received).*") && !s.matches(".*(late|overdue|reminder).*")) pick.add("list_recent_payments");
         if (s.matches(".*(propert).*") && pick.isEmpty()) pick.add("list_properties");
         if (pick.isEmpty()) pick.add("portfolio_overview");
         StringBuilder sb = new StringBuilder();
@@ -291,6 +325,11 @@ public class ChatService {
                         .append(" (").append(b.path("collection_rate").asText()).append("%)\n- Overdue: $").append(String.format("%,.0f", b.path("overdue_total").asDouble())).append("\n");
                 JsonNode m = r.path("maintenance");
                 if (!m.isMissingNode()) sb.append("- Open work orders: ").append(m.path("open_orders").asInt()).append(", emergencies: ").append(m.path("open_emergencies").asInt()).append("\n");
+            }
+            case "broker_workload" -> {
+                sb.append("**Doors per broker**\n");
+                for (JsonNode i : r) sb.append("- ").append(i.path("broker").asText()).append(": ").append(i.path("doors").asInt()).append(" doors across ").append(i.path("properties").asInt())
+                        .append(" properties (").append(i.path("occupied").asInt()).append(" occupied, ").append(i.path("vacant").asInt()).append(" vacant), ").append(i.path("openWorkOrders").asInt()).append(" open work orders\n");
             }
             case "find_opportunities" -> {
                 sb.append("**Profit opportunities** (about $").append(String.format("%,d", r.path("totalAnnualImpact").asLong())).append(" a year)\n");

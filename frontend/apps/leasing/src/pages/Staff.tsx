@@ -3,9 +3,8 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-rout
 import { Sparkles } from 'lucide-react';
 import {
   PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Tabs, KeyValues, ActionBar, WorkflowTrack, Timeline, Field, Input,
-  Modal, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge,
+  Modal, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge, QuickLink,
 } from '@propertyos/ui';
-import { QuickLink, QuickViewProvider } from './QuickView';
 import { useBase, APPLICATION_STEPS, LEASE_STEPS, LISTING_STEPS, labelOf } from '../common';
 
 const SubNav = () => {
@@ -136,7 +135,7 @@ function Applications() {
   const nav = useNavigate(); const base = useBase();
   const { data, isLoading } = useApi<any[]>('/api/leasing/applications');
   const cols: Column<any>[] = [
-    { key: 'applicant_name', header: 'Applicant', render: (a) => (<div><div className="font-semibold">{a.applicant_name}</div><div className="text-xs text-graphite-500">{a.unit_label}</div></div>) },
+    { key: 'applicant_name', header: 'Applicant', render: (a) => (<div><div className="font-semibold"><QuickLink kind="applicant" id={a.id}>{a.applicant_name}</QuickLink></div><div className="text-xs text-graphite-500">{a.unit_label}</div></div>) },
     { key: 'status', header: 'Status', render: (a) => <StatusPill status={a.status} /> },
     { key: 'recommendation', header: 'AI recommends', render: (a) => (a.recommendation ? <Badge tone={a.recommendation === 'APPROVE' ? 'good' : a.recommendation === 'DECLINE' ? 'crit' : 'warn'}>{labelOf(a.recommendation)}</Badge> : '—') },
     { key: 'monthly_income', header: 'Income', align: 'right', hideOnMobile: true, value: (a) => Number(a.monthly_income), render: (a) => fmt.usd(a.monthly_income) },
@@ -187,7 +186,7 @@ function Leases() {
   const nav = useNavigate(); const base = useBase();
   const { data, isLoading } = useApi<any[]>('/api/leasing/leases');
   const cols: Column<any>[] = [
-    { key: 'tenant_name', header: 'Resident', render: (l) => (<div><div className="font-semibold">{l.tenant_name}</div><div className="text-xs text-graphite-500"><QuickLink kind="property" id={l.property_id} className="font-medium">{l.property_name}</QuickLink> · {l.unit_label}</div></div>) },
+    { key: 'tenant_name', header: 'Resident', render: (l) => (<div><div className="font-semibold"><QuickLink kind="tenant" id={l.tenant_id} name={l.tenant_name}>{l.tenant_name}</QuickLink></div><div className="text-xs text-graphite-500"><QuickLink kind="property" id={l.property_id} className="font-medium">{l.property_name}</QuickLink> · <QuickLink kind="unit" id={l.unit_id} className="font-medium">{l.unit_label}</QuickLink></div></div>) },
     { key: 'status', header: 'Status', render: (l) => <StatusPill status={l.status} /> },
     { key: 'rent', header: 'Rent', align: 'right', value: (l) => Number(l.rent), render: (l) => fmt.usd(l.rent) },
     { key: 'end_date', header: 'Ends', value: (l) => l.end_date, render: (l) => fmt.date(l.end_date) },
@@ -229,7 +228,6 @@ function LeaseView({ mine }: { mine?: boolean }) {
 
 export function Staff() {
   return (
-    <QuickViewProvider>
     <Routes>
       <Route index element={<Overview />} />
       <Route path="properties" element={<Properties />} />
@@ -243,6 +241,5 @@ export function Staff() {
       <Route path="leases/:id" element={<LeaseView />} />
       <Route path="my-lease" element={<LeaseView mine />} />
     </Routes>
-    </QuickViewProvider>
   );
 }

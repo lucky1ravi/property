@@ -3,8 +3,7 @@ import { NavLink, Route, Routes } from 'react-router-dom';
 import {
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Drawer, Modal, Field, Input, Select, KeyValues, Timeline,
   TrendChart, CompareChart, AiInsight, EmptyState, Skeleton, Toggle, ConfirmDialog, Money,
-  useApi, useAction, api, fmt, useSession, personaOf,
-} from '@propertyos/ui';
+  useApi, useAction, api, fmt, useSession, personaOf, QuickLink } from '@propertyos/ui';
 
 const BASE = '/app/payments';
 const inv = ['/api/billing'];
@@ -77,7 +76,7 @@ function Invoices() {
   const { data, isLoading } = useApi<any[]>('/api/billing/invoices');
   const [open, setOpen] = useState<string | null>(null); const [charge, setCharge] = useState(false);
   const cols: Column<any>[] = [
-    { key: 'tenant_name', header: 'Resident', render: (r) => (<div><div className="font-semibold">{r.tenant_name}</div><div className="text-xs text-graphite-500">{r.unit_label}</div></div>) },
+    { key: 'tenant_name', header: 'Resident', render: (r) => (<div><div className="font-semibold"><QuickLink kind="tenant" id={r.tenant_id} name={r.tenant_name}>{r.tenant_name}</QuickLink></div><div className="text-xs text-graphite-500">{r.unit_label}</div></div>) },
     { key: 'description', header: 'Description', hideOnMobile: true },
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status} /> },
     { key: 'due_date', header: 'Due', value: (r) => r.due_date, render: (r) => fmt.date(r.due_date) },
@@ -106,7 +105,7 @@ function Collections() {
   const { data, isLoading } = useApi<any[]>('/api/billing/collections');
   const remind = useAction((tenantId?: string) => api.post('/api/billing/collections/remind', tenantId ? { tenantId } : {}), { success: 'Reminders sent', invalidate: inv });
   const cols: Column<any>[] = [
-    { key: 'tenant_name', header: 'Resident', render: (r) => (<div><div className="font-semibold">{r.tenant_name}</div><div className="text-xs text-graphite-500">{r.unit_label}</div></div>) },
+    { key: 'tenant_name', header: 'Resident', render: (r) => (<div><div className="font-semibold"><QuickLink kind="tenant" id={r.tenant_id} name={r.tenant_name}>{r.tenant_name}</QuickLink></div><div className="text-xs text-graphite-500">{r.unit_label}</div></div>) },
     { key: 'balance', header: 'Overdue', align: 'right', value: (r) => Number(r.balance), render: (r) => fmt.usd(r.balance) },
     { key: 'oldest_days', header: 'Oldest', align: 'right', render: (r) => `${r.oldest_days} days` },
     { key: 'risk_level', header: 'Risk', render: (r) => <Badge tone={r.risk_level === 'HIGH' ? 'crit' : r.risk_level === 'MEDIUM' ? 'warn' : 'neutral'}>{r.risk_level}</Badge> },
@@ -121,7 +120,7 @@ function Payments() {
   const { data, isLoading } = useApi<any[]>('/api/billing/payments');
   const cols: Column<any>[] = [
     { key: 'created_at', header: 'Date', value: (r) => r.created_at, render: (r) => fmt.date(r.created_at) },
-    { key: 'tenant_name', header: 'Resident' }, { key: 'reference', header: 'Reference', hideOnMobile: true },
+    { key: 'tenant_name', header: 'Resident', render: (r) => <QuickLink kind="tenant" id={r.tenant_id} name={r.tenant_name}>{r.tenant_name}</QuickLink> }, { key: 'reference', header: 'Reference', hideOnMobile: true, render: (r) => <QuickLink kind="payment" id={r.id}>{r.reference}</QuickLink> },
     { key: 'method', header: 'Method', render: (r) => `${r.method} ${r.method_last4 ?? ''}` },
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status} /> },
     { key: 'amount', header: 'Amount', align: 'right', value: (r) => Number(r.amount), render: (r) => fmt.usd(r.amount, true) },
@@ -163,7 +162,7 @@ function Deposits() {
   const [d, setD] = useState<any>(null); const [ded, setDed] = useState({ description: '', amount: '' });
   const settle = useAction(() => api.post(`/api/billing/deposits/${d.id}/settle`, { deductions: ded.amount ? [{ description: ded.description || 'Deduction', amount: Number(ded.amount) }] : [] }), { success: 'Deposit settled', invalidate: inv, onSuccess: () => setD(null) });
   const cols: Column<any>[] = [
-    { key: 'tenant_name', header: 'Resident', render: (r) => (<div><div className="font-semibold">{r.tenant_name}</div><div className="text-xs text-graphite-500">{r.unit_label}</div></div>) },
+    { key: 'tenant_name', header: 'Resident', render: (r) => (<div><div className="font-semibold"><QuickLink kind="tenant" id={r.tenant_id} name={r.tenant_name}>{r.tenant_name}</QuickLink></div><div className="text-xs text-graphite-500">{r.unit_label}</div></div>) },
     { key: 'held', header: 'Held', align: 'right', value: (r) => Number(r.held), render: (r) => fmt.usd(r.held) },
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status} /> },
     { key: 'state', header: 'State' },

@@ -12,3 +12,5 @@ export * from './components/workflow';
 export * from './components/ai';
 export * from './components/charts';
 export * from './components/MicroApp';
+export * from './quickview/QuickLink';
+export * from './quickview/QuickViewHost';
