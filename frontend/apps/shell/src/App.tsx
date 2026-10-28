@@ -29,7 +29,7 @@ function PublicLayout() {
       <header className="border-b border-limestone-200 bg-white">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
           <Link to="/homes"><Logo /></Link>
-          <Link to="/signin" className="text-sm font-semibold text-federal-900 hover:underline">Resident and staff sign-in</Link>
+          <Link to="/signin" className="rounded bg-federal-900 px-4 py-2 text-sm font-semibold text-white hover:bg-federal-800">Sign in</Link>
         </div>
       </header>
       <main className="mx-auto max-w-[1200px] px-6 py-8">
