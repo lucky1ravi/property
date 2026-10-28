@@ -1,4 +1,5 @@
 # Starts every backend service that has been built. Run from the repo root:  .\scripts\start-local.ps1
+# Postgres runs on host port 5433 so it never clashes with a PostgreSQL already installed on your machine.
 # Prerequisites: Docker Desktop (for Postgres), JDK 21+, Maven 3.9+, Node 20+.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -12,7 +13,7 @@ Push-Location backend
 mvn -q -B install -DskipTests
 Pop-Location
 
-$env:PGHOST = "localhost"; $env:PGPORT = "5432"; $env:PGDATABASE = "propertyos"
+$env:PGHOST = "localhost"; $env:PGPORT = "5433"; $env:PGDATABASE = "propertyos"
 $env:PGUSER = "postgres"; $env:PGPASSWORD = "postgres"
 
 $services = @("identity-service", "leasing-service", "billing-service", "maintenance-service", "workflow-service", "ai-service", "api-gateway")
