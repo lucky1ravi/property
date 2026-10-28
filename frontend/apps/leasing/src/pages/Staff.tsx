@@ -5,6 +5,7 @@ import {
   PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Tabs, KeyValues, ActionBar, WorkflowTrack, Timeline, Field, Input,
   Modal, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge,
 } from '@propertyos/ui';
+import { QuickLink, QuickViewProvider } from './QuickView';
 import { useBase, APPLICATION_STEPS, LEASE_STEPS, LISTING_STEPS, labelOf } from '../common';
 
 const SubNav = () => {
@@ -44,8 +45,8 @@ function Overview() {
 function Properties({ embedded }: { embedded?: boolean }) {
   const { data, isLoading } = useApi<any[]>('/api/leasing/properties');
   const cols: Column<any>[] = [
-    { key: 'name', header: 'Property', render: (p) => (<div><div className="font-semibold">{p.name}</div><div className="text-xs text-graphite-500">{p.street}, {p.city}, {p.state}</div></div>) },
-    { key: 'owner_name', header: 'Owner', hideOnMobile: true },
+    { key: 'name', header: 'Property', render: (p) => (<div><QuickLink kind="property" id={p.id}>{p.name}</QuickLink><div className="text-xs text-graphite-500">{p.street}, {p.city}, {p.state}</div></div>) },
+    { key: 'owner_name', header: 'Owner', hideOnMobile: true, render: (p) => <QuickLink kind="owner" id={p.owner_id} className="font-medium">{p.owner_name}</QuickLink> },
     { key: 'units', header: 'Units', align: 'right' },
     { key: 'vacant', header: 'Vacant', align: 'right', render: (p) => (p.vacant ? <Badge tone="warn">{p.vacant}</Badge> : '0') },
     { key: 'rent_roll', header: 'Rent roll', align: 'right', value: (p) => Number(p.rent_roll), render: (p) => fmt.usd(p.rent_roll) },
@@ -81,7 +82,7 @@ function ListingDetail() {
   const rs = l.rent_suggestion;
   return (<>
     <PageHeader title={l.title} back={<Link to={`${base}/listings`} className="text-sm font-semibold text-federal-900">All listings</Link>}
-      meta={<><StatusPill status={l.status} /><span>{l.property_name} · Unit {l.unit_number}</span></>}
+      meta={<><StatusPill status={l.status} /><span><QuickLink kind="property" id={l.property_id}>{l.property_name}</QuickLink> · Unit {l.unit_number}</span></>}
       actions={<><Button icon={<Sparkles size={14} />} loading={assist.isPending} onClick={() => assist.mutate(undefined)}>Draft with AI</Button><ActionBar actions={l.actions} loading={act.isPending} primary={['PUBLISH', 'APPROVE']} onAction={(a, reason) => act.mutate({ a, reason })} /></>} />
     <div className="mb-6"><WorkflowTrack steps={LISTING_STEPS} current={l.status} /></div>
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -186,7 +187,7 @@ function Leases() {
   const nav = useNavigate(); const base = useBase();
   const { data, isLoading } = useApi<any[]>('/api/leasing/leases');
   const cols: Column<any>[] = [
-    { key: 'tenant_name', header: 'Resident', render: (l) => (<div><div className="font-semibold">{l.tenant_name}</div><div className="text-xs text-graphite-500">{l.property_name} · {l.unit_label}</div></div>) },
+    { key: 'tenant_name', header: 'Resident', render: (l) => (<div><div className="font-semibold">{l.tenant_name}</div><div className="text-xs text-graphite-500"><QuickLink kind="property" id={l.property_id} className="font-medium">{l.property_name}</QuickLink> · {l.unit_label}</div></div>) },
     { key: 'status', header: 'Status', render: (l) => <StatusPill status={l.status} /> },
     { key: 'rent', header: 'Rent', align: 'right', value: (l) => Number(l.rent), render: (l) => fmt.usd(l.rent) },
     { key: 'end_date', header: 'Ends', value: (l) => l.end_date, render: (l) => fmt.date(l.end_date) },
@@ -209,7 +210,7 @@ function LeaseView({ mine }: { mine?: boolean }) {
   const rn = l.renewal_notices;
   return (<>
     <PageHeader title={mine ? 'My lease' : `${l.tenant_name} · ${l.unit_label}`} back={!mine && <Link to={`${base}/leases`} className="text-sm font-semibold text-federal-900">All leases</Link>}
-      meta={<><StatusPill status={l.status} /><span>{l.property_name}</span></>}
+      meta={<><StatusPill status={l.status} /><span><QuickLink kind="property" id={l.property_id}>{l.property_name}</QuickLink></span></>}
       actions={!mine ? <>{l.status === 'ACTIVE' && <Button loading={renew.isPending} onClick={() => renew.mutate(undefined)}>Prepare renewal</Button>}
         <ActionBar actions={l.actions} loading={act.isPending} primary={['SEND', 'COUNTERSIGN']} onAction={(a, reason) => act.mutate({ a, reason })} /></> : undefined} />
     <div className="mb-6"><WorkflowTrack steps={LEASE_STEPS} current={l.status} /></div>
@@ -228,6 +229,7 @@ function LeaseView({ mine }: { mine?: boolean }) {
 
 export function Staff() {
   return (
+    <QuickViewProvider>
     <Routes>
       <Route index element={<Overview />} />
       <Route path="properties" element={<Properties />} />
@@ -241,5 +243,6 @@ export function Staff() {
       <Route path="leases/:id" element={<LeaseView />} />
       <Route path="my-lease" element={<LeaseView mine />} />
     </Routes>
+    </QuickViewProvider>
   );
 }
