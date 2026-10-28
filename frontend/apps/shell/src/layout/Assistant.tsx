@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Send, X, ShieldCheck, Database } from 'lucide-react';
-import { api, AiMark, Button, Spinner, toastError, type Persona } from '@propertyos/ui';
+import { api, AiMark, RichText, Button, Spinner, toastError, type Persona } from '@propertyos/ui';
 
 interface Pending { id: string; tool: string; summary: string }
 interface Msg {
@@ -73,7 +73,7 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
     <AnimatePresence>
       {open && (
         <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 400, damping: 40 }}
-          className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[440px] flex-col border-l border-limestone-200 bg-white shadow-drawer" aria-label="PropertyOS assistant">
+          className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[540px] flex-col border-l border-limestone-200 bg-white shadow-drawer" aria-label="PropertyOS assistant">
           <header className="flex items-center justify-between border-b border-limestone-200 px-5 py-3.5">
             <div className="flex items-center gap-2"><AiMark /><span className="font-bold text-graphite-900">Ask PropertyOS</span></div>
             <button onClick={onClose} aria-label="Close assistant" className="rounded p-1.5 text-graphite-500 hover:bg-limestone-100"><X className="h-5 w-5" /></button>
@@ -98,8 +98,8 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
                 {m.role === 'user' ? (
                   <div className="max-w-[85%] rounded-lg rounded-br-sm bg-federal-900 px-3.5 py-2 text-sm text-white">{m.content}</div>
                 ) : (
-                  <div className="max-w-[95%]">
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-graphite-900">{m.content}</div>
+                  <div className="w-full min-w-0">
+                    <div className="text-sm text-graphite-900"><RichText>{m.content}</RichText></div>
                     {m.tools && m.tools.length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-2xs text-graphite-500">
                         <Database className="h-3 w-3" /> Looked up: {m.tools.join(', ')}

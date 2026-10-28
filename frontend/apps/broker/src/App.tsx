@@ -4,8 +4,7 @@ import { motion } from 'framer-motion';
 import { Send, ShieldCheck } from 'lucide-react';
 import {
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, Input, StatusPill, Badge, AiInsight, AiMark, EmptyState, Skeleton,
-  useApi, useAction, api, fmt, DataTable, type Column,
-} from '@propertyos/ui';
+  useApi, useAction, api, fmt, DataTable, type Column,, RichText } from '@propertyos/ui';
 
 const go = (p: string) => (p.startsWith('/app') ? p : '/app' + p);
 const KIND_LABEL: Record<string, string> = {
@@ -86,8 +85,8 @@ function Assistant() {
       <div className="max-h-[380px] space-y-3 overflow-y-auto p-4">
         {msgs.map((m, i) => (
           <div key={i} className={m.role === 'user' ? 'flex justify-end' : ''}>
-            <div className={`max-w-[92%] whitespace-pre-wrap rounded-md px-3 py-2 text-sm ${m.role === 'user' ? 'bg-federal-900 text-white' : m.blocked ? 'bg-brick-50 text-graphite-900' : 'bg-limestone-100 text-graphite-900'}`}>
-              {m.text}
+            <div className={`max-w-[92%] min-w-0 rounded-md px-3 py-2 text-sm ${m.role === 'user' ? 'bg-federal-900 text-white' : m.blocked ? 'bg-brick-50 text-graphite-900' : 'bg-limestone-100 text-graphite-900'}`}>
+              {m.role === 'user' ? m.text : <RichText>{m.text ?? ''}</RichText>}
               {m.pending && (
                 <div className="mt-2 rounded border border-limestone-300 bg-white p-2 text-xs text-graphite-700">
                   <div className="font-semibold">Needs your confirmation</div>

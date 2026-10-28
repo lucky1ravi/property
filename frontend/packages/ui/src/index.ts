@@ -14,3 +14,4 @@ export * from './components/charts';
 export * from './components/MicroApp';
 export * from './quickview/QuickLink';
 export * from './quickview/QuickViewHost';
+export * from './components/RichText';
