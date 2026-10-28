@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown } from 'lucide-react';
+import { Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast } from '@propertyos/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,6 +19,8 @@ export function AppLayout() {
   const loc = useLocation();
   const [mobileNav, setMobileNav] = useState(false);
   const [assistant, setAssistant] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('pos.navCollapsed') === '1'; } catch { return false; } });
+  const toggleCollapsed = () => setCollapsed((c) => { const n = !c; try { localStorage.setItem('pos.navCollapsed', n ? '1' : '0'); } catch { /* storage unavailable */ } return n; });
   useEffect(() => setMobileNav(false), [loc.pathname]);
 
   if (!token) return <Navigate to="/signin" replace />;
@@ -30,28 +32,33 @@ export function AppLayout() {
   const groups = visibleNav(session, persona, can, feature);
   const aiEnabled = feature('AI_ASSISTANT') && can('AI_ASSISTANT:VIEW') && persona !== 'platform';
 
-  const sidebar = (
+  const renderSidebar = (slim: boolean) => (
     <nav className="flex h-full flex-col bg-federal-900 text-federal-100" aria-label="Main">
-      <div className="flex h-16 items-center px-5"><Logo light /></div>
-      <div className="mx-3 mb-3 rounded bg-federal-950/50 px-3 py-2.5">
+      <div className={clsx('flex h-16 items-center', slim ? 'justify-center' : 'justify-between pl-5 pr-3')}>
+        {slim ? <Logo light compact /> : <Logo light />}
+        {!slim && <button onClick={toggleCollapsed} aria-label="Collapse menu" title="Collapse menu" className="hidden rounded p-1.5 text-federal-300 hover:bg-federal-800 hover:text-white lg:block"><PanelLeftClose className="h-[18px] w-[18px]" /></button>}
+      </div>
+      {slim && <button onClick={toggleCollapsed} aria-label="Expand menu" title="Expand menu" className="mx-auto mb-2 rounded p-1.5 text-federal-300 hover:bg-federal-800 hover:text-white"><PanelLeftOpen className="h-[18px] w-[18px]" /></button>}
+      {!slim && <div className="mx-3 mb-3 rounded bg-federal-950/50 px-3 py-2.5">
         <div className="truncate text-sm font-bold text-white">{session.branding?.companyName ?? session.organization.name}</div>
         <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-federal-300">
           {session.organization.plan && <><span>{session.organization.plan} plan</span><span aria-hidden>·</span></>}<span>{PERSONA_LABEL[persona]}</span>
         </div>
-      </div>
-      <div className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-4">
+      </div>}
+      <div className={clsx('scrollbar-thin flex-1 overflow-y-auto pb-4', slim ? 'px-2' : 'px-3')}>
         {groups.map((g, gi) => (
           <div key={gi} className="mt-3 first:mt-0">
-            {g.label && <div className="px-3 pb-1 pt-2 text-2xs font-semibold text-federal-300">{g.label}</div>}
+            {g.label && !slim && <div className="px-3 pb-1 pt-2 text-2xs font-semibold text-federal-300">{g.label}</div>}
+            {g.label && slim && gi > 0 && <div className="mx-3 mb-2 mt-1 border-t border-white/10" />}
             {g.items.map((i) => (
-              <NavLink key={i.to} to={i.to} end={i.to === '/app' || i.to === '/app/leasing' || i.to === '/app/broker'}
-                className={({ isActive }) => clsx('group relative mb-0.5 flex items-center gap-3 rounded px-3 py-2 text-[14px] font-medium transition-colors',
+              <NavLink key={i.to} to={i.to} title={slim ? i.label : undefined} aria-label={slim ? i.label : undefined} end={i.to === '/app' || i.to === '/app/leasing' || i.to === '/app/broker'}
+                className={({ isActive }) => clsx('group relative mb-0.5 flex items-center gap-3 rounded py-2 text-[14px] font-medium transition-colors', slim ? 'justify-center px-0' : 'px-3',
                   isActive ? 'bg-federal-800 text-white' : 'text-federal-100/85 hover:bg-federal-800/60 hover:text-white')}>
                 {({ isActive }) => (
                   <>
                     {isActive && <motion.span layoutId="nav-active" className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brick-500" />}
                     <i.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={isActive ? 2.25 : 1.75} />
-                    {i.label}
+                    {!slim && i.label}
                   </>
                 )}
               </NavLink>
@@ -59,18 +66,18 @@ export function AppLayout() {
           </div>
         ))}
       </div>
-      <div className="border-t border-white/10 px-5 py-3 text-2xs text-federal-300">Data scope: {fmt.title(session.scope)}{session.scope === 'PROPERTY' ? ` (${session.propertyIds.length} properties)` : ''}</div>
+      {!slim && <div className="border-t border-white/10 px-5 py-3 text-2xs text-federal-300">Data scope: {fmt.title(session.scope)}{session.scope === 'PROPERTY' ? ` (${session.propertyIds.length} properties)` : ''}</div>}
     </nav>
   );
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="hidden w-[248px] shrink-0 lg:block">{sidebar}</aside>
+      <aside className={clsx('hidden shrink-0 transition-[width] duration-200 lg:block', collapsed ? 'w-[68px]' : 'w-[248px]')}>{renderSidebar(collapsed)}</aside>
       <AnimatePresence>
         {mobileNav && (
           <div className="fixed inset-0 z-40 lg:hidden">
             <motion.div className="absolute inset-0 bg-graphite-950/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMobileNav(false)} />
-            <motion.aside className="absolute inset-y-0 left-0 w-[260px]" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }} transition={{ type: 'spring', stiffness: 400, damping: 40 }}>{sidebar}</motion.aside>
+            <motion.aside className="absolute inset-y-0 left-0 w-[260px]" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }} transition={{ type: 'spring', stiffness: 400, damping: 40 }}>{renderSidebar(false)}</motion.aside>
           </div>
         )}
       </AnimatePresence>
