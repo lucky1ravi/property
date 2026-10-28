@@ -137,8 +137,9 @@ interface Notification { id: string; title: string; body?: string; link?: string
 function Notifications() {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
-  const q = useApi<Notification[]>('/api/workflow/notifications', { refetchInterval: 20_000 });
-  const unread = (q.data ?? []).filter((n) => !n.read).length;
+  const q = useApi<{ items: Notification[]; unread: number }>('/api/workflow/notifications', { refetchInterval: 20_000 });
+  const items = q.data?.items ?? [];
+  const unread = q.data?.unread ?? items.filter((n) => !n.read).length;
   const markAll = async () => {
     await api.post('/api/workflow/notifications/read-all');
     q.refetch();
@@ -160,10 +161,10 @@ function Notifications() {
                 {unread > 0 && <button onClick={markAll} className="text-xs font-semibold text-federal-800 hover:underline">Mark all as read</button>}
               </div>
               <ul className="scrollbar-thin max-h-[420px] overflow-y-auto">
-                {(q.data ?? []).length === 0 && <li className="px-4 py-8 text-center text-sm text-graphite-500">You’re all caught up.</li>}
-                {(q.data ?? []).slice(0, 30).map((n) => (
+                {items.length === 0 && <li className="px-4 py-8 text-center text-sm text-graphite-500">You’re all caught up.</li>}
+                {items.slice(0, 30).map((n) => (
                   <li key={n.id}>
-                    <button onClick={() => { setOpen(false); api.post(`/api/workflow/notifications/${n.id}/read`).then(() => q.refetch()); if (n.link) nav(n.link); }}
+                    <button onClick={() => { setOpen(false); api.post(`/api/workflow/notifications/${n.id}/read`).then(() => q.refetch()); if (n.link) nav(n.link.startsWith('/app') ? n.link : '/app' + n.link); }}
                       className={clsx('flex w-full gap-3 border-b border-limestone-100 px-4 py-3 text-left hover:bg-limestone-50', !n.read && 'bg-federal-50/50')}>
                       <span className={clsx('mt-1.5 h-2 w-2 shrink-0 rounded-full', n.read ? 'bg-transparent' : n.priority === 'HIGH' ? 'bg-brick-600' : 'bg-federal-700')} />
                       <span className="min-w-0">

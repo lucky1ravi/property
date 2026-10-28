@@ -19,7 +19,7 @@ export function WorkflowTrack({ steps, current, compact }: { steps: { key: strin
   const offPath = idx === -1;
   return (
     <div className="w-full">
-      <ol className="flex items-start">
+      <ol className="flex items-start pr-8">
         {steps.map((s, i) => {
           const done = !offPath && i < idx;
           const active = i === idx;
