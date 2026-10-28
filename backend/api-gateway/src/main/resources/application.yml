@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: api-gateway
+  main:
+    web-application-type: reactive
+
+server:
+  port: ${PORT:8080}
+
+propertyos:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-0123456789abcdef}
+  allowed-origins: ${ALLOWED_ORIGINS:*}
+  rate-limit:
+    user-per-minute: ${RATE_LIMIT_USER_PER_MINUTE:600}
+    public-per-minute: ${RATE_LIMIT_PUBLIC_PER_MINUTE:120}
+  services:
+    identity: ${IDENTITY_URL:http://localhost:8081}
+    leasing: ${LEASING_URL:http://localhost:8082}
+    billing: ${BILLING_URL:http://localhost:8083}
+    maintenance: ${MAINTENANCE_URL:http://localhost:8084}
+    workflow: ${WORKFLOW_URL:http://localhost:8085}
+    ai: ${AI_URL:http://localhost:8086}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+spring.cloud.gateway.httpclient:
+  connect-timeout: 5000
+  response-timeout: 90s

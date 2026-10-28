@@ -1,0 +1,29 @@
+{
+  "key": "LEASE",
+  "name": "Lease lifecycle",
+  "entity": "Lease",
+  "initialState": "DRAFT",
+  "states": [
+    { "key": "DRAFT", "label": "Draft", "category": "OPEN", "slaHours": 24 },
+    { "key": "SENT", "label": "Sent for signature", "category": "WAITING", "slaHours": 72 },
+    { "key": "TENANT_SIGNED", "label": "Tenant signed", "category": "OPEN", "slaHours": 24 },
+    { "key": "ACTIVE", "label": "Active", "category": "OPEN" },
+    { "key": "RENEWAL_OFFERED", "label": "Renewal offered", "category": "WAITING" },
+    { "key": "NOTICE_GIVEN", "label": "Notice given", "category": "WAITING" },
+    { "key": "ENDED", "label": "Ended, deposit pending", "category": "OPEN", "slaHours": 504 },
+    { "key": "CLOSED", "label": "Closed", "category": "DONE" },
+    { "key": "VOID", "label": "Void", "category": "CANCELLED" }
+  ],
+  "transitions": [
+    { "action": "SEND", "label": "Send for signature", "from": ["DRAFT"], "to": "SENT", "permission": "LEASE:EDIT" },
+    { "action": "TENANT_SIGN", "label": "Tenant signs", "from": ["SENT"], "to": "TENANT_SIGNED", "permission": "LEASE:SIGN" },
+    { "action": "COUNTERSIGN", "label": "Countersign and activate", "from": ["TENANT_SIGNED"], "to": "ACTIVE", "permission": "LEASE:APPROVE" },
+    { "action": "OFFER_RENEWAL", "label": "Offer renewal", "from": ["ACTIVE"], "to": "RENEWAL_OFFERED", "permission": "LEASE:EDIT" },
+    { "action": "ACCEPT_RENEWAL", "label": "Accept renewal", "from": ["RENEWAL_OFFERED"], "to": "ACTIVE", "permission": "LEASE:SIGN" },
+    { "action": "DECLINE_RENEWAL", "label": "Decline renewal", "from": ["RENEWAL_OFFERED"], "to": "NOTICE_GIVEN", "permission": "LEASE:SIGN" },
+    { "action": "GIVE_NOTICE", "label": "Record notice to vacate", "from": ["ACTIVE", "RENEWAL_OFFERED"], "to": "NOTICE_GIVEN", "permission": "LEASE:EDIT" },
+    { "action": "END", "label": "Move out", "from": ["NOTICE_GIVEN", "ACTIVE"], "to": "ENDED", "permission": "LEASE:EDIT" },
+    { "action": "SETTLE_DEPOSIT", "label": "Settle deposit and close", "from": ["ENDED"], "to": "CLOSED", "permission": "PAYMENT:APPROVE" },
+    { "action": "VOID", "label": "Void", "from": ["DRAFT", "SENT"], "to": "VOID", "permission": "LEASE:EDIT", "requiresReason": true }
+  ]
+}

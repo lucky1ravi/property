@@ -1,0 +1,85 @@
+{
+  "features": {
+    "LEASING": true,
+    "PAYMENTS": true,
+    "MAINTENANCE": true,
+    "AUTOMATIONS": true,
+    "AI_ASSISTANT": true,
+    "BROKER_COCKPIT": true,
+    "OPPORTUNITIES": true,
+    "OWNER_PORTAL": true,
+    "VENDOR_PORTAL": true,
+    "RENEWALS": true,
+    "RECURRING_MAINTENANCE": true,
+    "SELF_GUIDED_SHOWINGS": false,
+    "AI_VOICE_AGENT": false
+  },
+  "fees": {
+    "lateFee": { "type": "PERCENT", "percent": 5, "flat": 75 },
+    "applicationFee": 45,
+    "nsfFee": 35,
+    "managementFeePercent": 8,
+    "leasingCommissionPercent": 50,
+    "renewalFee": 250
+  },
+  "invoicing": {
+    "dueDay": 1,
+    "invoiceDaysBeforeDue": 5,
+    "reminderDaysBefore": [3, 1],
+    "reminderDaysAfter": [1, 5, 10],
+    "allocation": "OLDEST_FIRST"
+  },
+  "approvals": {
+    "maintenanceOwnerLimit": 500,
+    "ownerApprovesApplications": false,
+    "vendorInvoiceApprovalLimit": 2500
+  },
+  "screening": {
+    "incomeMultiple": 3,
+    "minScore": 60,
+    "minMonthsEmployed": 6,
+    "requiredDocuments": ["Government ID", "Two recent pay stubs", "Rental history"]
+  },
+  "sla": {
+    "EMERGENCY": { "ackHours": 1, "resolveHours": 24 },
+    "URGENT": { "ackHours": 4, "resolveHours": 72 },
+    "ROUTINE": { "ackHours": 24, "resolveHours": 168 },
+    "enquiryResponseMinutes": 5
+  },
+  "renewals": { "offerDaysBeforeEnd": [90, 60, 30], "maxIncreasePercent": 6 },
+  "ai": {
+    "LISTING_WRITER": { "enabled": true },
+    "RENT_SUGGESTION": { "enabled": true },
+    "LISTING_INTEGRITY": { "enabled": true, "autoPublishOnPass": true },
+    "SCREENING": { "enabled": true, "advisoryOnly": true },
+    "LEASE_SUMMARY": { "enabled": true },
+    "PAYMENT_RISK": { "enabled": true, "riskThreshold": 60 },
+    "MAINTENANCE_TRIAGE": { "enabled": true, "autoDispatchMaxCost": 500, "minConfidence": 0.7 },
+    "ASSISTANT": { "enabled": true, "tone": "professional" },
+    "LEASING_AGENT": { "enabled": true }
+  },
+  "notifications": {
+    "channels": { "email": true, "sms": true, "inApp": true },
+    "quietHours": { "start": "21:00", "end": "08:00" }
+  },
+  "branding": {
+    "companyName": "Summit Ridge Property Group",
+    "primaryColor": "#0B2545",
+    "accentColor": "#C8963E",
+    "portalDomain": "residents.summitridgepg.com",
+    "emailSender": "noreply@summitridgepg.com"
+  },
+  "stateRules": {
+    "DEFAULT": { "name": "Default", "depositCapMonths": 2, "lateFeeGraceDays": 5, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 30 },
+    "CA": { "name": "California", "depositCapMonths": 1, "lateFeeGraceDays": 3, "lateFeeCapPercent": 6, "lateFeeCapFlat": null, "depositRefundDays": 21, "noticeDays": 30 },
+    "TX": { "name": "Texas", "depositCapMonths": null, "lateFeeGraceDays": 2, "lateFeeCapPercent": 12, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 30 },
+    "NY": { "name": "New York", "depositCapMonths": 1, "lateFeeGraceDays": 5, "lateFeeCapPercent": 5, "lateFeeCapFlat": 50, "depositRefundDays": 14, "noticeDays": 30 },
+    "FL": { "name": "Florida", "depositCapMonths": null, "lateFeeGraceDays": 3, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 15, "noticeDays": 30 },
+    "WA": { "name": "Washington", "depositCapMonths": null, "lateFeeGraceDays": 5, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 20 }
+  },
+  "plans": {
+    "STARTER": { "pricePerUnit": 1.25, "minimum": 125, "features": ["LEASING", "PAYMENTS", "MAINTENANCE", "OWNER_PORTAL"] },
+    "GROWTH": { "pricePerUnit": 1.75, "minimum": 300, "features": ["LEASING", "PAYMENTS", "MAINTENANCE", "OWNER_PORTAL", "VENDOR_PORTAL", "AUTOMATIONS", "AI_ASSISTANT", "RENEWALS", "RECURRING_MAINTENANCE"] },
+    "ENTERPRISE": { "pricePerUnit": 2.5, "minimum": 1500, "features": ["*"] }
+  }
+}

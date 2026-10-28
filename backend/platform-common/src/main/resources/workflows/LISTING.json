@@ -1,0 +1,24 @@
+{
+  "key": "LISTING",
+  "name": "Listing lifecycle",
+  "entity": "Listing",
+  "initialState": "DRAFT",
+  "states": [
+    { "key": "DRAFT", "label": "Draft", "category": "OPEN" },
+    { "key": "AI_REVIEW", "label": "AI review", "category": "OPEN", "slaHours": 1 },
+    { "key": "FLAGGED", "label": "Flagged", "category": "WAITING", "slaHours": 24 },
+    { "key": "LIVE", "label": "Live", "category": "OPEN" },
+    { "key": "PAUSED", "label": "Paused", "category": "WAITING" },
+    { "key": "LEASED", "label": "Leased", "category": "DONE" }
+  ],
+  "transitions": [
+    { "action": "SUBMIT", "label": "Submit for review", "from": ["DRAFT"], "to": "AI_REVIEW", "permission": "LISTING:EDIT" },
+    { "action": "AI_PASS", "label": "AI check passed", "from": ["AI_REVIEW"], "to": "LIVE", "system": true },
+    { "action": "AI_FLAG", "label": "AI check flagged", "from": ["AI_REVIEW"], "to": "FLAGGED", "system": true },
+    { "action": "OVERRIDE", "label": "Override and publish", "from": ["FLAGGED"], "to": "LIVE", "permission": "LISTING:APPROVE", "requiresReason": true },
+    { "action": "EDIT", "label": "Back to draft", "from": ["FLAGGED", "LIVE", "PAUSED"], "to": "DRAFT", "permission": "LISTING:EDIT" },
+    { "action": "PAUSE", "label": "Pause", "from": ["LIVE"], "to": "PAUSED", "permission": "LISTING:EDIT" },
+    { "action": "RESUME", "label": "Resume", "from": ["PAUSED"], "to": "LIVE", "permission": "LISTING:EDIT" },
+    { "action": "MARK_LEASED", "label": "Mark leased", "from": ["LIVE", "PAUSED"], "to": "LEASED", "system": true }
+  ]
+}

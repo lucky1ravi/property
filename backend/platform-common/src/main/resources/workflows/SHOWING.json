@@ -1,0 +1,19 @@
+{
+  "key": "SHOWING",
+  "name": "Property showing",
+  "entity": "Showing",
+  "initialState": "REQUESTED",
+  "states": [
+    { "key": "REQUESTED", "label": "Requested", "category": "OPEN", "slaHours": 2 },
+    { "key": "CONFIRMED", "label": "Confirmed", "category": "OPEN" },
+    { "key": "ATTENDED", "label": "Attended", "category": "DONE" },
+    { "key": "NO_SHOW", "label": "No-show", "category": "CANCELLED" },
+    { "key": "CANCELLED", "label": "Cancelled", "category": "CANCELLED" }
+  ],
+  "transitions": [
+    { "action": "CONFIRM", "label": "Confirm", "from": ["REQUESTED"], "to": "CONFIRMED", "permission": "SHOWING:EDIT" },
+    { "action": "ATTEND", "label": "Mark attended", "from": ["CONFIRMED"], "to": "ATTENDED", "permission": "SHOWING:EDIT" },
+    { "action": "NO_SHOW", "label": "Mark no-show", "from": ["CONFIRMED", "REQUESTED"], "to": "NO_SHOW", "permission": "SHOWING:EDIT" },
+    { "action": "CANCEL", "label": "Cancel", "from": ["REQUESTED", "CONFIRMED"], "to": "CANCELLED", "permission": "SHOWING:EDIT" }
+  ]
+}

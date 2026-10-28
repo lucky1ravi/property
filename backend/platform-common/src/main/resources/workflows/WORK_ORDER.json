@@ -1,0 +1,29 @@
+{
+  "key": "WORK_ORDER",
+  "name": "Maintenance work order",
+  "entity": "WorkOrder",
+  "initialState": "SUBMITTED",
+  "states": [
+    { "key": "SUBMITTED", "label": "Submitted", "category": "OPEN", "slaHours": 1 },
+    { "key": "TRIAGED", "label": "Triaged", "category": "OPEN", "slaHours": 4 },
+    { "key": "AWAITING_APPROVAL", "label": "Awaiting owner approval", "category": "WAITING", "slaHours": 24 },
+    { "key": "ASSIGNED", "label": "Assigned", "category": "OPEN", "slaHours": 24 },
+    { "key": "SCHEDULED", "label": "Scheduled", "category": "OPEN" },
+    { "key": "IN_PROGRESS", "label": "In progress", "category": "OPEN" },
+    { "key": "COMPLETED", "label": "Completed", "category": "WAITING", "slaHours": 72 },
+    { "key": "CLOSED", "label": "Closed", "category": "DONE" },
+    { "key": "REJECTED", "label": "Declined", "category": "CANCELLED" }
+  ],
+  "transitions": [
+    { "action": "TRIAGE", "label": "AI triage", "from": ["SUBMITTED"], "to": "TRIAGED", "system": true },
+    { "action": "REQUEST_APPROVAL", "label": "Request owner approval", "from": ["TRIAGED"], "to": "AWAITING_APPROVAL", "permission": "WORK_ORDER:EDIT" },
+    { "action": "APPROVE", "label": "Approve cost", "from": ["AWAITING_APPROVAL"], "to": "TRIAGED", "permission": "WORK_ORDER:APPROVE", "limitKey": "WORK_ORDER:APPROVE" },
+    { "action": "DECLINE", "label": "Decline", "from": ["AWAITING_APPROVAL", "TRIAGED", "SUBMITTED"], "to": "REJECTED", "permission": "WORK_ORDER:APPROVE", "requiresReason": true },
+    { "action": "ASSIGN", "label": "Assign vendor", "from": ["TRIAGED"], "to": "ASSIGNED", "permission": "WORK_ORDER:EDIT" },
+    { "action": "SCHEDULE", "label": "Schedule visit", "from": ["ASSIGNED"], "to": "SCHEDULED", "permission": "WORK_ORDER:UPDATE" },
+    { "action": "START", "label": "Start work", "from": ["ASSIGNED", "SCHEDULED"], "to": "IN_PROGRESS", "permission": "WORK_ORDER:UPDATE" },
+    { "action": "COMPLETE", "label": "Mark complete", "from": ["IN_PROGRESS", "SCHEDULED"], "to": "COMPLETED", "permission": "WORK_ORDER:UPDATE" },
+    { "action": "VERIFY", "label": "Confirm fixed and close", "from": ["COMPLETED"], "to": "CLOSED", "permission": "WORK_ORDER:VERIFY" },
+    { "action": "REOPEN", "label": "Reopen", "from": ["COMPLETED"], "to": "ASSIGNED", "permission": "WORK_ORDER:VERIFY", "requiresReason": true }
+  ]
+}

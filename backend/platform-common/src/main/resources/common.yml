@@ -1,0 +1,57 @@
+propertyos:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-0123456789abcdef}
+  internal-token: ${INTERNAL_TOKEN:dev-internal-service-token}
+  services:
+    identity: ${IDENTITY_URL:http://localhost:8081}
+    leasing: ${LEASING_URL:http://localhost:8082}
+    billing: ${BILLING_URL:http://localhost:8083}
+    maintenance: ${MAINTENANCE_URL:http://localhost:8084}
+    workflow: ${WORKFLOW_URL:http://localhost:8085}
+    ai: ${AI_URL:http://localhost:8086}
+  demo:
+    enabled: ${DEMO_MODE:true}
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:propertyos}${PGSSL:}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:4}
+      minimum-idle: 1
+      connection-timeout: 10000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+  threads:
+    virtual:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: warn

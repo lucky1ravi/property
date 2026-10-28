@@ -1,0 +1,23 @@
+{
+  "key": "APPLICATION",
+  "name": "Rental application",
+  "entity": "Application",
+  "initialState": "SUBMITTED",
+  "states": [
+    { "key": "SUBMITTED", "label": "Submitted", "category": "OPEN", "slaHours": 2 },
+    { "key": "DOCS_PENDING", "label": "Documents pending", "category": "WAITING", "slaHours": 72 },
+    { "key": "SCREENED", "label": "Ready for decision", "category": "OPEN", "slaHours": 24 },
+    { "key": "OWNER_REVIEW", "label": "Owner review", "category": "WAITING", "slaHours": 48 },
+    { "key": "APPROVED", "label": "Approved", "category": "DONE" },
+    { "key": "REJECTED", "label": "Rejected", "category": "CANCELLED" },
+    { "key": "WITHDRAWN", "label": "Withdrawn", "category": "CANCELLED" }
+  ],
+  "transitions": [
+    { "action": "SCREEN_COMPLETE", "label": "Screening complete", "from": ["SUBMITTED", "DOCS_PENDING"], "to": "SCREENED", "system": true },
+    { "action": "REQUEST_DOCS", "label": "Request documents", "from": ["SUBMITTED", "SCREENED"], "to": "DOCS_PENDING", "permission": "APPLICATION:EDIT" },
+    { "action": "SEND_TO_OWNER", "label": "Send to owner", "from": ["SCREENED"], "to": "OWNER_REVIEW", "permission": "APPLICATION:EDIT" },
+    { "action": "APPROVE", "label": "Approve", "from": ["SCREENED", "OWNER_REVIEW"], "to": "APPROVED", "permission": "APPLICATION:APPROVE" },
+    { "action": "REJECT", "label": "Reject", "from": ["SUBMITTED", "SCREENED", "OWNER_REVIEW", "DOCS_PENDING"], "to": "REJECTED", "permission": "APPLICATION:APPROVE", "requiresReason": true },
+    { "action": "WITHDRAW", "label": "Withdraw", "from": ["SUBMITTED", "DOCS_PENDING", "SCREENED", "OWNER_REVIEW"], "to": "WITHDRAWN", "permission": "APPLICATION:EDIT" }
+  ]
+}
