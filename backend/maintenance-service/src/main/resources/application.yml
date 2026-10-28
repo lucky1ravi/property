@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: maintenance-service
+  config:
+    import: classpath:common.yml
+  flyway:
+    schemas: maintenance
+    default-schema: maintenance
+  jpa:
+    properties:
+      hibernate:
+        default_schema: maintenance
+
+server:
+  port: ${PORT:8084}

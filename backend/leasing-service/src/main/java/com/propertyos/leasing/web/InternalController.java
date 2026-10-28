@@ -25,6 +25,26 @@ public class InternalController {
                 from leasing.lease where status in ('ACTIVE','RENEWAL_OFFERED','NOTICE_GIVEN')""");
     }
 
+    @GetMapping("/tenant-lease/{tenantId}")
+    @Transactional(readOnly = true)
+    public Map<String, Object> tenantLease(@PathVariable java.util.UUID tenantId) {
+        return db.one("Lease", """
+                select id, org_id, unit_id, property_id, owner_id, tenant_id, tenant_name, unit_label, property_name
+                from leasing.lease where tenant_id = ? and status in ('ACTIVE','RENEWAL_OFFERED','NOTICE_GIVEN') limit 1""", tenantId);
+    }
+
+    @GetMapping("/property/{id}")
+    @Transactional(readOnly = true)
+    public Map<String, Object> property(@PathVariable java.util.UUID id) {
+        return db.one("Property", "select id, name, city, state, owner_id from leasing.property where id = ?", id);
+    }
+
+    @GetMapping("/owners/{ownerId}")
+    @Transactional(readOnly = true)
+    public Map<String, Object> owner(@PathVariable java.util.UUID ownerId) {
+        return db.one("Owner", "select id, name, approval_limit, management_fee_pct from leasing.owner where id = ?", ownerId);
+    }
+
     @GetMapping("/occupancy")
     @Transactional(readOnly = true)
     public Map<String, Object> occupancy() {
