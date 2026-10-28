@@ -18,6 +18,8 @@ public class OpenAiLlm implements Llm {
     private final ObjectMapper mapper;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final String key, model, baseUrl;
+    /** Some newer models only accept the default temperature; switched off automatically after the first rejection. */
+    private volatile boolean sendTemperature = true;
 
     public OpenAiLlm(ObjectMapper mapper, String key, String model, String baseUrl) {
         this.mapper = mapper;
@@ -40,7 +42,9 @@ public class OpenAiLlm implements Llm {
     public Reply chat(String system, List<Msg> messages, List<ToolSpec> tools, boolean jsonOutput) throws Exception {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);
-        body.put("temperature", 0.2);
+        if (sendTemperature) body.put("temperature", 0.2);
+        String effort = System.getenv("OPENAI_REASONING_EFFORT");
+        if (effort != null && !effort.isBlank()) body.put("reasoning_effort", effort.trim());
         ArrayNode msgs = body.putArray("messages");
         msgs.addObject().put("role", "system").put("content", system);
         for (Msg m : messages) {
@@ -74,6 +78,14 @@ public class OpenAiLlm implements Llm {
                 .timeout(Duration.ofSeconds(45)).header("Authorization", "Bearer " + key).header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
         HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (res.statusCode() == 400 && sendTemperature && res.body().toLowerCase().contains("temperature")) {
+            sendTemperature = false;
+            body.remove("temperature");
+            req = HttpRequest.newBuilder(URI.create(baseUrl + "/chat/completions"))
+                    .timeout(Duration.ofSeconds(45)).header("Authorization", "Bearer " + key).header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
+            res = http.send(req, HttpResponse.BodyHandlers.ofString());
+        }
         if (res.statusCode() / 100 != 2) throw new IllegalStateException("OpenAI returned " + res.statusCode() + ": " + trim(res.body()));
         JsonNode root = mapper.readTree(res.body());
         JsonNode msg = root.path("choices").path(0).path("message");
@@ -86,6 +98,6 @@ public class OpenAiLlm implements Llm {
     }
 
     private static String trim(String s) {
-        return s.length() > 300 ? s.substring(0, 300) : s;
+        return s.length() > 500 ? s.substring(0, 500) : s;
     }
 }

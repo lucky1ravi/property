@@ -13,6 +13,17 @@ Push-Location backend
 mvn -q -B install -DskipTests
 Pop-Location
 
+# Optional settings (AI provider and key, etc.) from .env.local at the repo root. That file is git-ignored.
+$envFile = Join-Path $root ".env.local"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$' -and -not $_.TrimStart().StartsWith("#")) {
+            Set-Item -Path "env:$($Matches[1])" -Value $Matches[2].Trim('"')
+        }
+    }
+    Write-Host "Loaded settings from .env.local"
+}
+
 $env:PGHOST = "localhost"; $env:PGPORT = "5433"; $env:PGDATABASE = "propertyos"
 $env:PGUSER = "postgres"; $env:PGPASSWORD = "postgres"
 

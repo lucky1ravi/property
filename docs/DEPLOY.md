@@ -24,6 +24,8 @@ You never put secrets in the repository. Set every value below in the host's das
 | `DEMO_MODE` | `true` for the interview demo; `false` in production |
 | `AI_PROVIDER` | `openai` or `bedrock` (leave unset to use the offline rules) |
 | `OPENAI_API_KEY` | your key (set it yourself in the dashboard) |
+| `OPENAI_MODEL` | model name, for example `gpt-6-luna` |
+| `OPENAI_REASONING_EFFORT` | optional, for example `none` (needed for tool calling on some GPT-6 models) |
 
 For Bedrock use `AI_PROVIDER=bedrock`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `BEDROCK_MODEL_ID`.
 
