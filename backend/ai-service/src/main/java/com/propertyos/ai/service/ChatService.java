@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.function.BiFunction;
 
 /**
@@ -23,6 +25,7 @@ import java.util.function.BiFunction;
  */
 @Service
 public class ChatService {
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final int MAX_STEPS = 5;
     private final LlmProvider provider;
     private final Guardrails guardrails;
@@ -191,6 +194,7 @@ public class ChatService {
                 }
                 answer = text.isBlank() ? "I couldn't put an answer together. Try rephrasing the question." : guardrails.redact(text);
             } catch (Exception e) {
+                log.warn("AI model call failed, answering from built-in rules: {}", e.getMessage());
                 providerName = "offline (model error)";
                 answer = null;
                 Object[] fb = offline(bearer, clean, available, used);
@@ -272,7 +276,7 @@ public class ChatService {
                 sb.append("I couldn't load that right now.\n");
             }
         }
-        sb.append("\n(The language model isn't connected, so this answer comes from built-in rules.)");
+        sb.append("\n");
         return new Object[]{sb.toString().trim(), null};
     }
 

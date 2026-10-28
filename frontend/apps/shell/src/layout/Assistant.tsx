@@ -10,7 +10,7 @@ interface Msg {
   tools?: string[];
   pending?: Pending;
   outcome?: 'confirmed' | 'cancelled';
-  offline?: boolean;
+  note?: string;
 }
 interface ChatReply { answer?: string; provider?: string; toolsUsed?: { name: string }[]; pendingAction?: Pending | null; suggestions?: string[] }
 
@@ -47,7 +47,8 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
       setMsgs((cur) => [...cur, {
         role: 'assistant', content: r.answer ?? 'I couldn’t put an answer together. Try rephrasing the question.',
         tools: (r.toolsUsed ?? []).map((t) => t.name.replace(/_/g, ' ')), pending: r.pendingAction ?? undefined,
-        offline: (r.provider ?? '').startsWith('offline'),
+        note: r.provider === 'offline (model error)' ? 'The AI model didn’t respond, so built-in rules answered this one. Ask your administrator to check the AI service log.'
+          : (r.provider ?? '').startsWith('offline') ? 'No AI model is configured, so built-in rules answered this one.' : undefined,
       }]);
       setMore(r.suggestions ?? []);
     } catch (e) {
@@ -104,7 +105,7 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
                         <Database className="h-3 w-3" /> Looked up: {m.tools.join(', ')}
                       </div>
                     )}
-                    {m.offline && <div className="mt-2 text-2xs text-graphite-500">Answered by built-in rules (the AI model is not connected).</div>}
+                    {m.note && <div className="mt-2 text-2xs text-graphite-500">{m.note}</div>}
                     {m.pending && (
                       <div className="mt-3 rounded border border-brick-200 bg-brick-50/60 p-3">
                         <p className="text-sm text-graphite-800">{m.pending.summary}</p>
