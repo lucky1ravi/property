@@ -1,0 +1,15 @@
+# Local Postgres for PropertyOS. Start with: docker compose -f infra/docker-compose.yml up -d
+services:
+  postgres:
+    image: postgres:16
+    container_name: propertyos-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: propertyos
+    ports:
+      - "5432:5432"
+    volumes:
+      - propertyos-data:/var/lib/postgresql/data
+volumes:
+  propertyos-data:
