@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Send, X, ShieldCheck, Database } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { api, AiMark, Button, Spinner, toast, toastError, type Persona } from '@propertyos/ui';
+import { api, AiMark, Button, Spinner, toastError, type Persona } from '@propertyos/ui';
 
+interface Pending { id: string; tool: string; summary: string }
 interface Msg {
   role: 'user' | 'assistant';
   content: string;
-  sources?: { label: string; link?: string }[];
   tools?: string[];
-  action?: { label: string; method: 'POST' | 'PUT'; path: string; body?: unknown; confirm: string };
-  done?: boolean;
+  pending?: Pending;
+  outcome?: 'confirmed' | 'cancelled';
+  offline?: boolean;
 }
+interface ChatReply { answer?: string; provider?: string; toolsUsed?: { name: string }[]; pendingAction?: Pending | null; suggestions?: string[] }
 
 const SUGGESTIONS: Record<string, string[]> = {
   broker: ['What needs my attention today?', 'Which units are vacant over 20 days?', 'Who is at risk of paying late this month?'],
@@ -30,36 +31,38 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
-  const nav = useNavigate();
-  useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth' }), [msgs, busy]);
+  const [more, setMore] = useState<string[]>([]);
+  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, busy]);
 
   const send = async (text: string) => {
     const q = text.trim();
     if (!q || busy) return;
-    const next: Msg[] = [...msgs, { role: 'user', content: q }];
-    setMsgs(next);
+    const history = msgs.filter((m) => m.content).map((m) => ({ role: m.role, content: m.content }));
+    setMsgs([...msgs, { role: 'user', content: q }]);
     setInput('');
+    setMore([]);
     setBusy(true);
     try {
-      const r = await api.post<{ reply: string; sources?: Msg['sources']; toolsUsed?: string[]; proposedAction?: Msg['action'] }>('/api/ai/chat', {
-        messages: next.map((m) => ({ role: m.role, content: m.content })),
-      });
-      setMsgs([...next, { role: 'assistant', content: r.reply, sources: r.sources, tools: r.toolsUsed, action: r.proposedAction }]);
+      const r = await api.post<ChatReply>('/api/ai/chat', { message: q, history });
+      setMsgs((cur) => [...cur, {
+        role: 'assistant', content: r.answer ?? 'I couldn’t put an answer together. Try rephrasing the question.',
+        tools: (r.toolsUsed ?? []).map((t) => t.name.replace(/_/g, ' ')), pending: r.pendingAction ?? undefined,
+        offline: (r.provider ?? '').startsWith('offline'),
+      }]);
+      setMore(r.suggestions ?? []);
     } catch (e) {
-      setMsgs([...next, { role: 'assistant', content: e instanceof Error ? e.message : 'The assistant is unavailable right now.' }]);
+      setMsgs((cur) => [...cur, { role: 'assistant', content: e instanceof Error ? e.message : 'The assistant is unavailable right now. Try again in a moment.' }]);
     } finally {
       setBusy(false);
     }
   };
 
-  const runAction = async (i: number) => {
+  const decide = async (i: number, approve: boolean) => {
     const m = msgs[i];
-    if (!m.action) return;
+    if (!m.pending) return;
     try {
-      if (m.action.method === 'POST') await api.post(m.action.path, m.action.body);
-      else await api.put(m.action.path, m.action.body);
-      toast(`${m.action.label}: done`);
-      setMsgs(msgs.map((x, j) => (j === i ? { ...x, done: true } : x)));
+      const r = await api.post<{ message?: string }>(`/api/ai/actions/${m.pending.id}/confirm`, { approve });
+      setMsgs((cur) => [...cur.map((x, j) => (j === i ? { ...x, outcome: approve ? 'confirmed' as const : 'cancelled' as const } : x)), { role: 'assistant', content: r.message ?? (approve ? 'Done.' : 'Cancelled. Nothing was changed.') }]);
     } catch (e) {
       toastError(e);
     }
@@ -101,23 +104,27 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
                         <Database className="h-3 w-3" /> Looked up: {m.tools.join(', ')}
                       </div>
                     )}
-                    {m.sources && m.sources.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {m.sources.map((s, j) => (
-                          <button key={j} onClick={() => s.link && (nav(s.link), onClose())} className="rounded-full bg-limestone-100 px-2.5 py-1 text-xs font-medium text-federal-900 hover:bg-federal-100">{s.label}</button>
-                        ))}
-                      </div>
-                    )}
-                    {m.action && (
+                    {m.offline && <div className="mt-2 text-2xs text-graphite-500">Answered by built-in rules (the AI model is not connected).</div>}
+                    {m.pending && (
                       <div className="mt-3 rounded border border-brick-200 bg-brick-50/60 p-3">
-                        <p className="text-sm text-graphite-800">{m.action.confirm}</p>
-                        <Button size="sm" variant="accent" className="mt-2" disabled={m.done} onClick={() => runAction(i)}>{m.done ? 'Done' : m.action.label}</Button>
+                        <p className="text-sm text-graphite-800">{m.pending.summary}</p>
+                        {m.outcome ? (
+                          <p className="mt-2 text-xs font-semibold text-graphite-600">{m.outcome === 'confirmed' ? 'Confirmed' : 'Cancelled'}</p>
+                        ) : (
+                          <div className="mt-2 flex gap-2">
+                            <Button size="sm" variant="accent" onClick={() => decide(i, true)}>Confirm</Button>
+                            <Button size="sm" variant="quiet" onClick={() => decide(i, false)}>Cancel</Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
               </div>
             ))}
+            {!busy && more.length > 0 && msgs.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">{more.slice(0, 3).map((q) => <button key={q} onClick={() => send(q)} className="rounded-full bg-limestone-100 px-2.5 py-1 text-xs font-medium text-federal-900 hover:bg-federal-100">{q}</button>)}</div>
+            )}
             {busy && <div className="flex items-center gap-2 text-sm text-graphite-500"><Spinner /> Checking your records…</div>}
             <div ref={end} />
           </div>

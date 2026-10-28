@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Logo } from './Logo';
 import { visibleNav } from './nav';
 import { Assistant } from './Assistant';
+import { ErrorBoundary } from './ErrorBoundary';
 
 const PERSONA_LABEL: Record<string, string> = {
   platform: 'Platform admin', admin: 'Org admin', manager: 'Property manager', broker: 'Broker', agent: 'Leasing agent',
@@ -96,11 +97,11 @@ export function AppLayout() {
         </header>
         <main className="scrollbar-thin flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1360px] px-4 py-6 lg:px-8 lg:py-8">
-            <Outlet />
+            <ErrorBoundary label="page" key={loc.pathname}><Outlet /></ErrorBoundary>
           </div>
         </main>
       </div>
-      {aiEnabled && <Assistant open={assistant} onClose={() => setAssistant(false)} persona={persona} />}
+      {aiEnabled && <ErrorBoundary label="assistant" compact><Assistant open={assistant} onClose={() => setAssistant(false)} persona={persona} /></ErrorBoundary>}
     </div>
   );
 }

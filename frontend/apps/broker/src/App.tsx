@@ -73,7 +73,7 @@ function Assistant() {
     },
   });
   const confirm = useAction((id: string) => api.post<any>(`/api/ai/actions/${id}/confirm`, {}), {
-    success: 'Done', onSuccess: (r) => setMsgs((m) => [...m, { role: 'ai', text: r.answer ?? 'Action completed.' }]),
+    success: 'Done', onSuccess: (r) => setMsgs((m) => [...m, { role: 'ai', text: r.message ?? r.answer ?? 'Action completed.' }]),
   });
   const ask = (q: string) => {
     if (!q.trim()) return;
