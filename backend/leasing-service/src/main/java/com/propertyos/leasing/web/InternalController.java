@@ -12,9 +12,17 @@ import java.util.Map;
 @RequestMapping("/internal/leasing")
 public class InternalController {
     private final Db db;
+    private final com.propertyos.leasing.service.ApplicationService applications;
 
-    public InternalController(Db db) {
+    public InternalController(Db db, com.propertyos.leasing.service.ApplicationService applications) {
         this.db = db;
+        this.applications = applications;
+    }
+
+    /** Automation hook: runs screening as the system as soon as an application arrives. */
+    @PostMapping("/applications/{id}/screen")
+    public Map<String, Object> screen(@PathVariable java.util.UUID id) {
+        return Map.of("status", applications.screen(id).get("status"));
     }
 
     @GetMapping("/active-leases")
