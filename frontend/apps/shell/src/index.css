@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { font-feature-settings: 'ss01' on, 'cv11' on; }
+  body { font-variant-numeric: lining-nums; }
+  :focus-visible { outline-color: #3B6E9C; }
+  ::selection { background: #C3DCDA; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #BCC6C2 transparent; }
+}
