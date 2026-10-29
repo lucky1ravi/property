@@ -21,6 +21,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
+import com.propertyos.document.storage.FileStore;
 import java.util.*;
 import java.util.List;
 
@@ -42,8 +43,9 @@ public class DocumentSeeder implements EventHandler {
     private final LeaseDocuments leases;
     private final TransactionTemplate tx;
     private final boolean demo;
+    private final FileStore files;
 
-    public DocumentSeeder(Db db, ServiceClient client, DocumentService docs, LeaseDocuments leases, PlatformTransactionManager tm,
+    public DocumentSeeder(Db db, ServiceClient client, DocumentService docs, LeaseDocuments leases, PlatformTransactionManager tm, FileStore files,
                           @Value("${propertyos.demo.enabled:true}") boolean demo) {
         this.db = db;
         this.client = client;
@@ -51,6 +53,7 @@ public class DocumentSeeder implements EventHandler {
         this.leases = leases;
         this.tx = new TransactionTemplate(tm);
         this.demo = demo;
+        this.files = files;
     }
 
     /**
@@ -77,7 +80,9 @@ public class DocumentSeeder implements EventHandler {
         // Clear now; the scheduler re-seeds shortly after, once the other services have restored their records.
         db.update("delete from document.signature_request where org_id = ?", e.orgId());
         db.update("delete from document.document where org_id = ?", e.orgId());
+        List<Map<String, Object>> stored = db.list("select storage_key from document.blob where org_id = ? and storage_key is not null", e.orgId());
         db.update("delete from document.blob where org_id = ?", e.orgId());
+        for (Map<String, Object> b : stored) files.delete((String) b.get("storage_key"));
         db.update("delete from document.seed_state where org_id = ?", e.orgId());
     }
 

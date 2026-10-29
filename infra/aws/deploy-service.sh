@@ -8,8 +8,10 @@ set -euo pipefail
 
 cluster="$1"; service="$2"; image="$3"
 
-current=$(aws ecs describe-services --cluster "$cluster" --services "$service" --query 'services[0].taskDefinition' --output text)
-echo "[$service] current task definition: $current"
+# Start from the family's newest revision (Terraform's or the pipeline's), so configuration changed in Terraform is picked up.
+family="${cluster}-${service}"
+current=$(aws ecs describe-task-definition --task-definition "$family" --query 'taskDefinition.taskDefinitionArn' --output text)
+echo "[$service] building on: $current"
 
 aws ecs describe-task-definition --task-definition "$current" --query 'taskDefinition' > "/tmp/$service-td.json"
 jq --arg image "$image" '

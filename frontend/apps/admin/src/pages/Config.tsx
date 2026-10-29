@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader, Panel, Button, Field, Input, Toggle, Skeleton, Tabs, Timeline, useApi, useAction, api, fmt, useSession, ConfirmDialog, Textarea } from '@propertyos/ui';
 
 const inv = ['/api/identity/config'];
@@ -127,6 +127,31 @@ const SECTIONS: [string, string, string][] = [
 ];
 
 /** Renders any JSON config value as an editable form, so every setting is changeable without a deploy. */
+const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * Colour setting: a native colour picker next to a hex box, kept in step. The value is saved only when it is a full
+ * six-digit hex code, so typing a code by hand never saves a half-finished colour.
+ */
+function ColourField({ label, hint, value, onChange }: { label: string; hint?: string; value: string; onChange: (v: string) => void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const type = (v: string) => {
+    const t = v.startsWith('#') ? v : '#' + v;
+    setText(t);
+    if (HEX_COLOUR.test(t)) onChange(t.toUpperCase());
+  };
+  return (
+    <Field label={label} hint={hint ?? 'Pick a colour, or type a code such as #0B2545'} error={HEX_COLOUR.test(text) ? undefined : 'Enter a six-digit code, like #0B2545'}>
+      <div className="flex items-center gap-2">
+        <input type="color" aria-label={`${label} picker`} value={HEX_COLOUR.test(text) ? text.toLowerCase() : '#000000'} onChange={(e) => type(e.target.value)}
+          className="h-9 w-12 cursor-pointer rounded border border-limestone-200 bg-white p-1" />
+        <Input value={text} maxLength={7} spellCheck={false} aria-label={`${label} code`} onChange={(e) => type(e.target.value)} className="max-w-[9rem] font-mono" />
+      </div>
+    </Field>
+  );
+}
+
 function Node({ label, hint, value, onChange, depth = 0 }: { label: string; hint?: string; value: any; onChange: (v: any) => void; depth?: number }) {
   if (typeof value === 'boolean') return (
     <div className="flex items-start justify-between gap-4 rounded-md border border-limestone-200 bg-white px-4 py-3">
@@ -135,6 +160,7 @@ function Node({ label, hint, value, onChange, depth = 0 }: { label: string; hint
     </div>
   );
   if (typeof value === 'number') return <Field label={label} hint={hint}><Input type="number" step="any" value={value} onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))} /></Field>;
+  if (typeof value === 'string' && HEX_COLOUR.test(value)) return <ColourField label={label} hint={hint} value={value} onChange={onChange} />;
   if (typeof value === 'string') return <Field label={label} hint={hint}><Input value={value} onChange={(e) => onChange(e.target.value)} /></Field>;
   if (Array.isArray(value)) return <Field label={label} hint="One per line"><Textarea rows={Math.min(Math.max(value.length, 2), 6)} value={value.join('\n')} onChange={(e) => onChange(e.target.value.split('\n').map((x) => x.trim()).filter(Boolean).map((x) => (typeof value[0] === 'number' ? Number(x) : x)))} /></Field>;
   if (value && typeof value === 'object') {

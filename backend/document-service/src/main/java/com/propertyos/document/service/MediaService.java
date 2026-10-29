@@ -1,5 +1,6 @@
 package com.propertyos.document.service;
 
+import com.propertyos.document.storage.FileStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -36,8 +37,9 @@ public class MediaService {
     private final AuditService audit;
     private final Notifier notifier;
     private final ObjectMapper mapper;
+    private final FileStore files;
 
-    public MediaService(Db db, ConfigClient config, FileRules rules, ServiceClient client, AuditService audit, Notifier notifier, ObjectMapper mapper) {
+    public MediaService(Db db, ConfigClient config, FileRules rules, ServiceClient client, AuditService audit, Notifier notifier, ObjectMapper mapper, FileStore files) {
         this.db = db;
         this.config = config;
         this.rules = rules;
@@ -45,6 +47,7 @@ public class MediaService {
         this.audit = audit;
         this.notifier = notifier;
         this.mapper = mapper;
+        this.files = files;
     }
 
     /**
@@ -141,14 +144,15 @@ public class MediaService {
         JsonNode verdict = moderate(kind, file, data);
         Decision d = decide(kind, verdict);
         UUID id = UUID.randomUUID();
+        FileStore.Placement placed = files.put(ctx.orgId(), "photos", id, data, file.mimeType());
         List<String> labels = new ArrayList<>();
         verdict.path("labels").forEach(l -> labels.add(l.asText()));
         db.update("""
-                insert into document.media (id, org_id, kind, subject_id, subject_label, property_id, file_name, mime_type, size_bytes, sha256, content, status, decided_by,
+                insert into document.media (id, org_id, kind, subject_id, subject_label, property_id, file_name, mime_type, size_bytes, sha256, content, storage_key, status, decided_by,
                     ai_verdict, ai_confidence, ai_category, ai_labels, ai_reason, ai_provider, ai_simulated, threshold_used, flag_reason, decision_note, decided_at,
                     uploaded_by, uploaded_by_name, ai_quality, ai_caption, ai_quality_issues)
-                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::text[],?,?,?,?,?,?, case when ? in ('APPROVED','REJECTED') then now() end, ?,?,?,?,?::text[])""",
-                id, ctx.orgId(), kind, subjectId, label, propertyId, file.fileName(), file.mimeType(), file.size(), file.sha256(), data, d.status, d.decidedBy,
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::text[],?,?,?,?,?,?, case when ? in ('APPROVED','REJECTED') then now() end, ?,?,?,?,?::text[])""",
+                id, ctx.orgId(), kind, subjectId, label, propertyId, file.fileName(), file.mimeType(), file.size(), file.sha256(), placed.inline(), placed.key(), d.status, d.decidedBy,
                 verdict.path("verdict").asText("UNKNOWN"), verdict.path("confidence").asDouble(0), verdict.path("category").asText("OTHER"),
                 "{" + String.join(",", labels.stream().map(x -> "\"" + x.replace("\\", "").replace("\"", "") + "\"").toList()) + "}",
                 trim(verdict.path("reason").asText(""), 500), trim(verdict.path("provider").asText(""), 120), verdict.path("simulated").asBoolean(false), threshold(),
@@ -277,10 +281,11 @@ public class MediaService {
     @Transactional
     public void remove(UUID id) {
         UserContext ctx = UserContextHolder.require();
-        Map<String, Object> m = db.find("select id, org_id, kind, subject_id, status, uploaded_by from document.media where id = ?", id).orElseThrow(() -> ApiException.notFound("Photo"));
+        Map<String, Object> m = db.find("select id, org_id, kind, subject_id, status, uploaded_by, storage_key from document.media where id = ?", id).orElseThrow(() -> ApiException.notFound("Photo"));
         if (!reviewer(ctx) && !ctx.userId().equals(m.get("uploaded_by"))) throw ApiException.forbidden("You can only remove your own photos.");
         if ("APPROVED".equals(m.get("status"))) unpublish(id, (String) m.get("kind"), (UUID) m.get("subject_id"), (UUID) m.get("org_id"));
         db.update("delete from document.media where id = ?", id);
+        files.delete((String) m.get("storage_key"));
         audit.record("Media", id, "PHOTO_REMOVED", (String) m.get("status"), "REMOVED", Map.of("by", ctx.name()));
     }
 
@@ -350,16 +355,16 @@ public class MediaService {
     @Transactional(readOnly = true)
     public DocumentService.FileData content(UUID id) {
         UserContext ctx = UserContextHolder.require();
-        Map<String, Object> r = db.find("select file_name, mime_type, content, uploaded_by from document.media where id = ?", id).orElseThrow(() -> ApiException.notFound("Photo"));
+        Map<String, Object> r = db.find("select file_name, mime_type, content, storage_key, uploaded_by from document.media where id = ?", id).orElseThrow(() -> ApiException.notFound("Photo"));
         if (!reviewer(ctx) && !ctx.userId().equals(r.get("uploaded_by"))) throw ApiException.notFound("Photo");
-        return new DocumentService.FileData((String) r.get("file_name"), (String) r.get("mime_type"), (byte[]) r.get("content"));
+        return new DocumentService.FileData((String) r.get("file_name"), (String) r.get("mime_type"), files.read((String) r.get("storage_key"), (byte[]) r.get("content")));
     }
 
     /** Public: approved photos only. */
     @Transactional(readOnly = true)
     public Optional<DocumentService.FileData> publicContent(UUID id) {
-        return db.find("select file_name, mime_type, content from document.media where id = ? and status = 'APPROVED'", id)
-                .map(r -> new DocumentService.FileData((String) r.get("file_name"), (String) r.get("mime_type"), (byte[]) r.get("content")));
+        return db.find("select file_name, mime_type, content, storage_key from document.media where id = ? and status = 'APPROVED'", id)
+                .map(r -> new DocumentService.FileData((String) r.get("file_name"), (String) r.get("mime_type"), files.read((String) r.get("storage_key"), (byte[]) r.get("content"))));
     }
 
     private static String trim(String s, int max) {

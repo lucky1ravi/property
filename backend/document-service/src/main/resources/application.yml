@@ -22,3 +22,9 @@ server:
 springdoc:
   api-docs:
     path: /api/documents/public/v3/api-docs
+
+# Where uploaded files are kept: "db" (in the database row, the default) or "s3" (private bucket named by STORAGE_BUCKET).
+propertyos:
+  storage:
+    type: ${STORAGE_TYPE:db}
+    bucket: ${STORAGE_BUCKET:}

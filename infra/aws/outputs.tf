@@ -46,3 +46,8 @@ output "demo_logins" {
   description = "Where to find the demo personas once DEMO_MODE is on."
   value       = "https://${aws_cloudfront_distribution.main.domain_name}/api/identity/public/demo-users"
 }
+
+output "files_bucket" {
+  description = "Private bucket holding uploaded documents and photos."
+  value       = aws_s3_bucket.files.bucket
+}

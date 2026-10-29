@@ -35,6 +35,8 @@ locals {
       JAVA_OPTS                         = "-XX:+UseSerialGC -Xss512k -XX:MaxRAMPercentage=70"
       LOGGING_STRUCTURED_FORMAT_CONSOLE = "ecs"
       AWS_REGION                        = var.region
+      STORAGE_TYPE                      = "s3"
+      STORAGE_BUCKET                    = aws_s3_bucket.files.bucket
     },
     local.downstream_urls,
     var.ai_provider == "" ? {} : { AI_PROVIDER = var.ai_provider },
@@ -81,7 +83,9 @@ resource "aws_cloudwatch_log_group" "svc" {
 }
 
 resource "aws_ecs_task_definition" "svc" {
-  for_each                 = local.services
+  for_each = local.services
+  # Keep old revisions usable: services pinned to one by the pipeline must still be able to start replacement tasks.
+  skip_destroy             = true
   family                   = "${local.name}-${each.key}"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"

@@ -32,7 +32,7 @@ class MediaDecisionTest {
         when(config.number(eq("moderation/autoRejectConfidence"), anyString())).thenReturn(new BigDecimal("98"));
         when(config.flag(eq("moderation/autoRejectEnabled"), anyBoolean())).thenReturn(false);
         media = new MediaService(Mockito.mock(Db.class), config, Mockito.mock(FileRules.class), Mockito.mock(ServiceClient.class),
-                Mockito.mock(AuditService.class), Mockito.mock(Notifier.class), mapper);
+                Mockito.mock(AuditService.class), Mockito.mock(Notifier.class), mapper, new com.propertyos.document.storage.DatabaseFileStore());
     }
 
     private MediaService.Decision decide(String kind, String verdict, double confidence, String category) {

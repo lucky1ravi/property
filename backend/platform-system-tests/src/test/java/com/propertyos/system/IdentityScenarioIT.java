@@ -214,4 +214,32 @@ class IdentityScenarioIT {
         // The successful reset reseeds every service asynchronously, which would disturb the other scenarios, so only the guard is exercised.
         assertEquals(403, identity.post(Flow.token("TENANT"), "/api/identity/demo/reset", Map.of()).status());
     }
+
+    /**
+     * One company's administrator must never see another company's roles or people, or be able to hand out another
+     * company's roles (above all the platform operator's). This guards the database-level isolation that the
+     * services depend on, including on managed databases where the admin user can otherwise bypass it.
+     */
+    @Test
+    void companyAdministratorSeesOnlyTheirOwnCompany() {
+        String harborview = Flow.env().token("ORG_ADMIN", "Harborview");
+        String summit = Flow.env().token("ORG_ADMIN", "Summit");
+
+        JsonNode roles = Flow.ok(identity.get(harborview, "/api/identity/roles"), "roles").body();
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (JsonNode r : roles) {
+            assertTrue(keys.add(r.path("role_key").asText()), "each role appears once, but saw a duplicate: " + r.path("role_key").asText());
+            assertFalse("PLATFORM_ADMIN".equals(r.path("role_key").asText()), "an organisation administrator must not see the Platform Admin role");
+        }
+
+        for (JsonNode u : Flow.ok(identity.get(harborview, "/api/identity/users"), "users").body()) {
+            assertTrue(u.path("email").asText().endsWith("@harborviewres.com"), "another company's person is visible: " + u.path("email").asText());
+        }
+
+        // Handing out a role that belongs to another company is refused.
+        String summitRole = Flow.ok(identity.get(summit, "/api/identity/roles"), "summit roles").body().get(0).path("id").asText();
+        Reply foreign = identity.post(harborview, "/api/identity/users",
+                Map.of("email", "isolation-" + UUID.randomUUID() + "@harborviewres.com", "name", "Isolation Check", "roleIds", List.of(summitRole)));
+        assertEquals(400, foreign.status(), "assigning another company's role must be refused: " + foreign.body());
+    }
 }

@@ -1,5 +1,6 @@
 package com.propertyos.document.service;
 
+import com.propertyos.document.storage.FileStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.propertyos.common.audit.AuditService;
 import com.propertyos.common.config.ConfigClient;
@@ -31,9 +32,10 @@ public class DocumentService {
     private final EventPublisher events;
     private final Notifier notifier;
     private final DocumentClassifier classifier;
+    private final FileStore files;
 
     public DocumentService(Db db, ConfigClient config, FileRules rules, Lookups lookups, AuditService audit, EventPublisher events, Notifier notifier,
-                           DocumentClassifier classifier) {
+                           DocumentClassifier classifier, FileStore files) {
         this.db = db;
         this.config = config;
         this.rules = rules;
@@ -42,6 +44,7 @@ public class DocumentService {
         this.events = events;
         this.notifier = notifier;
         this.classifier = classifier;
+        this.files = files;
     }
 
     /**
@@ -392,7 +395,8 @@ public class DocumentService {
 
     void addVersion(UUID docId, UUID orgId, int version, FileRules.Checked file, byte[] data, String note, UUID by, String byName) {
         UUID blob = UUID.randomUUID();
-        db.update("insert into document.blob (id, org_id, content) values (?,?,?)", blob, orgId, data);
+        FileStore.Placement placed = files.put(orgId, "documents", blob, data, file.mimeType());
+        db.update("insert into document.blob (id, org_id, content, storage_key) values (?,?,?,?)", blob, orgId, placed.inline(), placed.key());
         db.update("insert into document.document_version (id, document_id, org_id, version, file_name, mime_type, size_bytes, sha256, blob_id, note, created_by, created_by_name) values (?,?,?,?,?,?,?,?,?,?,?,?)",
                 UUID.randomUUID(), docId, orgId, version, file.fileName(), file.mimeType(), file.size(), file.sha256(), blob, note, by, byName);
     }
@@ -586,9 +590,12 @@ public class DocumentService {
      * Deletes a document row and any stored files no other document uses.
      */
     public void purgeRow(UUID id) {
-        List<Map<String, Object>> blobs = db.list("select blob_id from document.document_version where document_id = ?", id);
+        List<Map<String, Object>> blobs = db.list("select v.blob_id, b.storage_key from document.document_version v join document.blob b on b.id = v.blob_id where v.document_id = ?", id);
         db.update("delete from document.document where id = ?", id);
-        for (Map<String, Object> bl : blobs) db.update("delete from document.blob where id = ?", bl.get("blob_id"));
+        for (Map<String, Object> bl : blobs) {
+            db.update("delete from document.blob where id = ?", bl.get("blob_id"));
+            files.delete((String) bl.get("storage_key"));
+        }
     }
 
     /**
@@ -634,9 +641,9 @@ public class DocumentService {
         if ("RESTRICTED".equals(access(d, ctx))) throw ApiException.forbidden("Your role can see that this document exists but can't open it.");
         if ("DELETED".equals(d.get("status")) && !ctx.has("DOCUMENT:DELETE")) throw ApiException.notFound("Document");
         int v = version == null ? ((Number) d.get("current_version")).intValue() : version;
-        Map<String, Object> ver = db.one("Version", "select v.file_name, v.mime_type, b.content from document.document_version v join document.blob b on b.id = v.blob_id where v.document_id = ? and v.version = ?", id, v);
+        Map<String, Object> ver = db.one("Version", "select v.file_name, v.mime_type, b.content, b.storage_key from document.document_version v join document.blob b on b.id = v.blob_id where v.document_id = ? and v.version = ?", id, v);
         audit.record("Document", id, inline ? "DOCUMENT_VIEWED" : "DOCUMENT_DOWNLOADED", null, null, Map.of("version", v));
-        return new FileData((String) ver.get("file_name"), (String) ver.get("mime_type"), (byte[]) ver.get("content"));
+        return new FileData((String) ver.get("file_name"), (String) ver.get("mime_type"), files.read((String) ver.get("storage_key"), (byte[]) ver.get("content")));
     }
 
     /**
@@ -657,13 +664,13 @@ public class DocumentService {
                 Map<String, Object> d;
                 try { d = load(id); } catch (ApiException e) { continue; }
                 if (!"VISIBLE".equals(access(d, ctx))) continue;
-                Map<String, Object> ver = db.one("Version", "select v.file_name, b.content from document.document_version v join document.blob b on b.id = v.blob_id where v.document_id = ? and v.version = ?", id, d.get("current_version"));
+                Map<String, Object> ver = db.one("Version", "select v.file_name, b.content, b.storage_key from document.document_version v join document.blob b on b.id = v.blob_id where v.document_id = ? and v.version = ?", id, d.get("current_version"));
                 String folder = categoryLabel((String) d.get("category")).replaceAll("[^A-Za-z0-9 ]", "");
                 String name = folder + "/" + ver.get("file_name");
                 for (int i = 2; names.contains(name); i++) name = folder + "/" + i + "-" + ver.get("file_name");
                 names.add(name);
                 z.putNextEntry(new java.util.zip.ZipEntry(name));
-                z.write((byte[]) ver.get("content"));
+                z.write(files.read((String) ver.get("storage_key"), (byte[]) ver.get("content")));
                 z.closeEntry();
                 index.append(csv(d.get("title"))).append(',').append(csv(categoryLabel((String) d.get("category")))).append(',').append(csv(d.get("doc_type"))).append(',')
                         .append(csv(d.get("entity_label"))).append(',').append(csv(name)).append(',').append(d.get("sha256")).append('\n');
