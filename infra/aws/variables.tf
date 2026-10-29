@@ -74,6 +74,21 @@ variable "github_repo" {
   default     = "lucky1ravi/property"
 }
 
+# GitHub now puts the numeric owner and repository ids into the OIDC subject (repo:owner@<id>/repo@<id>:ref:...), so a
+# deleted and re-created account or repository with the same name can never take over this role.
+# Find yours with:  gh api repos/<owner>/<repo> --jq '{repo_id: .id, owner_id: .owner.id}'
+variable "github_owner_id" {
+  description = "Numeric id of the GitHub account that owns the repository."
+  type        = string
+  default     = "1227451"
+}
+
+variable "github_repo_id" {
+  description = "Numeric id of the GitHub repository."
+  type        = string
+  default     = "1437059385"
+}
+
 variable "create_github_oidc_provider" {
   description = "Create the GitHub OIDC identity provider. Set false if the account already has one (only one is allowed per account)."
   type        = bool

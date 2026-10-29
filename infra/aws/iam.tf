@@ -95,7 +95,10 @@ data "aws_iam_policy_document" "github_assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/develop", "repo:${var.github_repo}:ref:refs/heads/main"]
+      values = [
+        for branch in ["develop", "main"] :
+        "repo:${split("/", var.github_repo)[0]}@${var.github_owner_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:ref:refs/heads/${branch}"
+      ]
     }
   }
 }
