@@ -49,7 +49,7 @@ copy terraform.tfvars.example terraform.tfvars      # edit if you want (alarm e-
 terraform init
 
 # 1. Create the image registry (and nothing else yet)
-terraform apply -target=aws_ecr_repository.backend
+terraform apply "-target=aws_ecr_repository.backend"
 
 # 2. Build and push the backend image
 $repo = terraform output -raw ecr_repository_url

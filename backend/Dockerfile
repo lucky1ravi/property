@@ -13,7 +13,9 @@ COPY maintenance-service maintenance-service
 COPY workflow-service workflow-service
 COPY ai-service ai-service
 COPY document-service document-service
-RUN mvn -q -B -DskipTests package \
+COPY platform-test-support platform-test-support
+COPY platform-system-tests platform-system-tests
+RUN mvn -q -B -Dmaven.test.skip=true package \
  && mkdir /jars \
  && for s in api-gateway identity-service leasing-service billing-service maintenance-service workflow-service ai-service document-service; do cp $s/target/app.jar /jars/$s.jar; done
 
