@@ -51,7 +51,7 @@ public class SuspendedOrgs {
         ServiceClient c = client.getIfAvailable();
         if (c == null) return;
         try {
-            JsonNode n = c.get(ServiceClient.Service.IDENTITY, "/internal/identity/suspended-orgs");
+            JsonNode n = c.get(ServiceClient.Service.IDENTITY, "/internal/suspended-orgs");
             Set<UUID> next = new HashSet<>();
             for (JsonNode id : n) next.add(UUID.fromString(id.asText()));
             this.ids = Set.copyOf(next);

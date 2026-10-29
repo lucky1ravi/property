@@ -503,10 +503,17 @@ public class MaintenanceService {
         db.update("""
                 insert into maintenance.vendor (id, org_id, name, contact, phone, email, trades, cities, insurance_expires)
                 values (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?)""",
-                id, UserContextHolder.orgId(), Req.required(b, "name"), Req.str(b, "contact"), Req.str(b, "phone"), Req.email(b, "email"),
+                id, UserContextHolder.orgId(), Req.required(b, "name"), Req.str(b, "contact"), Req.str(b, "phone"), optionalEmail(b),
                 db.json(trades), db.json(Req.strings(b, "cities")), Req.date(b, "insuranceExpires"));
         audit.record("Vendor", id, "CREATED", null, "ACTIVE", Map.of("name", Req.required(b, "name")));
         return Map.of("id", id);
+    }
+
+    private static String optionalEmail(Map<String, Object> b) {
+        String e = Req.str(b, "email");
+        if (e == null || e.isBlank()) return null;
+        if (!e.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address");
+        return e.toLowerCase();
     }
 
     /** Changes a vendor's details or switches them off. Only the fields sent are changed. */

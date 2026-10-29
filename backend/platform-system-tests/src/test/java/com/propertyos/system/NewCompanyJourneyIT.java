@@ -252,6 +252,8 @@ class NewCompanyJourneyIT {
         // 12. Suspending the company turns away everyone in it, hides its homes, and is fully reversible.
         String orgId = onboarded.body().path("orgId").asText();
         String orgPath = "/api/identity/platform/orgs/" + orgId;
+        boolean publicBefore = false; // the listing is rented out by now, so only compare when it is still shown
+        for (JsonNode l : leasing.get(null, "/api/leasing/public/listings").body()) if (listingId.equals(l.path("id").asText())) publicBefore = true;
         check(identity.put(platform, orgPath, Map.of("status", "SUSPENDED")).status() == 400, "suspending needs a reason");
         check(identity.put(platform, orgPath, Map.of("status", "PAUSED")).status() == 400, "status must be ACTIVE or SUSPENDED");
         check(identity.put(platform, "/api/identity/platform/orgs/" + com.propertyos.common.demo.DemoData.PLATFORM.id(), Map.of("status", "SUSPENDED", "reason", "x")).status() == 400, "the platform itself can't be suspended");
@@ -266,7 +268,7 @@ class NewCompanyJourneyIT {
             cutOff = r.status() == 403 && "ORG_SUSPENDED".equals(r.body().path("code").asText());
             if (!cutOff) Thread.sleep(1000);
         }
-        check(cutOff, "people already signed in are turned away");
+        check(cutOff, "people already signed in are turned away; last answer: " + leasing.get(admin, "/api/leasing/properties").status());
         check(maintenance.get(admin, "/api/maintenance/vendors").status() == 403, "every service turns them away");
         boolean stillPublic = false;
         for (JsonNode l : leasing.get(null, "/api/leasing/public/listings").body()) if (listingId.equals(l.path("id").asText())) stillPublic = true;
@@ -283,8 +285,11 @@ class NewCompanyJourneyIT {
         check(back, "reactivating restores access with the same session");
         check(identity.post(null, "/api/identity/public/login", Map.of("email", adminEmail, "password", passwords.get(adminEmail))).status() == 200, "sign-in works again");
         boolean publicAgain = false;
-        for (JsonNode l : leasing.get(null, "/api/leasing/public/listings").body()) if (listingId.equals(l.path("id").asText())) publicAgain = true;
-        check(publicAgain, "its homes are public again");
+        for (int i = 0; i < 40 && !publicAgain; i++) { // the public site learns of it within seconds
+            for (JsonNode l : leasing.get(null, "/api/leasing/public/listings").body()) if (listingId.equals(l.path("id").asText())) publicAgain = true;
+            if (!publicAgain) Thread.sleep(1000);
+        }
+        check(publicAgain || !publicBefore, "its homes are public again");
 
         assertTrue(gaps.isEmpty(), "Gaps for a company set up from scratch:\n - " + String.join("\n - ", gaps));
     }
