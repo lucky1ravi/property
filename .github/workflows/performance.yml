@@ -1,0 +1,79 @@
+name: Performance
+
+# Manual only: starts the whole platform in Docker and runs one Gatling simulation against it.
+on:
+  workflow_dispatch:
+    inputs:
+      simulation:
+        description: Simulation to run
+        type: choice
+        default: SmokeSimulation
+        options: [SmokeSimulation, LoadSimulation, StressSimulation, SpikeSimulation, SoakSimulation]
+      users:
+        description: Concurrent users
+        default: '20'
+      holdSeconds:
+        description: Seconds at full load
+        default: '60'
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build the platform
+        working-directory: backend
+        run: mvn -B -ntp -q -DskipTests package
+      - name: Start the platform
+        env:
+          PGHOST: localhost
+          PGDATABASE: postgres
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          DEMO_MODE: 'true'
+          DB_POOL_SIZE: '10'
+          RATE_LIMIT_USER_PER_MINUTE: '1000000'
+          RATE_LIMIT_PUBLIC_PER_MINUTE: '1000000'
+          IDENTITY_URL: http://localhost:8081
+          LEASING_URL: http://localhost:8082
+          BILLING_URL: http://localhost:8083
+          MAINTENANCE_URL: http://localhost:8084
+          WORKFLOW_URL: http://localhost:8085
+          AI_URL: http://localhost:8086
+          DOCUMENTS_URL: http://localhost:8087
+        run: |
+          i=1
+          for s in identity-service leasing-service billing-service maintenance-service workflow-service ai-service document-service api-gateway; do
+            p=$((8080+i)); [ "$s" = api-gateway ] && p=8080; i=$((i+1))
+            PORT=$p nohup java -Xmx512m -XX:+UseSerialGC -jar backend/$s/target/app.jar > $s.log 2>&1 &
+            [ "$s" = identity-service ] && sleep 40
+          done
+          for p in 8080 8081 8082 8083 8084 8085 8086 8087; do
+            for k in $(seq 1 60); do curl -fs -o /dev/null localhost:$p/actuator/health/readiness && break; sleep 3; done
+          done
+      - name: Run ${{ inputs.simulation }}
+        working-directory: performance
+        run: mvn -B -ntp gatling:test -Dgatling.simulationClass=com.propertyos.perf.${{ inputs.simulation }} -Dusers=${{ inputs.users }} -DholdSeconds=${{ inputs.holdSeconds }}
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatling-report
+          path: performance/target/gatling/

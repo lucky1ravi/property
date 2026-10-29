@@ -91,6 +91,7 @@ Everything is an environment variable; no secrets live in the repository. The fu
 | [AI](docs/AI.md) | Providers, tools, guardrails, audit |
 | [API](docs/API.md) | Conventions, errors, pagination, how Swagger is generated |
 | [CONFIGURATION](docs/CONFIGURATION.md) | Every environment variable and per-company setting |
+| [PERFORMANCE](performance/README.md) | Gatling load, stress, spike and soak tests, with service levels and a baseline |
 | [TESTING](docs/TESTING.md) | Test strategy and how to run each layer |
 | [DEPLOY](docs/DEPLOY.md) | Railway and Vercel |
 | [CONTRIBUTING](CONTRIBUTING.md) | Branching, code style, checks that must pass |

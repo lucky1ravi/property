@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Load, stress, spike and soak tests for the PropertyOS APIs. Separate from the backend build: run it against a deployed or local platform. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.propertyos</groupId>
+    <artifactId>propertyos-performance</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <name>PropertyOS Performance Tests</name>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <gatling.version>3.14.3</gatling.version>
+        <gatling-maven-plugin.version>4.20.5</gatling-maven-plugin.version>
+
+        <!-- Defaults for a local platform on the standard ports; override any with -D on the command line. -->
+        <gatling.simulationClass>com.propertyos.perf.SmokeSimulation</gatling.simulationClass>
+        <baseUrl>http://localhost:8080</baseUrl>
+        <users>20</users>
+        <rampSeconds>30</rampSeconds>
+        <holdSeconds>60</holdSeconds>
+        <p95Ms>800</p95Ms>
+        <maxErrorPercent>1</maxErrorPercent>
+        <org>Summit</org>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.gatling.highcharts</groupId>
+            <artifactId>gatling-charts-highcharts</artifactId>
+            <version>${gatling.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.18.3</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>io.gatling</groupId>
+                <artifactId>gatling-maven-plugin</artifactId>
+                <version>${gatling-maven-plugin.version}</version>
+                <configuration>
+                    <!-- Pick one with -Dgatling.simulationClass=com.propertyos.perf.LoadSimulation (default: the smoke test) -->
+                    <simulationClass>${gatling.simulationClass}</simulationClass>
+                    <runMultipleSimulations>false</runMultipleSimulations>
+                    <failOnError>true</failOnError>
+                    <jvmArgs>
+                        <jvmArg>-DbaseUrl=${baseUrl}</jvmArg>
+                        <jvmArg>-Dusers=${users}</jvmArg>
+                        <jvmArg>-DrampSeconds=${rampSeconds}</jvmArg>
+                        <jvmArg>-DholdSeconds=${holdSeconds}</jvmArg>
+                        <jvmArg>-Dp95Ms=${p95Ms}</jvmArg>
+                        <jvmArg>-DmaxErrorPercent=${maxErrorPercent}</jvmArg>
+                        <jvmArg>-Dorg=${org}</jvmArg>
+                    </jvmArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
