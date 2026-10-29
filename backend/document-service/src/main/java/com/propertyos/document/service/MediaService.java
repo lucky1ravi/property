@@ -47,6 +47,9 @@ public class MediaService {
         this.mapper = mapper;
     }
 
+    /**
+     * Photo columns returned by list and detail queries (leaves out the image bytes).
+     */
     private static final String COLS = """
             id, kind, subject_id, subject_label, property_id, file_name, mime_type, size_bytes, status, decided_by, ai_verdict, ai_confidence, ai_category,
             ai_labels, ai_quality, ai_caption, ai_quality_issues, ai_reason, ai_provider, ai_simulated, threshold_used, flag_reason, reviewer_name, decision_note, decided_at, uploaded_by, uploaded_by_name, created_at""";
@@ -64,6 +67,10 @@ public class MediaService {
         return Math.max(1, Math.min(100, t));
     }
 
+    /**
+     * Returns the photo rules for the signed-in user's company (automatic checking on or off, approval thresholds, size limit, allowed types) and what this user may do (review, upload property photos).
+     */
+    @Transactional(readOnly = true)
     public Map<String, Object> settings() {
         UserContext ctx = UserContextHolder.require();
         Map<String, Object> m = new LinkedHashMap<>();
@@ -91,6 +98,15 @@ public class MediaService {
     }
 
     // ---- Upload
+    /**
+     * Checks and stores a photo, then approves it automatically, queues it for review or rejects it according to the company's moderation settings.
+     *
+     * @param kind         {@code PROPERTY} or {@code PROFILE}
+     * @param subjectId   the property for a property photo
+     * @param originalName the uploaded file name
+     * @param data         the image bytes
+     * @throws ApiException (400/403/404) when the user may not add the photo or it is invalid
+     */
     @Transactional
     public Map<String, Object> submit(String kind, UUID subjectId, String originalName, byte[] data) {
         UserContext ctx = UserContextHolder.require();
@@ -224,6 +240,13 @@ public class MediaService {
     }
 
     // ---- Review
+    /**
+     * Approves or rejects a photo. An approved photo is published and a rejected one that was live is taken down.
+     *
+     * @param decision {@code APPROVE} or {@code REJECT}
+     * @param note     why; required for a rejection
+     * @throws ApiException (403) for non-reviewers, (400) for a bad decision or missing reason, (409) if already in that state
+     */
     @Transactional
     public Map<String, Object> decide(UUID id, String decision, String note) {
         UserContext ctx = UserContextHolder.require();
@@ -248,6 +271,9 @@ public class MediaService {
         return get(id);
     }
 
+    /**
+     * Removes a photo and unpublishes it if it was live.
+     */
     @Transactional
     public void remove(UUID id) {
         UserContext ctx = UserContextHolder.require();
@@ -259,6 +285,10 @@ public class MediaService {
     }
 
     // ---- Reads
+    /**
+     * Returns one photo, if the user may see it.
+     */
+    @Transactional(readOnly = true)
     public Map<String, Object> get(UUID id) {
         UserContext ctx = UserContextHolder.require();
         Map<String, Object> r = db.find("select " + COLS + " from document.media where id = ?", id).orElseThrow(() -> ApiException.notFound("Photo"));
@@ -272,6 +302,10 @@ public class MediaService {
         return m;
     }
 
+    /**
+     * Lists photos the user may see, filtered by status or subject.
+     */
+    @Transactional(readOnly = true)
     public Map<String, Object> list(Map<String, String> f) {
         UserContext ctx = UserContextHolder.require();
         boolean all = reviewer(ctx) && !"mine".equals(f.get("scope"));
@@ -310,6 +344,10 @@ public class MediaService {
     }
 
 
+    /**
+     * Reads a photo's image bytes after checking the user may see it.
+     */
+    @Transactional(readOnly = true)
     public DocumentService.FileData content(UUID id) {
         UserContext ctx = UserContextHolder.require();
         Map<String, Object> r = db.find("select file_name, mime_type, content, uploaded_by from document.media where id = ?", id).orElseThrow(() -> ApiException.notFound("Photo"));
@@ -318,6 +356,7 @@ public class MediaService {
     }
 
     /** Public: approved photos only. */
+    @Transactional(readOnly = true)
     public Optional<DocumentService.FileData> publicContent(UUID id) {
         return db.find("select file_name, mime_type, content from document.media where id = ? and status = 'APPROVED'", id)
                 .map(r -> new DocumentService.FileData((String) r.get("file_name"), (String) r.get("mime_type"), (byte[]) r.get("content")));

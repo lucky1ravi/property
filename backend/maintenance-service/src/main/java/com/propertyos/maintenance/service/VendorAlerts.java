@@ -33,6 +33,9 @@ public class VendorAlerts {
         return Deadlines.thresholds(config, "alerts/vendorInsurance/daysBefore", List.of(7, 14, 30));
     }
 
+    /**
+     * Returns vendor insurance expiries inside the alert horizon, or nothing when these alerts are switched off.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> deadlines() {
         if (!config.flag("alerts/vendorInsurance/enabled", true)) return List.of();
@@ -47,6 +50,11 @@ public class VendorAlerts {
         return out;
     }
 
+    /**
+     * Sends the alerts that are due.
+     *
+     * @return how many notifications were sent
+     */
     @Transactional
     public int run() {
         List<Integer> th = thresholds();
@@ -55,6 +63,9 @@ public class VendorAlerts {
         return sent;
     }
 
+    /**
+     * Daily timer: for each company, sends the vendor alerts that are due.
+     */
     @Scheduled(cron = "0 25 7 * * *", zone = "America/Chicago")
     public void daily() {
         List<UUID> orgs = UserContextHolder.runAsSystem(null, () -> new TransactionTemplate(tm).execute(st ->

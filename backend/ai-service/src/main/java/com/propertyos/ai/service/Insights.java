@@ -43,6 +43,11 @@ public class Insights {
     }
 
     // ---------- Profit opportunities ----------
+    /**
+     * Estimates revenue and savings opportunities from current rents, vacancy, repair history and collections, with the total annual impact.
+     *
+     * @param bearer the caller's token, so data access follows their permissions
+     */
     public Map<String, Object> opportunities(String bearer) {
         JsonNode units = arr(up.tryGet(bearer, "/api/leasing/units")), leases = arr(up.tryGet(bearer, "/api/leasing/leases?status=ACTIVE"));
         JsonNode listings = arr(up.tryGet(bearer, "/api/leasing/listings")), orders = arr(up.tryGet(bearer, "/api/maintenance/work-orders"));
@@ -119,6 +124,11 @@ public class Insights {
     }
 
     // ---------- Broker queue ----------
+    /**
+     * Builds the broker's daily queue from work orders, applications, collections, leads, leases and showings.
+     *
+     * @param bearer the caller's token
+     */
     public Map<String, Object> brokerQueue(String bearer) {
         JsonNode orders = arr(up.tryGet(bearer, "/api/maintenance/work-orders?status=ACTIVE")), apps = arr(up.tryGet(bearer, "/api/leasing/applications"));
         JsonNode collections = arr(up.tryGet(bearer, "/api/billing/collections")), leads = arr(up.tryGet(bearer, "/api/leasing/leads"));

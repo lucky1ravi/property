@@ -27,6 +27,9 @@ public class ReportingService {
         this.events = events;
     }
 
+    /**
+     * Returns billed and collected totals for the month, outstanding balance and related figures.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> summary() {
         Map<String, Object> s = new LinkedHashMap<>(db.one("Summary", """
@@ -46,6 +49,9 @@ public class ReportingService {
         return s;
     }
 
+    /**
+     * Returns outstanding balances in 1-30, 31-60 and older buckets.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> aging() {
         Map<String, Object> a = db.one("Aging", """
@@ -150,6 +156,11 @@ public class ReportingService {
         return Map.of("year", year, "threshold", threshold, "backupWithholdingPercent", bw, "owners", rows, "missingW9", missing);
     }
 
+    /**
+     * Records whether an owner's W-9 was received and the last four digits of their tax id. The full number is never stored.
+     *
+     * @throws ApiException (400) unless the digits are exactly four
+     */
     @Transactional
     public Map<String, Object> saveW9(UUID ownerId, Map<String, Object> b) {
         String tin = com.propertyos.common.web.Req.str(b, "tinLast4");

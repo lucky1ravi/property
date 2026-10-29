@@ -18,6 +18,9 @@ import java.util.*;
 @RequestMapping("/api/identity/platform")
 @RequiresPermission("PLATFORM:VIEW")
 public class PlatformController {
+    /**
+     * Plans a company can be on.
+     */
     private static final Set<String> PLANS = Set.of("STARTER", "GROWTH", "ENTERPRISE");
     private final IdentityStore store;
     private final IdentitySeeder seeder;
@@ -35,11 +38,17 @@ public class PlatformController {
         this.tx = tx;
     }
 
+    /**
+     * Platform administrators: lists customer companies.
+     */
     @GetMapping("/orgs")
     public List<Map<String, Object>> orgs() {
         return tx.read(store::orgs);
     }
 
+    /**
+     * Platform administrators: console figures (companies, users, users active in the last 7 days, plan mix, daily sign-ins and recent configuration changes).
+     */
     @GetMapping("/summary")
     public Map<String, Object> summary() {
         return tx.read(() -> {
@@ -79,17 +88,26 @@ public class PlatformController {
         return Map.of("orgId", orgId, "adminUserId", adminId, "defaultRoles", DefaultRoles.TEMPLATES.size());
     }
 
+    /**
+     * Platform administrators: a company's feature switches with plan defaults and overrides.
+     */
     @GetMapping("/orgs/{id}/features")
     public List<Map<String, Object>> features(@PathVariable UUID id) {
         return tx.read(() -> config.featureMatrix(id));
     }
 
+    /**
+     * Platform administrators: turns individual features on or off for a company.
+     */
     @PutMapping("/orgs/{id}/features")
     @RequiresPermission("PLATFORM:CONFIGURE")
     public List<Map<String, Object>> setFeatures(@PathVariable UUID id, @RequestBody Map<String, Object> changes) {
         return tx.write(() -> config.setEntitlements(id, changes));
     }
 
+    /**
+     * Platform administrators: changes a company's plan or status.
+     */
     @PutMapping("/orgs/{id}")
     @RequiresPermission("PLATFORM:CONFIGURE")
     public void updateOrg(@PathVariable UUID id, @RequestBody Map<String, String> body) {

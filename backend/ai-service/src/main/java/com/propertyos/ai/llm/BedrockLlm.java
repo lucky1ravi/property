@@ -21,27 +21,58 @@ public class BedrockLlm implements Llm {
     }
 
     public BedrockLlm(ObjectMapper mapper, String region, String modelId, boolean vision) {
+        this(mapper, BedrockRuntimeClient.builder().region(Region.of(region)).build(), modelId, vision);
+    }
+
+    /**
+     * Uses a ready-made client, so callers (and tests) decide how the connection to Bedrock is built.
+     *
+     * @param mapper  JSON reader for tool arguments
+     * @param client  the Bedrock runtime client
+     * @param modelId the model to call
+     * @param vision  true when this instance is the image model
+     */
+    public BedrockLlm(ObjectMapper mapper, BedrockRuntimeClient client, String modelId, boolean vision) {
         this.mapper = mapper;
         this.modelId = modelId;
         this.vision = vision;
-        this.client = BedrockRuntimeClient.builder().region(Region.of(region)).build();
+        this.client = client;
     }
 
+    /**
+     * Returns {@code bedrock}.
+     */
     @Override
     public String provider() {
         return "bedrock";
     }
 
+    /**
+     * Returns the Bedrock model id in use.
+     */
     @Override
     public String model() {
         return modelId;
     }
 
+    /**
+     * Tells whether this instance was configured as an image model.
+     */
     @Override
     public boolean supportsVision() {
         return vision;
     }
 
+    /**
+     * Asks the model about an image.
+     *
+     * @param system the instructions
+     * @param prompt the question
+     * @param image  the image bytes
+     * @param mime   the image type
+     * @return the model's text answer
+     * @throws Exception when the call fails
+     */
     @Override
     public String vision(String system, String prompt, byte[] image, String mime) throws Exception {
         ImageFormat fmt = mime.contains("png") ? ImageFormat.PNG : mime.contains("gif") ? ImageFormat.GIF : mime.contains("webp") ? ImageFormat.WEBP : ImageFormat.JPEG;
@@ -55,6 +86,15 @@ public class BedrockLlm implements Llm {
         return text.toString();
     }
 
+    /**
+     * Sends a conversation, optionally with tools, and returns the model's answer or tool calls.
+     *
+     * @param system     the instructions
+     * @param messages   the conversation so far
+     * @param tools      tools the model may call, or empty
+     * @param jsonOutput true to ask for a JSON answer
+     * @throws Exception when the call fails
+     */
     @Override
     public Reply chat(String system, List<Msg> messages, List<ToolSpec> tools, boolean jsonOutput) throws Exception {
         List<Message> msgs = new ArrayList<>();

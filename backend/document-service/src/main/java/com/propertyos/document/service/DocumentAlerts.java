@@ -79,6 +79,11 @@ public class DocumentAlerts {
         return out;
     }
 
+    /**
+     * Sends the document alerts that are due (expiries and missing requirements).
+     *
+     * @return counts of what was sent
+     */
     @Transactional
     public Map<String, Object> run() {
         Map<String, Object> out = new LinkedHashMap<>();
@@ -122,6 +127,9 @@ public class DocumentAlerts {
         return out;
     }
 
+    /**
+     * Daily timer: for each company, sends the document alerts that are due.
+     */
     @Scheduled(cron = "0 35 7 * * *", zone = "America/Chicago")
     public void daily() {
         List<UUID> orgs = UserContextHolder.runAsSystem(null, () -> new TransactionTemplate(tm).execute(st ->

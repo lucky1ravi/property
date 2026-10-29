@@ -20,6 +20,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * API for property and profile photos that go through review before they are shown.
+ */
 @RestController
 public class MediaController {
     private final MediaService media;
@@ -30,12 +33,21 @@ public class MediaController {
         this.tx = new TransactionTemplate(tm);
     }
 
+    /**
+     * Returns the photo rules, checker status and what the signed-in user may do.
+     */
     @GetMapping("/api/documents/media/settings") @RequiresPermission("MEDIA:UPLOAD")
     public Object settings() { return media.settings(); }
 
+    /**
+     * Lists photos the user may see, filtered by status or subject.
+     */
     @GetMapping("/api/documents/media") @RequiresPermission("MEDIA:UPLOAD")
     public Object list(@RequestParam Map<String, String> f) { return media.list(f); }
 
+    /**
+     * Submits a property or profile photo for checking and review.
+     */
     @PostMapping(value = "/api/documents/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE) @RequiresPermission("MEDIA:UPLOAD")
     public Object upload(@RequestParam("file") MultipartFile file, @RequestParam(defaultValue = "PROPERTY") String kind, @RequestParam(required = false) String subjectId) throws java.io.IOException {
         UUID subject;
@@ -47,9 +59,15 @@ public class MediaController {
         return media.submit(kind, subject, file.getOriginalFilename(), file.getBytes());
     }
 
+    /**
+     * Returns one photo's details and review history.
+     */
     @GetMapping("/api/documents/media/{id}") @RequiresPermission("MEDIA:UPLOAD")
     public Object get(@PathVariable UUID id) { return media.get(id); }
 
+    /**
+     * Returns the photo's image bytes.
+     */
     @GetMapping("/api/documents/media/{id}/content") @RequiresPermission("MEDIA:UPLOAD")
     public ResponseEntity<byte[]> content(@PathVariable UUID id) {
         DocumentService.FileData f = media.content(id);
@@ -57,9 +75,15 @@ public class MediaController {
                 .cacheControl(CacheControl.noStore()).body(f.bytes());
     }
 
+    /**
+     * Approves or rejects a photo; a rejection needs a reason.
+     */
     @PostMapping("/api/documents/media/{id}/decision") @RequiresPermission("MEDIA:REVIEW")
     public Object decide(@PathVariable UUID id, @RequestBody Map<String, Object> b) { return media.decide(id, Req.str(b, "decision"), Req.str(b, "note")); }
 
+    /**
+     * Removes a photo.
+     */
     @DeleteMapping("/api/documents/media/{id}") @RequiresPermission("MEDIA:UPLOAD")
     public Object remove(@PathVariable UUID id) {
         media.remove(id);

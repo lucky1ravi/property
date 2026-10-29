@@ -9,9 +9,21 @@ public final class FeatureCatalog {
     private FeatureCatalog() {
     }
 
+    /**
+     * A product capability that permissions and plans are defined against.
+     *
+     * @param key          stable key
+     * @param label        display name
+     * @param module       menu group
+     * @param actions      actions that can be granted
+     * @param platformOnly true when only platform administrators may use it
+     */
     public record Feature(String key, String label, String module, List<String> actions, boolean platformOnly) {
     }
 
+    /**
+     * Every feature that permissions and plans can refer to.
+     */
     public static final List<Feature> FEATURES = List.of(
             new Feature("DASHBOARD", "Dashboards", "General", List.of("VIEW"), false),
             new Feature("PROPERTY", "Properties and units", "Portfolio", List.of("VIEW", "CREATE", "EDIT", "DELETE"), false),
@@ -42,8 +54,14 @@ public final class FeatureCatalog {
             new Feature("PLATFORM", "Platform administration", "Platform", List.of("VIEW", "CONFIGURE"), true)
     );
 
+    /**
+     * Every action a permission can grant.
+     */
     public static final List<String> ACTIONS = List.of("VIEW", "CREATE", "EDIT", "UPDATE", "SIGN", "APPROVE", "VERIFY", "DELETE", "EXPORT", "CONFIGURE");
 
+    /**
+     * Data scopes and the plain-language meaning shown in the role editor.
+     */
     public static final Map<String, String> SCOPES = new LinkedHashMap<>();
 
     static {
@@ -67,6 +85,13 @@ public final class FeatureCatalog {
             Map.of("key", "Document.sensitive", "label", "Sensitive documents (IDs, pay stubs, tax forms)")
     );
 
+    /**
+     * Tells whether a feature supports an action.
+     *
+     * @param feature the feature key
+     * @param action  the action
+     * @return true when the pair exists in the catalogue
+     */
     public static boolean valid(String feature, String action) {
         return FEATURES.stream().anyMatch(f -> f.key().equals(feature) && f.actions().contains(action));
     }

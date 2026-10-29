@@ -20,7 +20,13 @@ import java.util.*;
 /** Listings: create, AI-assisted copy and pricing, compliance review, publish, pause. */
 @Service
 public class ListingService {
+    /**
+     * Workflow key for listings.
+     */
     private static final String WF = "LISTING";
+    /**
+     * Phrases that must not appear in a listing because they signal discrimination.
+     */
     private static final List<String> BANNED = List.of("no kids", "no children", "adults only", "christian", "english only",
             "no section 8", "perfect for singles", "no families", "able-bodied", "no wheelchairs", "young professionals only");
 
@@ -38,6 +44,11 @@ public class ListingService {
         this.ai = ai;
     }
 
+    /**
+     * Lists listings with property and unit details.
+     *
+     * @param status workflow state to filter by, or null for all
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(String status) {
         String base = """
@@ -49,6 +60,12 @@ public class ListingService {
                 : db.list(base + " where l.status = ? order by l.created_at desc", status);
     }
 
+    /**
+     * Returns one listing with its property, unit and allowed actions.
+     *
+     * @param id the listing
+     * @throws ApiException (404) when not found
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> get(UUID id) {
         Map<String, Object> l = new LinkedHashMap<>(db.one("Listing", """
@@ -61,6 +78,11 @@ public class ListingService {
         return l;
     }
 
+    /**
+     * Creates a draft listing for a unit, pre-filled from the unit's rent and details.
+     *
+     * @param b unitId and optional title, description, rent
+     */
     @Transactional
     public Map<String, Object> create(Map<String, Object> b) {
         UUID unitId = Req.requiredUuid(b, "unitId");
@@ -85,6 +107,13 @@ public class ListingService {
         return Map.of("id", id);
     }
 
+    /**
+     * Edits a listing. Only drafts may be edited.
+     *
+     * @param id the listing
+     * @param b the fields to change
+     * @throws ApiException (409) when the listing is not a draft
+     */
     @Transactional
     public Map<String, Object> update(UUID id, Map<String, Object> b) {
         Map<String, Object> l = db.one("Listing", "select status from leasing.listing where id = ?", id);
@@ -139,6 +168,13 @@ public class ListingService {
         return get(id);
     }
 
+    /**
+     * Applies a workflow action (submit, approve, publish and so on) to a listing.
+     *
+     * @param id     the listing
+     * @param action the workflow action
+     * @param reason why, when the action requires one
+     */
     @Transactional
     public Map<String, Object> act(UUID id, String action, String reason) {
         Map<String, Object> l = db.one("Listing", "select * from leasing.listing where id = ?", id);

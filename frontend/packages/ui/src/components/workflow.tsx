@@ -6,6 +6,9 @@ import { Button } from './primitives';
 import { ConfirmDialog } from './overlay';
 import { fmt } from '../lib/format';
 
+/**
+ * An action the server says the user may take on a record, for example approve or cancel.
+ */
 export interface WorkflowAction {
   action: string;
   label: string;
@@ -84,6 +87,9 @@ export function SlaClock({ dueAt, done }: { dueAt?: string | null; done?: boolea
   );
 }
 
+/**
+ * One entry in a record's history.
+ */
 export interface TimelineItem {
   id: string | number;
   action: string;
@@ -121,6 +127,9 @@ export function Timeline({ items, empty = 'No activity yet' }: { items: Timeline
   );
 }
 
+/**
+ * Titled block of a detail page with an optional aside.
+ */
 export function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
   return (
     <div className="mb-6 last:mb-0">

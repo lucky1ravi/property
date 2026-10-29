@@ -28,10 +28,23 @@ public class Upstream {
         this.mapper = mapper;
     }
 
+    /**
+     * Calls another service's public API as the signed-in user.
+     *
+     * @param bearer the caller's token
+     * @param path   the {@code /api/...} path
+     */
     public JsonNode get(String bearer, String path) {
         return call(bearer, "GET", path, null);
     }
 
+    /**
+     * Calls another service's public API as the signed-in user.
+     *
+     * @param bearer the caller's token
+     * @param path   the {@code /api/...} path
+     * @param body   the JSON body
+     */
     public JsonNode post(String bearer, String path, Object body) {
         return call(bearer, "POST", path, body);
     }
@@ -40,7 +53,7 @@ public class Upstream {
     public JsonNode tryGet(String bearer, String path) {
         try {
             return get(bearer, path);
-        } catch (Exception e) {
+        } catch (ApiException | IllegalStateException e) {
             return null;
         }
     }
@@ -63,6 +76,9 @@ public class Upstream {
         }
     }
 
+    /**
+     * Returns the Authorization header of the current request, or null.
+     */
     public static String currentBearer() {
         org.springframework.web.context.request.ServletRequestAttributes a =
                 (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
@@ -71,6 +87,9 @@ public class Upstream {
         return h.substring(7);
     }
 
+    /**
+     * Tells whether the signed-in user holds a permission.
+     */
     public static boolean has(String permission) {
         return UserContextHolder.require().has(permission);
     }

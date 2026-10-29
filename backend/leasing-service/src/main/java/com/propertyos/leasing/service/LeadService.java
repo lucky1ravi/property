@@ -32,6 +32,9 @@ public class LeadService {
         this.ai = ai;
     }
 
+    /**
+     * Lists leads with the listing they asked about.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> leads() {
         return db.list("""
@@ -67,6 +70,12 @@ public class LeadService {
         return Map.of("id", id, "reply", reply);
     }
 
+    /**
+     * Marks a lead as responded.
+     *
+     * @param leadId the lead
+     * @param reply the message sent, or null to keep the AI-drafted reply
+     */
     @Transactional
     public Map<String, Object> respond(UUID leadId, String reply) {
         Map<String, Object> lead = db.one("Lead", "select * from leasing.lead where id = ?", leadId);
@@ -75,6 +84,9 @@ public class LeadService {
         return db.one("Lead", "select * from leasing.lead where id = ?", leadId);
     }
 
+    /**
+     * Lists showings with listing and property names.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> showings() {
         List<Map<String, Object>> rows = db.list("""
@@ -84,6 +96,14 @@ public class LeadService {
         return rows;
     }
 
+    /**
+     * Books a showing for a live listing.
+     *
+     * @param listingId     the listing
+     * @param b             scheduledAt (ISO date-time) and visitor details
+     * @param publicRequest true when the visitor booked on the public site, so it starts unconfirmed
+     * @throws ApiException (404) when the listing is not live
+     */
     @Transactional
     public Map<String, Object> book(UUID listingId, Map<String, Object> b, boolean publicRequest) {
         Map<String, Object> li = db.one("Listing", "select * from leasing.listing where id = ? and status = 'LIVE'", listingId);
@@ -101,6 +121,9 @@ public class LeadService {
         return Map.of("id", id);
     }
 
+    /**
+     * Applies a workflow action to a showing.
+     */
     @Transactional
     public Map<String, Object> showingAction(UUID id, String action, String reason) {
         sm.apply("Showing", "leasing.showing", id, "SHOWING", action, reason, null, null);

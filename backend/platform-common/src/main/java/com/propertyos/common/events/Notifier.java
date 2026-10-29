@@ -47,14 +47,39 @@ public class Notifier {
         events.publish("NotificationRequested", "Notification", UUID.randomUUID(), p);
     }
 
+    /**
+     * Sends an in-app notification to a resident, owner or vendor.
+     *
+     * @param partyId the person; nothing is sent when null
+     * @param title   short headline
+     * @param body    message text
+     * @param link    where the notification should open
+     */
     public void toParty(UUID partyId, String title, String body, String link) {
         if (partyId != null) send("PARTY", partyId.toString(), title, body, link, "NORMAL");
     }
 
+    /**
+     * Sends an in-app notification to everyone holding a role in the company.
+     *
+     * @param role     the role key
+     * @param title    short headline
+     * @param body     message text
+     * @param link     where the notification should open
+     * @param priority {@code LOW}, {@code NORMAL} or {@code HIGH}
+     */
     public void toRole(String role, String title, String body, String link, String priority) {
         send("ROLE", role, title, body, link, priority);
     }
 
+    /**
+     * Sends an in-app notification to one staff user.
+     *
+     * @param userId the user; nothing is sent when null
+     * @param title  short headline
+     * @param body   message text
+     * @param link   where the notification should open
+     */
     public void toUser(UUID userId, String title, String body, String link) {
         if (userId != null) send("USER", userId.toString(), title, body, link, "NORMAL");
     }

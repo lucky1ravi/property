@@ -1,4 +1,6 @@
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   application:
     name: api-gateway
   main:
@@ -6,6 +8,10 @@ spring:
 
 server:
   port: ${PORT:8080}
+  shutdown: graceful
+
+propertyos.resilience:
+  open-seconds: ${RESILIENCE_OPEN_SECONDS:20}
 
 propertyos:
   jwt:
@@ -27,8 +33,36 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: api-gateway
 
 spring.cloud.gateway.httpclient:
   connect-timeout: 5000
   response-timeout: 90s
+
+# One Swagger UI for the whole platform at /swagger-ui.html. Turn off in production with API_DOCS_ENABLED=false.
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:true}
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    urls-primary-name: Identity
+    display-request-duration: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+    urls:
+      - { name: Identity, url: /api/identity/public/v3/api-docs }
+      - { name: Leasing, url: /api/leasing/public/v3/api-docs }
+      - { name: Billing, url: /api/billing/public/v3/api-docs }
+      - { name: Maintenance, url: /api/maintenance/public/v3/api-docs }
+      - { name: Workflow, url: /api/workflow/public/v3/api-docs }
+      - { name: AI, url: /api/ai/public/v3/api-docs }
+      - { name: Documents, url: /api/documents/public/v3/api-docs }

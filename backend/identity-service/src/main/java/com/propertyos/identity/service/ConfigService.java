@@ -21,6 +21,9 @@ import java.util.*;
  */
 @Service
 public class ConfigService {
+    /**
+     * Configuration sections a company may change.
+     */
     public static final Set<String> SECTIONS = Set.of("features", "fees", "invoicing", "approvals", "screening", "sla",
             "renewals", "ai", "notifications", "branding", "stateRules", "payments", "alerts", "chat", "documents", "moderation", "templates", "customFields");
 
@@ -38,11 +41,17 @@ public class ConfigService {
         this.events = events;
     }
 
+    /**
+     * Returns only the settings a company has changed.
+     */
     @Transactional(readOnly = true)
     public ObjectNode overrides(UUID orgId) {
         return store.config(orgId).map(m -> (ObjectNode) read((String) m.get("config"))).orElse(mapper.createObjectNode());
     }
 
+    /**
+     * Returns the settings in force: defaults with the company's changes merged over them.
+     */
     @Transactional(readOnly = true)
     public ObjectNode effective(UUID orgId) {
         ObjectNode result = configClient.defaults().deepCopy();
@@ -96,6 +105,13 @@ public class ConfigService {
         return out;
     }
 
+    /**
+     * Sets feature overrides for a company (platform administrators).
+     *
+     * @param orgId   the company
+     * @param changes feature key to on/off/default
+     * @return the updated feature matrix
+     */
     @Transactional
     public List<Map<String, Object>> setEntitlements(UUID orgId, Map<String, Object> changes) {
         Set<String> known = new HashSet<>();
@@ -114,6 +130,15 @@ public class ConfigService {
         return featureMatrix(orgId);
     }
 
+    /**
+     * Replaces one configuration section, saves a new version and clears the cache.
+     *
+     * @param section one of {@link #SECTIONS}
+     * @param value   the new section
+     * @param summary note for the history, or null
+     * @return the effective configuration
+     * @throws ApiException (400) for an unknown section
+     */
     @Transactional
     public ObjectNode updateSection(String section, JsonNode value, String summary) {
         if (!SECTIONS.contains(section)) throw ApiException.badRequest("Unknown configuration section: " + section);
@@ -131,6 +156,12 @@ public class ConfigService {
         return effective(orgId);
     }
 
+    /**
+     * Restores an earlier version as a new version.
+     *
+     * @param version the version to restore
+     * @throws ApiException (404) when the version does not exist
+     */
     @Transactional
     public ObjectNode rollback(int version) {
         UUID orgId = UserContextHolder.orgId();
@@ -142,11 +173,21 @@ public class ConfigService {
         return effective(orgId);
     }
 
+    /**
+     * Lists recent configuration versions for the signed-in user's company.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> history() {
         return store.configHistory(UserContextHolder.orgId());
     }
 
+    /**
+     * Stores a new company's starting configuration.
+     *
+     * @param orgId     the company
+     * @param overrides settings that differ from the defaults
+     * @param by        who created it
+     */
     @Transactional
     public void initialise(UUID orgId, ObjectNode overrides, String by) {
         store.saveConfig(orgId, overrides.toString(), "*", "Organisation onboarded", by);
@@ -155,7 +196,7 @@ public class ConfigService {
     private JsonNode read(String json) {
         try {
             return mapper.readTree(json);
-        } catch (Exception e) {
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             return mapper.createObjectNode();
         }
     }

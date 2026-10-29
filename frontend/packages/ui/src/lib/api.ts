@@ -9,11 +9,17 @@ declare global {
   }
 }
 
+/**
+ * Returns the base URL of the API gateway: the page-level override if set, else {@code VITE_API_URL}, else {@code http://localhost:8080}.
+ */
 export function apiBase(): string {
   const fromWindow = typeof window !== 'undefined' ? window.__PROPERTYOS_API__ : undefined;
   return (fromWindow || (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
 }
 
+/**
+ * Returns the stored sign-in token, or null.
+ */
 export function getToken(): string | null {
   try {
     return localStorage.getItem(TOKEN_KEY);
@@ -22,6 +28,9 @@ export function getToken(): string | null {
   }
 }
 
+/**
+ * Stores or clears the sign-in token and tells open screens it changed.
+ */
 export function setToken(token: string | null) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
@@ -32,6 +41,9 @@ export function setToken(token: string | null) {
   window.dispatchEvent(new CustomEvent('pos:session-changed'));
 }
 
+/**
+ * Error thrown for a failed API call. {@code message} is already worded for people; {@code status} and {@code code} are for code.
+ */
 export class ApiError extends Error {
   status: number;
   code?: string;
@@ -52,7 +64,7 @@ function technical(m: string) {
 /** The message shown to a person. Server messages written for people (validation, rules) are kept; anything technical is replaced. */
 export function friendlyMessage(status: number, serverMessage?: string | null): string {
   const m = (serverMessage ?? '').trim();
-  const usable = m && !technical(m) && !/^request failed|^download failed|^upload failed|^internal server error$|^bad gateway$|^service unavailable$|^gateway timeout$/i.test(m);
+  const usable = m && !technical(m) && !/^request failed|^download failed|^upload failed|^internal server error$|^bad gateway$|^service unavailable$|^gateway timeout$|^(forbidden|unauthorized|not found|conflict|bad request|too many requests)\.?$/i.test(m);
   if (status === 0) return OFFLINE;
   if (status >= 500) return status === 502 || status === 503 || status === 504 ? 'PropertyOS is temporarily unavailable. Please try again in a few minutes.' : 'Something went wrong on our side. Please try again, and contact support if it keeps happening.';
   if (usable) return m;
@@ -161,6 +173,9 @@ export function saveBlob(b: Blob, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
+/**
+ * Typed wrappers around fetch that add the token and turn failures into {@link ApiError}.
+ */
 export const api = {
   upload: <T = any>(path: string, form: FormData) => upload<T>(path, form),
   blob: (path: string) => blob('GET', path),

@@ -26,6 +26,8 @@ You never put secrets in the repository. Set every value below in the host's das
 | `OPENAI_API_KEY` | your key (set it yourself in the dashboard) |
 | `OPENAI_MODEL` | model name, for example `gpt-6-luna` |
 | `OPENAI_REASONING_EFFORT` | optional, for example `none` (needed for tool calling on some GPT-6 models) |
+| `BEDROCK_VISION_MODEL_ID` | optional, Bedrock model for photo checks, e.g. `us.amazon.nova-pro-v1:0` |
+| `API_DOCS_ENABLED` | `false` in production to hide the OpenAPI JSON and Swagger UI (default `true`) |
 
 For Bedrock use `AI_PROVIDER=bedrock`, `AWS_REGION`, `BEDROCK_MODEL_ID` (for example `global.openai.gpt-6-luna`) and either a Bedrock API key in `AWS_BEARER_TOKEN_BEDROCK` or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`.
 
@@ -46,6 +48,7 @@ The same image runs one service per container. Create six more Railway services 
 
 ## 3. Verify
 
+- `https://<your-api-domain>/swagger-ui.html` lists every service's API (when `API_DOCS_ENABLED` is not `false`).
 - `/homes` shows rentals from the database.
 - Sign in with a demo persona (Broker, Org admin, Resident, Owner, Vendor, Platform admin).
 - Admin, Configuration: **Reset demo data** restores the sample portfolio any time.
@@ -64,3 +67,13 @@ The same image runs one service per container. Create six more Railway services 
 - Rotate `JWT_SECRET` and `INTERNAL_TOKEN` per environment. Service-to-service calls require `INTERNAL_TOKEN`.
 - Set `DEMO_MODE=false` for any real tenant data. It disables demo sign-in and the reset action.
 - Postgres row-level security is enforced for the application role; the gateway rate-limits public and signed-in traffic.
+
+## Kubernetes (high availability)
+
+`infra/k8s` holds ready-to-apply manifests: namespace and settings, then for each of the 8 services a Deployment (2 replicas, zero-downtime rolling updates, liveness/readiness/startup probes, resource limits, non-root), a Service, an autoscaler (CPU 70%) and a disruption budget. Network policies deny traffic by default; an ingress exposes only the gateway.
+
+```
+kubectl apply -k infra/k8s
+```
+
+Before applying: replace the values in `propertyos-secrets` (or use your secret manager), set `PGHOST` to a managed, replicated PostgreSQL, and set `ALLOWED_ORIGINS` and the ingress host. With `DEMO_MODE=false` a service **refuses to start** if `JWT_SECRET` or `INTERNAL_TOKEN` is still a development default. Set `LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs` for JSON logs. Prometheus can scrape `/actuator/prometheus` on every pod. See [MICROSERVICES](MICROSERVICES.md).

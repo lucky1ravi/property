@@ -23,6 +23,9 @@ public class PortfolioService {
         this.audit = audit;
     }
 
+    /**
+     * Lists properties with unit and occupancy counts.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> properties() {
         return db.list("""
@@ -40,6 +43,11 @@ public class PortfolioService {
                 group by p.id, o.name order by p.name""");
     }
 
+    /**
+     * Returns one property with its owner and units.
+     *
+     * @throws ApiException (404) when not found
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> property(UUID id) {
         Map<String, Object> p = new LinkedHashMap<>(db.one("Property", """
@@ -55,6 +63,11 @@ public class PortfolioService {
         return p;
     }
 
+    /**
+     * Lists units with their property.
+     *
+     * @param status unit status to filter by, or null for all
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> units(String status) {
         return status == null
@@ -62,6 +75,9 @@ public class PortfolioService {
                 : db.list("select u.*, p.name as property_name, p.city, p.state from leasing.unit u join leasing.property p on p.id = u.property_id where u.status = ? order by p.name, u.number", status);
     }
 
+    /**
+     * Lists owners with property counts and fee terms.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> owners() {
         return db.list("""
@@ -79,6 +95,12 @@ public class PortfolioService {
         return m;
     }
 
+    /**
+     * Creates a property for an existing owner.
+     *
+     * @param b ownerId, name, address, type and details
+     * @return the new property
+     */
     @Transactional
     public Map<String, Object> createProperty(Map<String, Object> b) {
         UUID id = UUID.randomUUID();
@@ -96,6 +118,13 @@ public class PortfolioService {
         return Map.of("id", id);
     }
 
+    /**
+     * Adds a unit to a property.
+     *
+     * @param propertyId the property
+     * @param b number, bedrooms, bathrooms, size and market rent
+     * @return the new unit
+     */
     @Transactional
     public Map<String, Object> createUnit(UUID propertyId, Map<String, Object> b) {
         Map<String, Object> p = db.one("Property", "select id, owner_id from leasing.property where id = ?", propertyId);
@@ -111,6 +140,11 @@ public class PortfolioService {
         return Map.of("id", id);
     }
 
+    /**
+     * Changes a unit's market rent.
+     *
+     * @throws ApiException (404) when the unit does not exist
+     */
     @Transactional
     public void updateUnitRent(UUID unitId, BigDecimal marketRent) {
         if (db.update("update leasing.unit set market_rent = ?, updated_at = now() where id = ?", marketRent, unitId) == 0)

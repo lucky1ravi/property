@@ -10,6 +10,9 @@ export function AiMark({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Small bar showing how sure the AI is, from 0 to 100.
+ */
 export function ConfidenceMeter({ value }: { value: number }) {
   const pct = Math.round(value * 100);
   const tone = pct >= 80 ? 'bg-good-600' : pct >= 60 ? 'bg-warn-600' : 'bg-crit-600';

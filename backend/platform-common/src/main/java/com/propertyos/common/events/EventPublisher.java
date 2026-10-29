@@ -24,12 +24,29 @@ public class EventPublisher {
         this.mapper = mapper;
     }
 
+    /**
+     * Publishes an event for the signed-in user's company, in the caller's transaction.
+     *
+     * @param type          event name, for example {@code lease.signed}
+     * @param aggregateType kind of record the event is about
+     * @param aggregateId  the record
+     * @param payload      facts for the handlers
+     */
     public void publish(String type, String aggregateType, UUID aggregateId, Map<String, ?> payload) {
         UserContext ctx = UserContextHolder.get();
         UUID org = ctx == null ? null : ctx.orgId();
         publish(org, type, aggregateType, aggregateId, payload);
     }
 
+    /**
+     * Publishes an event for a given company (use when no user is signed in, for example from a timer).
+     *
+     * @param orgId         the company, or null for platform-wide events
+     * @param type          event name
+     * @param aggregateType kind of record the event is about
+     * @param aggregateId  the record
+     * @param payload      facts for the handlers
+     */
     public void publish(UUID orgId, String type, String aggregateType, UUID aggregateId, Map<String, ?> payload) {
         UserContext ctx = UserContextHolder.get();
         try {

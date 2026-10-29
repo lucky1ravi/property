@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Component
 public class EdgeSecurityFilter implements GlobalFilter, Ordered {
+    private static final org.slf4j.Logger access = org.slf4j.LoggerFactory.getLogger("access");
     private final SecretKey key;
     private final int userPerMinute;
     private final int publicPerMinute;
@@ -76,6 +77,9 @@ public class EdgeSecurityFilter implements GlobalFilter, Ordered {
         }
     }
 
+    /**
+     * Applies the edge controls in order: blocks {@code /internal/**}, validates the JWT on non-public paths, rate-limits, then adds a correlation id and security headers.
+     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest req = exchange.getRequest();
@@ -122,7 +126,10 @@ public class EdgeSecurityFilter implements GlobalFilter, Ordered {
         h.set("X-RateLimit-Remaining", String.valueOf(bucket.remaining()));
         String finalCorrelation = correlation;
         ServerHttpRequest mutated = req.mutate().header("X-Correlation-Id", finalCorrelation).build();
-        return chain.filter(exchange.mutate().request(mutated).build());
+        long started = System.nanoTime();
+        return chain.filter(exchange.mutate().request(mutated).build()).doFinally(signal ->
+                access.info("correlationId={} {} {} -> {} in {} ms", finalCorrelation, req.getMethod(), path, res.getStatusCode() == null ? 0 : res.getStatusCode().value(),
+                        (System.nanoTime() - started) / 1_000_000));
     }
 
     private Mono<Void> error(ServerHttpResponse res, HttpStatus status, String message) {
@@ -133,6 +140,9 @@ public class EdgeSecurityFilter implements GlobalFilter, Ordered {
         return res.writeWith(Mono.just(buf));
     }
 
+    /**
+     * Runs before the other gateway filters.
+     */
     @Override
     public int getOrder() {
         return -100;

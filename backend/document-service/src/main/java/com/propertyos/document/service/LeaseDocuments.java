@@ -38,16 +38,25 @@ public class LeaseDocuments implements EventHandler {
         this.tx = new TransactionTemplate(tm);
     }
 
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "documents.lease-sync";
     }
 
+    /**
+     * Lease events that change which documents should exist.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("LeaseSignatureUpdated", "LeaseActivated", "LeaseRenewed", "LeaseEnded");
     }
 
+    /**
+     * Keeps the lease's document in step with the lease: files it when the lease is signed, activated, renewed or ended.
+     */
     @Override
     public void handle(DomainEvent e) {
         if (e.aggregateId() == null) return;
@@ -55,6 +64,9 @@ public class LeaseDocuments implements EventHandler {
         if (l != null && !l.isEmpty()) sync(l);
     }
 
+    /**
+     * Timer: catches leases whose events were missed so every signed lease has its document.
+     */
     @Scheduled(fixedDelay = 300_000, initialDelay = 45_000)
     public void reconcile() {
         JsonNode all;

@@ -22,8 +22,17 @@ import java.util.*;
 /** Sign-in (email one-time code, demo persona sign-in) and token issuing. */
 @Service
 public class AuthService {
+    /**
+     * Scopes from widest to narrowest. A user with several roles gets the widest.
+     */
     private static final List<String> SCOPE_RANK = List.of("PLATFORM", "ORG", "PROPERTY", "OWNER", "TENANT", "VENDOR");
+    /**
+     * Field visibility from most to least open. A user with several roles gets the most open.
+     */
     private static final List<String> FIELD_RANK = List.of("VISIBLE", "MASKED", "HIDDEN");
+    /**
+     * How long a sign-in token stays valid.
+     */
     private static final Duration TTL = Duration.ofHours(12);
 
     private final IdentityStore store;
@@ -47,6 +56,9 @@ public class AuthService {
         this.demoMode = demoMode;
     }
 
+    /**
+     * Tells whether demo sign-in is enabled.
+     */
     public boolean demoMode() {
         return demoMode;
     }
@@ -104,11 +116,18 @@ public class AuthService {
         try {
             if (raw == null) return Map.of();
             return mapper.readValue(raw.toString(), Map.class);
-        } catch (Exception e) {
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             return Map.of();
         }
     }
 
+    /**
+     * Builds the user's context from their roles and permissions, signs a token, and records the sign-in in the audit trail.
+     *
+     * @param userId the user
+     * @param method how they signed in, recorded for audit
+     * @return the token and its lifetime in seconds
+     */
     public Map<String, Object> issue(UUID userId, String method) {
         UserContext ctx = buildContext(userId);
         String token = jwt.issue(ctx, TTL);
@@ -119,6 +138,12 @@ public class AuthService {
         return Map.of("token", token, "expiresInSeconds", TTL.toSeconds());
     }
 
+    /**
+     * Signs in a demo persona.
+     *
+     * @param userId the persona's user id
+     * @throws ApiException (403) when demo mode is off
+     */
     public Map<String, Object> demoLogin(UUID userId) {
         if (!demoMode) throw ApiException.forbidden("Demo sign-in is disabled");
         return issue(userId, "DEMO_PERSONA");
@@ -138,6 +163,9 @@ public class AuthService {
         return issue((UUID) user.get("id"), "PASSWORD");
     }
 
+    /**
+     * Returns the shared password accepted for demo users.
+     */
     public String demoPassword() {
         return demoPassword;
     }
@@ -159,7 +187,7 @@ public class AuthService {
             String[] p = stored.split("\\$");
             byte[] h = pbkdf2(password, Base64.getDecoder().decode(p[2]), Integer.parseInt(p[1]));
             return MessageDigest.isEqual(h, Base64.getDecoder().decode(p[3]));
-        } catch (Exception e) {
+        } catch (Exception e) { // a malformed stored hash, or an unavailable algorithm, never matches
             return false;
         }
     }
@@ -187,21 +215,37 @@ public class AuthService {
         return res;
     }
 
+    /**
+     * Checks a one-time code (limited attempts, expires after 10 minutes) and signs the user in.
+     *
+     * @param email the address the code was sent to
+     * @param code  the code entered
+     * @return token and user summary
+     * @throws ApiException (401) when the code is wrong or expired
+     */
     public Map<String, Object> verifyOtp(String email, String code) {
         String normalized = email == null ? "" : email.trim().toLowerCase();
-        UUID userId = UserContextHolder.runAsSystem(null, () -> tx.execute(s -> {
-            Map<String, Object> otp = store.otp(normalized).orElseThrow(() -> ApiException.unauthorized("Code expired. Request a new one."));
+        // Decide inside the transaction but throw outside it: an exception would roll back the attempt counter,
+        // which would let someone guess codes without ever being locked out.
+        Object outcome = UserContextHolder.runAsSystem(null, () -> tx.execute(s -> {
+            Optional<Map<String, Object>> found = store.otp(normalized);
+            if (found.isEmpty()) return "EXPIRED";
+            Map<String, Object> otp = found.get();
             if (((Number) otp.get("attempts")).intValue() >= 5) {
                 store.deleteOtp(normalized);
-                throw ApiException.unauthorized("Too many attempts. Request a new code.");
+                return "LOCKED";
             }
             if (!MessageDigest.isEqual(hash(code).getBytes(StandardCharsets.UTF_8), ((String) otp.get("code_hash")).getBytes(StandardCharsets.UTF_8))) {
                 store.bumpOtpAttempts(normalized);
-                throw ApiException.unauthorized("Incorrect code.");
+                return "WRONG";
             }
             store.deleteOtp(normalized);
             return (UUID) store.userByEmail(normalized).orElseThrow().get("id");
         }));
+        if ("EXPIRED".equals(outcome)) throw ApiException.unauthorized("Code expired. Request a new one.");
+        if ("LOCKED".equals(outcome)) throw ApiException.unauthorized("Too many attempts. Request a new code.");
+        if ("WRONG".equals(outcome)) throw ApiException.unauthorized("Incorrect code.");
+        UUID userId = (UUID) outcome;
         return issue(userId, "EMAIL_OTP");
     }
 

@@ -21,7 +21,13 @@ import java.util.*;
  */
 @Component
 public class AutomationService implements EventHandler {
+    /**
+     * Internal housekeeping events that never trigger rules.
+     */
     private static final Set<String> IGNORED = Set.of("NotificationRequested", "DemoResetRequested");
+    /**
+     * Comparison operators a rule condition may use.
+     */
     private static final Set<String> OPERATORS = Set.of("eq", "ne", "gt", "gte", "lt", "lte", "contains");
     private final Db db;
     private final Notifier notifier;
@@ -33,16 +39,25 @@ public class AutomationService implements EventHandler {
         this.client = client;
     }
 
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "workflow.automation";
     }
 
+    /**
+     * Subscribes to every event type.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("*");
     }
 
+    /**
+     * Runs each enabled rule whose trigger matches the event.
+     */
     @Override
     @Transactional
     public void handle(DomainEvent e) {

@@ -25,6 +25,9 @@ public class InternalController {
         return Map.of("status", applications.screen(id).get("status"));
     }
 
+    /**
+     * Service-to-service: active leases with rent, term and parties, for billing to generate charges.
+     */
     @GetMapping("/active-leases")
     @Transactional(readOnly = true)
     public List<Map<String, Object>> activeLeases() {
@@ -43,6 +46,9 @@ public class InternalController {
         return out;
     }
 
+    /**
+     * Service-to-service: the lease of a resident.
+     */
     @GetMapping("/tenant-lease/{tenantId}")
     @Transactional(readOnly = true)
     public Map<String, Object> tenantLease(@PathVariable java.util.UUID tenantId) {
@@ -51,6 +57,9 @@ public class InternalController {
                 from leasing.lease where tenant_id = ? and status in ('ACTIVE','RENEWAL_OFFERED','NOTICE_GIVEN') limit 1""", tenantId);
     }
 
+    /**
+     * Service-to-service: basic facts about a property.
+     */
     @GetMapping("/property/{id}")
     @Transactional(readOnly = true)
     public Map<String, Object> property(@PathVariable java.util.UUID id) {
@@ -70,6 +79,9 @@ public class InternalController {
         return Map.of("added", true);
     }
 
+    /**
+     * Service-to-service: removes a listing or property photo after the document service rejects it.
+     */
     @PostMapping("/property/{id}/photo/remove")
     @Transactional
     public Map<String, Object> removePhoto(@PathVariable java.util.UUID id, @RequestBody Map<String, Object> b) {
@@ -82,12 +94,18 @@ public class InternalController {
         return Map.of("removed", true);
     }
 
+    /**
+     * Service-to-service: an owner's approval limit and management fee.
+     */
     @GetMapping("/owners/{ownerId}")
     @Transactional(readOnly = true)
     public Map<String, Object> owner(@PathVariable java.util.UUID ownerId) {
         return db.one("Owner", "select id, name, approval_limit, management_fee_pct from leasing.owner where id = ?", ownerId);
     }
 
+    /**
+     * Service-to-service: unit counts by status for the portfolio.
+     */
     @GetMapping("/occupancy")
     @Transactional(readOnly = true)
     public Map<String, Object> occupancy() {
@@ -106,6 +124,9 @@ public class InternalController {
             property_name || ' ' || replace(unit_label, 'Unit ', '') as home,
             tenant_name || ' \u2013 ' || property_name || ' ' || replace(unit_label, 'Unit ', '') as label""";
 
+    /**
+     * Service-to-service: short descriptions of applications, used to attach documents to them.
+     */
     @GetMapping("/applications-brief")
     @Transactional(readOnly = true)
     public List<Map<String, Object>> applicationsBrief() {
@@ -114,12 +135,18 @@ public class InternalController {
                 from leasing.application where status in ('SUBMITTED','DOCS_PENDING','SCREENED','OWNER_REVIEW','APPROVED') order by created_at""");
     }
 
+    /**
+     * Service-to-service: a short description of one application.
+     */
     @GetMapping("/applications/{id}/brief")
     @Transactional(readOnly = true)
     public Map<String, Object> applicationBrief(@PathVariable java.util.UUID id) {
         return db.one("Application", "select id, org_id, status, applicant_name, applicant_email, applicant_name || ' \u2013 ' || unit_label as label, property_id, unit_id, owner_id from leasing.application where id = ?", id);
     }
 
+    /**
+     * Service-to-service: short descriptions of leases, used to attach documents to them.
+     */
     @GetMapping("/leases-brief")
     @Transactional(readOnly = true)
     public List<Map<String, Object>> leasesBrief() {
@@ -128,6 +155,9 @@ public class InternalController {
                 from leasing.lease where status in ('ACTIVE','RENEWAL_OFFERED','NOTICE_GIVEN') order by property_name, unit_label""");
     }
 
+    /**
+     * Service-to-service: the lease fields needed to generate lease documents.
+     */
     @GetMapping("/leases/{id}/brief")
     @Transactional(readOnly = true)
     public Map<String, Object> leaseBrief(@PathVariable java.util.UUID id) {
@@ -141,6 +171,9 @@ public class InternalController {
         return db.list("select " + LEASE_DOC_COLS + " from leasing.lease where status <> 'DRAFT' order by created_at");
     }
 
+    /**
+     * Service-to-service: a short description of a resident, used to attach documents to them.
+     */
     @GetMapping("/tenants/{id}/brief")
     @Transactional(readOnly = true)
     public Map<String, Object> tenantBrief(@PathVariable java.util.UUID id) {
@@ -150,6 +183,9 @@ public class InternalController {
                 .orElseGet(() -> db.one("Resident", "select id as tenant_id, first_name || ' ' || last_name as label from leasing.person where id = ?", id));
     }
 
+    /**
+     * Service-to-service: owners as selectable labels.
+     */
     @GetMapping("/owners-brief")
     @Transactional(readOnly = true)
     public List<Map<String, Object>> ownersBrief() {

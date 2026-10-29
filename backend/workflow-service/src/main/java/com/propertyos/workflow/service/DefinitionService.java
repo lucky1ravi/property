@@ -28,6 +28,9 @@ public class DefinitionService {
         this.audit = audit;
     }
 
+    /**
+     * Lists every workflow with its state count and whether it is customised.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list() {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -63,6 +66,11 @@ public class DefinitionService {
         return mapper.valueToTree(d);
     }
 
+    /**
+     * Returns the built-in definition of a workflow.
+     *
+     * @throws ApiException (404) for an unknown key
+     */
     @Transactional(readOnly = true)
     public JsonNode defaultOf(String key) {
         WorkflowDefinition d = defaults.get(key);
@@ -70,6 +78,13 @@ public class DefinitionService {
         return mapper.valueToTree(d);
     }
 
+    /**
+     * Validates and saves a customised workflow, keeping the earlier version in history.
+     *
+     * @param key        the workflow key
+     * @param definition states and transitions
+     * @throws ApiException (400) listing every problem found
+     */
     @Transactional
     public JsonNode save(String key, JsonNode definition) {
         if (defaults.get(key) == null) throw ApiException.notFound("Workflow");
@@ -87,12 +102,18 @@ public class DefinitionService {
         return effective(key);
     }
 
+    /**
+     * Removes the company's customisation so the built-in workflow applies again.
+     */
     @Transactional
     public void reset(String key) {
         db.update("delete from workflow.workflow_def where key = ?", key);
         audit.record("Workflow", UUID.nameUUIDFromBytes(key.getBytes()), "WORKFLOW_RESET", null, null, Map.of("key", key));
     }
 
+    /**
+     * Lists earlier versions of a workflow, newest first.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> history(String key) {
         return db.list("select version, changed_by, changed_at from workflow.workflow_def_history where key = ? order by version desc", key);

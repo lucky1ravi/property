@@ -28,16 +28,25 @@ public class NotificationService implements EventHandler {
         this.config = config;
     }
 
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "workflow.notifications";
     }
 
+    /**
+     * The event that asks for a notification to be delivered.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("NotificationRequested");
     }
 
+    /**
+     * Delivers a requested notification to its user, role or party according to their preferences, skipping duplicates.
+     */
     @Override
     @Transactional
     public void handle(DomainEvent e) {
@@ -132,6 +141,9 @@ public class NotificationService implements EventHandler {
             return out;
         }
 
+        /**
+         * Notification categories as key, title and description, shown in preferences.
+         */
         public static final List<String[]> CATEGORIES = List.of(
                 new String[]{"PAYMENTS", "Payments and invoices", "Rent, receipts, declined payments, new charges and owner statements"},
                 new String[]{"MAINTENANCE", "Repairs and work orders", "Requests, approvals, scheduling and escalations"},

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, getToken } from './api';
 
+/**
+ * The signed-in user as returned by {@code /api/identity/me}.
+ */
 export interface Session {
   userId: string;
   name: string;
@@ -33,6 +36,9 @@ export function useToken() {
   return token;
 }
 
+/**
+ * Loads the signed-in user and returns helpers such as {@code can(permission)}.
+ */
 export function useSession() {
   const token = useToken();
   const q = useQuery<Session>({
@@ -52,6 +58,9 @@ export function useSession() {
   return { session: s, loading: q.isLoading, error: q.error, can, feature, token };
 }
 
+/**
+ * The kinds of user the product is designed for; used to choose the home screen and navigation.
+ */
 export type Persona = 'platform' | 'admin' | 'manager' | 'broker' | 'agent' | 'accountant' | 'owner' | 'tenant' | 'vendor';
 
 /** Which home experience to show, derived from scope and permissions. */

@@ -1,0 +1,94 @@
+# ai-service: Deployment (2+ replicas, zero-downtime rollout), Service, autoscaler and disruption budget.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  namespace: propertyos
+  labels: {app: ai-service, part-of: propertyos}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector:
+    matchLabels: {app: ai-service}
+  template:
+    metadata:
+      labels: {app: ai-service, part-of: propertyos}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8086"
+    spec:
+      terminationGracePeriodSeconds: 45
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app: ai-service}}
+      containers:
+        - name: ai-service
+          image: propertyos/backend:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - {name: SERVICE, value: ai-service}
+            - {name: PORT, value: "8086"}
+          envFrom:
+            - configMapRef: {name: propertyos-config}
+            - secretRef: {name: propertyos-secrets}
+          ports:
+            - {name: http, containerPort: 8086}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "1", memory: 1g}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: false, capabilities: {drop: [ALL]}}
+          startupProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /actuator/health/readiness, port: http}
+            periodSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec: {command: ["sh", "-c", "sleep 10"]}   # let the load balancer stop sending traffic before shutdown starts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: propertyos
+spec:
+  selector: {app: ai-service}
+  ports:
+    - {name: http, port: 8086, targetPort: http}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-service
+  namespace: propertyos
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: ai-service}
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 70}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-service
+  namespace: propertyos
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: ai-service}

@@ -25,16 +25,25 @@ public class BillingEvents implements EventHandler {
         this.config = config;
     }
 
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "billing.events";
     }
 
+    /**
+     * Lease activated or ended, and work order completed.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("LeaseActivated", "LeaseEnded", "WorkOrderCompleted");
     }
 
+    /**
+     * Reacts to events from other services: a lease activating opens its security deposit record, a lease ending marks the deposit refund due by the state's deadline, and a completed work order is handled by {@code onWorkOrder}.
+     */
     @Override
     @Transactional
     public void handle(DomainEvent e) {

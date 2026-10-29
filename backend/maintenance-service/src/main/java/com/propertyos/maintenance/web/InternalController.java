@@ -19,29 +19,44 @@ public class InternalController {
         this.db = db;
     }
 
+    /**
+     * Shared select for the short work-order description other services use.
+     */
     private static final String WO = """
             select id, org_id, status, title, property_id, owner_id, unit_id, tenant_id, vendor_id, property_name,
                    title || ' – ' || property_name || coalesce(' ' || replace(unit_label, 'Unit ', ''), '') as label
             from maintenance.work_order""";
 
+    /**
+     * Service-to-service: all work orders except cancelled ones, used to attach documents to them.
+     */
     @GetMapping("/work-orders-brief")
     @Transactional(readOnly = true)
     public List<Map<String, Object>> workOrders() {
         return db.list(WO + " where status not in ('CANCELLED') order by created_at");
     }
 
+    /**
+     * Service-to-service: a short description of one work order.
+     */
     @GetMapping("/work-orders/{id}/brief")
     @Transactional(readOnly = true)
     public Map<String, Object> workOrder(@PathVariable UUID id) {
         return db.one("Work order", WO + " where id = ?", id);
     }
 
+    /**
+     * Service-to-service: active vendors with insurance expiry.
+     */
     @GetMapping("/vendors-brief")
     @Transactional(readOnly = true)
     public List<Map<String, Object>> vendors() {
         return db.list("select id, org_id, id as vendor_id, name as label, insurance_expires, active from maintenance.vendor where active order by name");
     }
 
+    /**
+     * Service-to-service: a short description of one vendor.
+     */
     @GetMapping("/vendors/{id}/brief")
     @Transactional(readOnly = true)
     public Map<String, Object> vendor(@PathVariable UUID id) {

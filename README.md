@@ -1,48 +1,112 @@
 # PropertyOS
 
-AI-assisted property management for US residential portfolios: leasing, rent and payments, maintenance, owner reporting, and a broker cockpit that turns a large portfolio into a short daily queue.
+AI-assisted property management for US residential portfolios: leasing, rent and payments, maintenance, documents and e-signature, owner reporting, and a broker cockpit that turns a large portfolio into a short daily queue.
 
-- **Backend:** Spring Boot 3.4 / Java 21 microservices (identity, leasing, billing, maintenance, workflow, ai) behind an API gateway. PostgreSQL with one schema per service, Flyway migrations, row-level security.
-- **Frontend:** React 18 + TypeScript micro-frontends (Vite Module Federation): shell, leasing, payments, maintenance, broker, admin, insights. Tailwind, Framer Motion.
-- **AI:** OpenAI or AWS Bedrock, with an offline rule-based fallback so the product works without a key. Guardrails: prompt-injection screening, PII redaction, fair-housing screening, rate limits, confirm-before-write, full audit.
+[![CI](https://github.com/lucky1ravi/property/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/lucky1ravi/property/actions/workflows/ci.yml)
 
-## Run it on your machine (Windows, macOS, Linux)
+| Layer | Technology |
+| --- | --- |
+| Backend | Java 21, Spring Boot 3.4, Spring Cloud Gateway, seven microservices |
+| Data | PostgreSQL 16, one schema per service, Flyway, row-level security (RLS) |
+| Frontend | React 18, TypeScript, Vite Module Federation (shell + seven micro-frontends) |
+| AI | OpenAI or AWS Bedrock, offline rule-based fallback, guardrails and audit |
+| API docs | OpenAPI 3 via springdoc, one combined Swagger UI at the gateway |
+| Tests | JUnit 5, Testcontainers (PostgreSQL), Vitest |
+
+## Architecture at a glance
+
+```
+ Browser ── shell (React) ── micro-frontends: leasing, payments, maintenance,
+    │                         documents, broker, admin, insights
+    ▼
+ api-gateway :8080  (JWT check, plan/feature gate, CORS, Swagger UI)
+    ├── identity-service    :8081   users, companies, roles, plans, configuration
+    ├── leasing-service     :8082   listings, applications, leases, showings
+    ├── billing-service     :8083   charges, payments, owner statements, 1099
+    ├── maintenance-service :8084   work orders, vendors, inspections
+    ├── workflow-service    :8085   approvals, tasks, notifications
+    ├── ai-service          :8086   assistant, AI studio tools, guardrails
+    └── document-service    :8087   library, photos, e-signature, requirements
+                │
+                ▼
+          PostgreSQL (schema per service + shared `platform` schema:
+          event log, audit, RLS helpers)
+```
+
+Services talk to each other over REST (`/internal/**`, protected by a shared token) and through a transactional event log. Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Quick start
 
 Prerequisites: Docker, JDK 21, Maven 3.9+, Node 20+.
 
 ```powershell
-# 1. Backend: Postgres + all services (Windows)
+# Windows: Postgres + all services
 .\scripts\start-local.ps1          # stop with .\scripts\stop-local.ps1
 
-# 2. Frontend
+# Frontend
 cd frontend
 npm install
 npm run build
 npm run preview                    # http://localhost:4173
 ```
 
-Gateway: http://localhost:8080. Services: 8081 identity, 8082 leasing, 8083 billing, 8084 maintenance, 8085 workflow, 8086 ai, 8087 documents. Logs are in `logs/`.
-Open http://localhost:4173, pick a demo persona on the sign-in page. The public rental site is at `/homes`.
+Open http://localhost:4173 and pick a demo persona on the sign-in page. The public rental site is at `/homes`.
 
-To use a real LLM, set environment variables before starting the AI service (never commit keys):
+| URL | What |
+| --- | --- |
+| http://localhost:8080/swagger-ui.html | Swagger UI for every service |
+| http://localhost:8080/actuator/health | Gateway health |
+| http://localhost:8080/api/&lt;service&gt;/public/v3/api-docs | Raw OpenAPI JSON per service |
+
+## Tests
+
+```bash
+cd backend
+mvn test        # unit tests only (fast, no Docker)
+mvn verify      # unit + integration tests; integration tests start PostgreSQL with Testcontainers
+cd ../frontend && npm test
+```
+
+No Docker? Point the integration tests at any PostgreSQL: `IT_JDBC_URL=jdbc:postgresql://localhost:5432/postgres IT_DB_USER=postgres IT_DB_PASSWORD=... mvn verify`. See [docs/TESTING.md](docs/TESTING.md).
+
+## Configuration
+
+Everything is an environment variable; no secrets live in the repository. The full table is in [docs/CONFIGURATION.md](docs/CONFIGURATION.md). The ones you will touch first:
 
 | Variable | Purpose |
 | --- | --- |
-| `AI_PROVIDER` | `openai`, `bedrock` or `none` (default when no key) |
-| `OPENAI_API_KEY` | OpenAI key |
-| `OPENAI_MODEL` | Optional model name |
-| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `BEDROCK_MODEL_ID` | Bedrock |
+| `JWT_SECRET`, `INTERNAL_TOKEN` | Token signing key and service-to-service token (required outside local dev) |
+| `PG*` | Database connection |
+| `AI_PROVIDER` | `openai`, `bedrock` or unset (offline rules) |
+| `API_DOCS_ENABLED` | `false` hides OpenAPI and Swagger UI (use in production) |
+| `ALLOWED_ORIGINS`, `VITE_API_URL` | CORS and frontend-to-API wiring |
 
-## Deploy
+## Documentation
 
-See [docs/DEPLOY.md](docs/DEPLOY.md): Railway (backend + Postgres) and Vercel (frontend), about 20 minutes.
+| Doc | Contents |
+| --- | --- |
+| [MICROSERVICES](docs/MICROSERVICES.md) | Resilience, observability, health, security and HA standards, and where each is implemented |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) | Services, data flow, design principles (SOLID) mapped to the code |
+| [SECURITY](docs/SECURITY.md) | Authentication, permissions, tenant isolation with RLS, fail-closed rules |
+| [AI](docs/AI.md) | Providers, tools, guardrails, audit |
+| [API](docs/API.md) | Conventions, errors, pagination, how Swagger is generated |
+| [CONFIGURATION](docs/CONFIGURATION.md) | Every environment variable and per-company setting |
+| [TESTING](docs/TESTING.md) | Test strategy and how to run each layer |
+| [DEPLOY](docs/DEPLOY.md) | Railway and Vercel |
+| [CONTRIBUTING](CONTRIBUTING.md) | Branching, code style, checks that must pass |
 
 ## Repository layout
 
 ```
-backend/    platform-common, api-gateway, six services, Dockerfile
-frontend/   apps/{shell,leasing,payments,maintenance,broker,admin,insights}, packages/ui
-infra/      docker-compose.yml (local Postgres)
-scripts/    start-local.ps1, stop-local.ps1
-docs/       deployment guide
+backend/
+  platform-common/        shared kernel: security, RLS, errors, events, OpenAPI config
+  platform-test-support/  Testcontainers database + HTTP client for integration tests
+  api-gateway/            routing, auth, feature gate, Swagger UI
+  *-service/              the seven domain services
+frontend/
+  apps/*                  micro-frontends
+  packages/ui             shared components, API client, formatters
+infra/                    docker-compose for local Postgres
+docs/                     documentation
+.github/                  CI workflow, PR template
 ```

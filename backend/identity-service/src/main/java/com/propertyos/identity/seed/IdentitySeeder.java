@@ -36,6 +36,9 @@ public class IdentitySeeder implements EventHandler {
         this.demo = demo;
     }
 
+    /**
+     * On startup: in demo mode creates the sample companies, users and roles when the database is empty; otherwise only synchronises the feature catalogue into existing roles.
+     */
     @EventListener(ApplicationReadyEvent.class)
     public void seedIfEmpty() {
         if (!demo) {
@@ -130,16 +133,25 @@ public class IdentitySeeder implements EventHandler {
     }
 
     // Demo reset: wipe and reseed this organisation's identity data.
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "identity.demo-reset";
     }
 
+    /**
+     * Event types this handler wants.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("DemoResetRequested");
     }
 
+    /**
+     * Rebuilds the demo company's identity data when a demo reset is requested.
+     */
     @Override
     public void handle(DomainEvent event) {
         UUID orgId = event.orgId();

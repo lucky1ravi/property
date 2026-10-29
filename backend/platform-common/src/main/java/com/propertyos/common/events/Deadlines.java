@@ -12,6 +12,9 @@ public final class Deadlines {
     private Deadlines() {
     }
 
+    /**
+     * Bucket name for a deadline that has already passed.
+     */
     public static final String OVERDUE = "overdue";
 
     /** One upcoming date. {@code audiences} is who is told ({type, target} pairs as used by the notification audience resolver). */
@@ -29,6 +32,14 @@ public final class Deadlines {
         return m;
     }
 
+    /**
+     * Reads the list of "days before" alert thresholds from configuration.
+     *
+     * @param cfg      configuration source
+     * @param path     setting path
+     * @param fallback thresholds used when the setting is missing or empty
+     * @return the thresholds in days
+     */
     public static List<Integer> thresholds(ConfigClient cfg, String path, List<Integer> fallback) {
         JsonNode n = cfg.at(path);
         if (!n.isArray() || n.isEmpty()) return fallback;

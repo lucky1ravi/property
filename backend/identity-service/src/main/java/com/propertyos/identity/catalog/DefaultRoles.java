@@ -8,9 +8,27 @@ public final class DefaultRoles {
     private DefaultRoles() {
     }
 
+    /**
+     * One permission a role holds.
+     *
+     * @param feature   the feature key, for example {@code LEASE}
+     * @param action    the action, for example {@code APPROVE}
+     * @param maxAmount largest amount the holder may approve, or null for no limit
+     */
     public record Grant(String feature, String action, BigDecimal maxAmount) {
     }
 
+    /**
+     * A built-in role that is copied into every new company.
+     *
+     * @param key         stable role key
+     * @param name        display name
+     * @param description what the role is for
+     * @param scope       {@code ORG} or {@code PLATFORM}
+     * @param color       badge colour
+     * @param grants      permissions the role starts with
+     * @param fieldRules  per-field visibility rules, for example masking bank details
+     */
     public record RoleTemplate(String key, String name, String description, String scope, String color,
                                List<Grant> grants, Map<String, String> fieldRules) {
     }
@@ -43,6 +61,9 @@ public final class DefaultRoles {
         return g;
     }
 
+    /**
+     * Built-in roles copied into every new company.
+     */
     public static final List<RoleTemplate> TEMPLATES = List.of(
             new RoleTemplate("ORG_ADMIN", "Org Admin", "Full control of the company account, users, roles and configuration.",
                     "ORG", "#0B2545", all(), Map.of()),
@@ -87,6 +108,9 @@ public final class DefaultRoles {
                     Map.of("Tenant.email", "HIDDEN", "Owner.bankAccount", "HIDDEN", "Payment.method", "HIDDEN"))
     );
 
+    /**
+     * The platform operator's role. It manages companies and plans but sees no company data.
+     */
     public static final RoleTemplate PLATFORM_ADMIN = new RoleTemplate("PLATFORM_ADMIN", "Platform Admin",
             "PropertyOS operator: organisations, plans, feature toggles and platform health.", "PLATFORM", "#000000",
             grants("PLATFORM:VIEW,CONFIGURE", "DASHBOARD:VIEW", "SETTINGS:VIEW,CONFIGURE", "AUDIT:VIEW"), Map.of());
@@ -107,6 +131,12 @@ public final class DefaultRoles {
     /** Field rules added after first release, copied once to existing default roles that have no rule for the field yet. */
     public static final List<String> SYNCED_FIELDS = List.of("Document.sensitive");
 
+    /**
+     * Finds a built-in role by key.
+     *
+     * @param key the role key
+     * @return the template, or empty when unknown
+     */
     public static Optional<RoleTemplate> byKey(String key) {
         if (PLATFORM_ADMIN.key().equals(key)) return Optional.of(PLATFORM_ADMIN);
         return TEMPLATES.stream().filter(t -> t.key().equals(key)).findFirst();

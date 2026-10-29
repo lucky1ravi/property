@@ -17,6 +17,9 @@ public class FileRules {
         this.config = config;
     }
 
+    /**
+     * Content type for each allowed extension.
+     */
     private static final Map<String, String> MIME = Map.ofEntries(
             Map.entry("pdf", "application/pdf"), Map.entry("png", "image/png"), Map.entry("jpg", "image/jpeg"), Map.entry("jpeg", "image/jpeg"),
             Map.entry("gif", "image/gif"), Map.entry("webp", "image/webp"), Map.entry("heic", "image/heic"),
@@ -27,13 +30,28 @@ public class FileRules {
     /** Never accepted, whatever the configuration says: these can run code in a browser or on a computer. */
     private static final Set<String> BLOCKED = Set.of("exe", "bat", "cmd", "com", "msi", "sh", "ps1", "js", "jar", "vbs", "scr", "html", "htm", "svg", "xhtml", "php", "dll", "app");
 
+    /**
+     * The outcome of checking an upload.
+     *
+     * @param fileName  safe file name
+     * @param extension lower-case extension
+     * @param mimeType detected content type
+     * @param size      size in bytes
+     * @param sha256    content hash, used to spot duplicates
+     */
     public record Checked(String fileName, String extension, String mimeType, long size, String sha256) {
     }
 
+    /**
+     * Returns the largest upload allowed, from company settings (15 MB by default).
+     */
     public long maxBytes() {
         return config.number("documents/storage/maxFileMb", "15").longValue() * 1024 * 1024;
     }
 
+    /**
+     * Returns the file extensions the company accepts.
+     */
     public List<String> allowed() {
         List<String> out = new ArrayList<>();
         JsonNode n = config.at("documents/storage/allowedExtensions");
@@ -43,6 +61,13 @@ public class FileRules {
         return out;
     }
 
+    /**
+     * Checks an upload: not empty, within the size limit, an allowed type, and content that matches its extension.
+     *
+     * @param originalName the uploaded file name
+     * @param data         the bytes
+     * @throws ApiException (400) with a message saying what to change
+     */
     public Checked check(String originalName, byte[] data) {
         if (data == null || data.length == 0) throw ApiException.badRequest("The file is empty.");
         if (data.length > maxBytes())
@@ -91,6 +116,9 @@ public class FileRules {
         return true;
     }
 
+    /**
+     * Returns the SHA-256 hash of the bytes as lower-case hex.
+     */
     public static String sha256(byte[] d) {
         try {
             byte[] h = MessageDigest.getInstance("SHA-256").digest(d);
@@ -102,6 +130,9 @@ public class FileRules {
         }
     }
 
+    /**
+     * Tells whether a content type is safe to show inline in the browser.
+     */
     public static boolean previewable(String mime) {
         return mime != null && (mime.equals("application/pdf") || (mime.startsWith("image/") && !mime.equals("image/heic")) || mime.equals("text/plain") || mime.equals("text/csv"));
     }

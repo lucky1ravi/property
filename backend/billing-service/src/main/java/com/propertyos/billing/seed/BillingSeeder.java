@@ -35,6 +35,9 @@ public class BillingSeeder implements EventHandler {
         this.demo = demo;
     }
 
+    /**
+     * On startup in demo mode, creates sample invoices, payments, statements and deposits when the database is empty.
+     */
     @EventListener(ApplicationReadyEvent.class)
     public void seedIfEmpty() {
         if (!demo) return;
@@ -50,16 +53,25 @@ public class BillingSeeder implements EventHandler {
         }
     }
 
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "billing.demo-reset";
     }
 
+    /**
+     * Event types this handler wants.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("DemoResetRequested");
     }
 
+    /**
+     * Rebuilds the demo company's billing data when a demo reset is requested.
+     */
     @Override
     public void handle(DomainEvent event) {
         UUID org = event.orgId();

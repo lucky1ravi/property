@@ -31,6 +31,9 @@ public class EventPoller {
         this.tx = new TransactionTemplate(tm);
     }
 
+    /**
+     * Delivers new events to every handler on a timer. An event whose handler fails is recorded in the dead-letter table and skipped, so one bad event cannot block the rest.
+     */
     @Scheduled(fixedDelayString = "${propertyos.events.poll-ms:1500}", initialDelay = 5000)
     public void poll() {
         for (EventHandler h : handlers) {

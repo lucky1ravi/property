@@ -17,82 +17,157 @@ public final class DemoData {
     private DemoData() {
     }
 
+    /**
+     * Builds a stable identifier from a name so demo rows keep the same id every time they are seeded.
+     */
     public static UUID id(String key) {
         return UUID.nameUUIDFromBytes(("propertyos:" + key).getBytes(StandardCharsets.UTF_8));
     }
 
     // ---------- Organisations ----------
+    /**
+     * A demo company.
+     */
     public record Org(UUID id, String name, String legalName, String state, String plan) {
     }
 
+    /**
+     * The platform operator's company.
+     */
     public static final Org PLATFORM = new Org(id("org:platform"), "PropertyOS Platform", "PropertyOS Inc.", "DE", "ENTERPRISE");
+    /**
+     * Demo company: a US-wide property manager (Texas, California, Washington).
+     */
     public static final Org SUMMIT = new Org(id("org:summit"), "Summit Ridge Property Group", "Summit Ridge Property Group LLC", "TX", "ENTERPRISE");
+    /**
+     * Demo company: a smaller California manager, used to show tenant isolation.
+     */
     public static final Org HARBOR = new Org(id("org:harbor"), "Harborview Residential", "Harborview Residential Inc.", "CA", "GROWTH");
 
+    /**
+     * Returns the demo companies.
+     */
     public static List<Org> orgs() {
         return List.of(PLATFORM, SUMMIT, HARBOR);
     }
 
     // ---------- Owners ----------
+    /**
+     * A demo property owner.
+     */
     public record Owner(UUID id, UUID orgId, String name, String contact, String email, String phone,
                         BigDecimal approvalLimit, BigDecimal managementFeePercent, String bankLast4) {
     }
 
+    /**
+     * Demo owner of Summit properties.
+     */
     public static final Owner ROBERT = new Owner(id("owner:robert"), SUMMIT.id(), "Robert Williams", "Robert Williams",
             "robert.williams@example.com", "(512) 555-0142", bd(500), bd(8), "4471");
+    /**
+     * Demo owner of Summit properties.
+     */
     public static final Owner JAMES = new Owner(id("owner:james"), SUMMIT.id(), "James Carter", "James Carter",
             "james.carter@example.com", "(512) 555-0188", bd(750), bd(8), "2290");
+    /**
+     * Demo owner of Summit properties.
+     */
     public static final Owner LINDA = new Owner(id("owner:linda"), SUMMIT.id(), "Linda Thompson", "Linda Thompson",
             "linda.thompson@example.com", "(619) 555-0117", bd(400), bd(8.5), "9034");
+    /**
+     * Demo institutional owner of Summit properties.
+     */
     public static final Owner GREENFIELD = new Owner(id("owner:greenfield"), SUMMIT.id(), "Greenfield Capital LLC", "Nathan Greene",
             "nathan.greene@greenfieldcap.com", "(206) 555-0163", bd(1500), bd(7), "6612");
+    /**
+     * Demo owner of the Harborview property.
+     */
     public static final Owner HARBOR_OWNER = new Owner(id("owner:harbor-mei"), HARBOR.id(), "Mei Tanaka", "Mei Tanaka",
             "mei.tanaka@example.com", "(415) 555-0190", bd(600), bd(9), "1180");
 
+    /**
+     * Returns the demo owners.
+     */
     public static List<Owner> owners() {
         return List.of(ROBERT, JAMES, LINDA, GREENFIELD, HARBOR_OWNER);
     }
 
     // ---------- Users ----------
+    /**
+     * A demo staff or portal user with the role and properties they can see.
+     */
     public record User(UUID id, UUID orgId, String name, String email, String title, String roleKey,
                        UUID partyId, List<UUID> propertyIds, String persona) {
     }
 
     // ---------- Properties and units ----------
+    /**
+     * A demo building.
+     */
     public record Property(UUID id, UUID orgId, String name, String street, String city, String state, String zip,
                            double lat, double lng, String type, UUID ownerId, int yearBuilt, List<String> amenities,
                            String brokerKey, String photo) {
     }
 
+    /**
+     * A demo rentable unit.
+     */
     public record Unit(UUID id, UUID propertyId, String number, int beds, double baths, int sqft, BigDecimal marketRent) {
     }
 
+    /**
+     * Demo building in Austin, TX.
+     */
     public static final Property DOMAIN = prop("domain", SUMMIT, "The Domain Lofts", "11500 Rock Rose Ave", "Austin", "TX", "78758",
             30.4021, -97.7253, "MULTIFAMILY", ROBERT, 2016, List.of("Pool", "Fitness center", "Covered parking", "In-unit laundry"), "marcus",
             "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&q=80");
+    /**
+     * Demo building in Austin, TX.
+     */
     public static final Property BARTON = prop("barton", SUMMIT, "Barton Creek Townhomes", "2700 S Lamar Blvd", "Austin", "TX", "78704",
             30.2468, -97.7813, "TOWNHOME", ROBERT, 2012, List.of("Private garage", "Patio", "Pet friendly"), "marcus",
             "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=80");
+    /**
+     * Demo building in Austin, TX.
+     */
     public static final Property MUELLER = prop("mueller", SUMMIT, "Mueller Park Duplexes", "1900 Aldrich St", "Austin", "TX", "78723",
             30.2983, -97.7059, "DUPLEX", JAMES, 2018, List.of("Yard", "Solar panels", "EV charger"), "marcus",
             "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=80");
+    /**
+     * Demo building in San Diego, CA.
+     */
     public static final Property PACIFIC = prop("pacific", SUMMIT, "Pacific Crest Apartments", "3550 Front St", "San Diego", "CA", "92103",
             32.7426, -117.1663, "MULTIFAMILY", LINDA, 2009, List.of("Ocean view", "Rooftop deck", "Bike storage"), "emily",
             "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&q=80");
+    /**
+     * Demo building in Seattle, WA.
+     */
     public static final Property CAPITOL = prop("capitol", SUMMIT, "Capitol Hill Flats", "1520 E Pine St", "Seattle", "WA", "98122",
             47.6153, -122.3127, "MULTIFAMILY", GREENFIELD, 2014, List.of("Walk score 97", "Bike room", "Package lockers"), "emily",
             "https://images.unsplash.com/photo-1460317442991-0ec209397118?w=1200&q=80");
+    /**
+     * Demo building in Seattle, WA.
+     */
     public static final Property LAKEUNION = prop("lakeunion", SUMMIT, "Lake Union Residences", "901 Fairview Ave N", "Seattle", "WA", "98109",
             47.6275, -122.3335, "MULTIFAMILY", GREENFIELD, 2020, List.of("Lake view", "Concierge", "Fitness center", "EV charging"), "emily",
             "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&q=80");
+    /**
+     * Demo building in San Francisco, CA, owned through the second demo company.
+     */
     public static final Property HARBOR_PROP = prop("harbor-sunset", HARBOR, "Sunset Terrace", "1450 Irving St", "San Francisco", "CA", "94122",
             37.7638, -122.4750, "MULTIFAMILY", HARBOR_OWNER, 1998, List.of("Garden", "Laundry room"), "kevin",
             "https://images.unsplash.com/photo-1494526585095-c41746248156?w=1200&q=80");
 
+    /**
+     * Returns the demo buildings.
+     */
     public static List<Property> properties() {
         return List.of(DOMAIN, BARTON, MUELLER, PACIFIC, CAPITOL, LAKEUNION, HARBOR_PROP);
     }
 
+    /**
+     * Returns the demo units, generated from each building's layout.
+     */
     public static List<Unit> units() {
         List<Unit> u = new ArrayList<>();
         u.add(unit(DOMAIN, "101", 1, 1, 750, 1650));
@@ -125,19 +200,34 @@ public final class DemoData {
         return u;
     }
 
+    /**
+     * Finds a demo unit.
+     *
+     * @param propertyKey the building key
+     * @param number      the unit number
+     */
     public static Unit unit(String propertyKey, String number) {
         return units().stream().filter(x -> x.id().equals(id("unit:" + propertyKey + ":" + number))).findFirst().orElseThrow();
     }
 
+    /**
+     * Finds a demo building by id.
+     */
     public static Property property(UUID id) {
         return properties().stream().filter(p -> p.id().equals(id)).findFirst().orElseThrow();
     }
 
+    /**
+     * Finds a demo owner by id.
+     */
     public static Optional<Owner> owner(UUID id) {
         return owners().stream().filter(o -> o.id().equals(id)).findFirst();
     }
 
     // ---------- Tenants (residents) ----------
+    /**
+     * A demo resident.
+     */
     public record Tenant(UUID id, UUID orgId, String firstName, String lastName, String email, String phone,
                          int annualIncome, String employer) {
         public String name() {
@@ -145,6 +235,9 @@ public final class DemoData {
         }
     }
 
+    /**
+     * Demo residents.
+     */
     public static final List<Tenant> TENANTS = List.of(
             tenant("michael", "Michael", "Brown", "(512) 555-0201", 92000, "Dell Technologies"),
             tenant("jessica", "Jessica", "Wilson", "(512) 555-0202", 78000, "Ascension Seton"),
@@ -164,6 +257,9 @@ public final class DemoData {
             tenantOrg(HARBOR, "grace", "Grace", "Kim", "(415) 555-0216", 128000, "Salesforce")
     );
 
+    /**
+     * Finds a demo resident by key.
+     */
     public static Tenant tenant(String key) {
         return TENANTS.stream().filter(t -> t.id().equals(id("tenant:" + key))).findFirst().orElseThrow();
     }
@@ -174,6 +270,9 @@ public final class DemoData {
                         LocalDate start, LocalDate end, BigDecimal rent, BigDecimal deposit, String payProfile) {
     }
 
+    /**
+     * Returns the demo leases, dated relative to today so renewals and late rent always look current.
+     */
     public static List<Lease> leases() {
         LocalDate today = LocalDate.now();
         List<Lease> l = new ArrayList<>();
@@ -196,15 +295,24 @@ public final class DemoData {
         return l;
     }
 
+    /**
+     * Finds the demo lease of a resident.
+     */
     public static Optional<Lease> leaseForTenant(UUID tenantId) {
         return leases().stream().filter(x -> x.tenantId().equals(tenantId)).findFirst();
     }
 
     // ---------- Vendors ----------
+    /**
+     * A demo maintenance vendor.
+     */
     public record Vendor(UUID id, UUID orgId, String name, String contact, List<String> trades, List<String> cities,
                          double rating, BigDecimal avgJobCost, String phone, String email, int jobsCompleted) {
     }
 
+    /**
+     * Demo maintenance vendors.
+     */
     public static final List<Vendor> VENDORS = List.of(
             vendor("lonestar", "Lone Star Plumbing", "Carlos Ramirez", List.of("PLUMBING"), List.of("Austin"), 4.8, 285, "(512) 555-0301", 142),
             vendor("austinhvac", "Austin HVAC Pros", "Brian Foster", List.of("HVAC"), List.of("Austin"), 4.6, 420, "(512) 555-0302", 98),
@@ -215,11 +323,17 @@ public final class DemoData {
             vendor("cascade", "Cascade Heating & Air", "Owen Mercer", List.of("HVAC"), List.of("Seattle"), 4.9, 455, "(206) 555-0307", 64)
     );
 
+    /**
+     * Finds a demo vendor by key.
+     */
     public static Vendor vendor(String key) {
         return VENDORS.stream().filter(v -> v.id().equals(id("vendor:" + key))).findFirst().orElseThrow();
     }
 
     // ---------- Users ----------
+    /**
+     * Returns the demo users, one per persona on the sign-in page.
+     */
     public static List<User> users() {
         List<UUID> austin = List.of(DOMAIN.id(), BARTON.id(), MUELLER.id());
         List<UUID> westCoast = List.of(PACIFIC.id(), CAPITOL.id(), LAKEUNION.id());

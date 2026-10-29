@@ -21,14 +21,33 @@ public class Tx {
         this.read.setReadOnly(true);
     }
 
+    /**
+     * Runs work in a read-only transaction.
+     *
+     * @param work the work to run
+     * @param <T>  the result type
+     * @return whatever {@code work} returns
+     */
     public <T> T read(Supplier<T> work) {
         return read.execute(s -> work.get());
     }
 
+    /**
+     * Runs work in a read-write transaction that commits on success and rolls back on an exception.
+     *
+     * @param work the work to run
+     * @param <T>  the result type
+     * @return whatever {@code work} returns
+     */
     public <T> T write(Supplier<T> work) {
         return write.execute(s -> work.get());
     }
 
+    /**
+     * Runs work that returns nothing in a read-write transaction.
+     *
+     * @param work the work to run
+     */
     public void run(Runnable work) {
         write.executeWithoutResult(s -> work.run());
     }

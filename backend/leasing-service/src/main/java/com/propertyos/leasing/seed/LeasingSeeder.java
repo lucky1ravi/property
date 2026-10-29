@@ -34,6 +34,9 @@ public class LeasingSeeder implements EventHandler {
         this.demo = demo;
     }
 
+    /**
+     * On startup in demo mode, creates the sample portfolio, listings, applications and leases when the database is empty.
+     */
     @EventListener(ApplicationReadyEvent.class)
     public void seedIfEmpty() {
         if (!demo) return;
@@ -48,16 +51,25 @@ public class LeasingSeeder implements EventHandler {
         });
     }
 
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "leasing.demo-reset";
     }
 
+    /**
+     * Event types this handler wants.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("DemoResetRequested");
     }
 
+    /**
+     * Rebuilds the demo company's leasing data when a demo reset is requested.
+     */
     @Override
     public void handle(DomainEvent event) {
         UUID org = event.orgId();
@@ -72,6 +84,9 @@ public class LeasingSeeder implements EventHandler {
         log.info("Leasing data reset for org {}", org);
     }
 
+    /**
+     * Stock photos used for demo listings.
+     */
     private static final List<String> GALLERY = List.of(
             "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&q=80", "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=80",
             "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=80", "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&q=80",

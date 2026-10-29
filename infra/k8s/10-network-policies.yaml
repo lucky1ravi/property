@@ -1,0 +1,31 @@
+# Zero trust between pods: everything is denied unless allowed below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-ingress, namespace: propertyos}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# Only the ingress controller may call the gateway.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-to-gateway, namespace: propertyos}
+spec:
+  podSelector: {matchLabels: {app: api-gateway}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}
+      ports: [{port: 8080}]
+---
+# Services accept calls from the gateway and from each other (internal endpoints also need the service token), and from Prometheus.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-platform-traffic, namespace: propertyos}
+spec:
+  podSelector: {matchLabels: {part-of: propertyos}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {part-of: propertyos}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}

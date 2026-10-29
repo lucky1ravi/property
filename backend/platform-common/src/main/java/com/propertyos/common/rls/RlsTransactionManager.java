@@ -28,6 +28,11 @@ public class RlsTransactionManager extends JpaTransactionManager {
         roleSwitch = true;
     }
 
+    /** True when each transaction drops to the unprivileged role, which is also when queries outside a transaction would bypass RLS. */
+    public static boolean roleSwitchEnabled() {
+        return roleSwitch;
+    }
+
     public RlsTransactionManager(EntityManagerFactory emf) {
         super(emf);
     }

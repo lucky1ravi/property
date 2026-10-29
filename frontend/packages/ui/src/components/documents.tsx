@@ -14,6 +14,9 @@ import { Badge, Button, Field, Input, Select, Skeleton, Textarea, Toggle } from 
 
 // ---------------------------------------------------------------- types and helpers
 
+/**
+ * Categories, document types and rules the upload form needs, from {@code /api/documents/meta}.
+ */
 export interface DocMeta {
   categories: { key: string; label: string; sensitive: boolean; retentionYears: number; types: string[] }[];
   uploadCategories: string[];
@@ -27,6 +30,9 @@ export interface DocMeta {
   sensitiveAccess: string;
 }
 
+/**
+ * One document as listed by the library.
+ */
 export interface DocRow {
   id: string; title: string; category: string; category_label: string; doc_type?: string; description?: string; status: string; source: string;
   entity_type?: string; entity_id?: string; entity_label?: string; property_id?: string; property_name?: string; owner_id?: string; tenant_id?: string; vendor_id?: string;
@@ -35,15 +41,27 @@ export interface DocRow {
   size_bytes: number; sha256?: string; uploaded_by_name?: string; uploader_scope?: string; created_at: string; updated_at: string; previewable: boolean; mine: boolean;
 }
 
+/**
+ * Query keys to refresh after a document changes.
+ */
 export const DOC_INVALIDATE = ['/api/documents'];
 
+/**
+ * Loads and caches the document categories, types and rules.
+ */
 export function useDocMeta() {
   const { can, feature } = useSession();
   return useApi<DocMeta>(can('DOCUMENT:VIEW') && feature('DOCUMENTS') ? '/api/documents/meta' : null, { staleTime: 120_000 });
 }
 
+/**
+ * Formats a byte count for people, for example "240 KB"; shows a dash when unknown.
+ */
 export const fmtBytes = (n?: number) => (!n ? '—' : n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 
+/**
+ * Icon matching a file's content type.
+ */
 export function DocIcon({ mime, className }: { mime?: string; className?: string }) {
   const c = clsx('h-5 w-5 shrink-0', className);
   if (mime?.startsWith('image/')) return <FileImage className={clsx(c, 'text-slateblue-600')} aria-hidden />;
@@ -70,6 +88,9 @@ export function DocChips({ d }: { d: DocRow }) {
   return <>{chips}</>;
 }
 
+/**
+ * Downloads a document (or one of its versions) with the user's token and saves it in the browser.
+ */
 export async function downloadDocument(id: string, version?: number) {
   try {
     const { blob, fileName } = await api.blob(`/api/documents/${id}/file${version ? `?version=${version}` : ''}`);
@@ -106,6 +127,9 @@ export function DocumentViewer({ doc, version, className = 'h-[70vh]' }: { doc: 
   return <img src={url} alt={doc.title} className="mx-auto max-h-[70vh] rounded" />;
 }
 
+/**
+ * Shows a document inline when its type is safe to preview, otherwise offers a download.
+ */
 export function DocumentPreview({ doc, version, open, onClose }: { doc: Pick<DocRow, 'id' | 'title' | 'mime_type' | 'previewable' | 'restricted'> | null; version?: number; open: boolean; onClose: () => void }) {
   if (!doc) return null;
   return (
@@ -120,6 +144,9 @@ export function DocumentPreview({ doc, version, open, onClose }: { doc: Pick<Doc
 
 const EXPIRING = ['INSURANCE', 'CONTRACT', 'IDENTITY'];
 
+/**
+ * The record a new document should be attached to.
+ */
 export interface UploadTarget { entityType?: string; entityId?: string; propertyId?: string; label?: string }
 
 /** Upload with smart filing: the category and type are suggested from the file name; the person confirms. */

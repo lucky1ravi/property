@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace-config.yaml
+  - api-gateway.yaml
+  - identity-service.yaml
+  - leasing-service.yaml
+  - billing-service.yaml
+  - maintenance-service.yaml
+  - workflow-service.yaml
+  - ai-service.yaml
+  - document-service.yaml
+  - 10-network-policies.yaml
+  - 20-ingress.yaml

@@ -25,6 +25,13 @@ public class JwtService {
         this.key = Keys.hmacShaKeyFor(bytes);
     }
 
+    /**
+     * Creates a signed access token for a user.
+     *
+     * @param ctx the user's identity, roles, permissions and limits
+     * @param ttl how long the token stays valid
+     * @return the compact token
+     */
     public String issue(UserContext ctx, Duration ttl) {
         Instant now = Instant.now();
         Map<String, Object> limits = new HashMap<>();
@@ -48,6 +55,13 @@ public class JwtService {
                 .compact();
     }
 
+    /**
+     * Verifies a token's signature, issuer and expiry and rebuilds the user's identity from it.
+     *
+     * @param token the compact token
+     * @return the user context
+     * @throws io.jsonwebtoken.JwtException when the token is invalid or expired
+     */
     @SuppressWarnings("unchecked")
     public UserContext parse(String token) {
         Claims c = Jwts.parser().verifyWith(key).requireIssuer(issuer).build().parseSignedClaims(token).getPayload();

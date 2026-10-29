@@ -8,9 +8,22 @@ public final class TriageEngine {
     private TriageEngine() {
     }
 
+    /**
+     * A suggested classification.
+     *
+     * @param category   trade such as PLUMBING or HVAC
+     * @param priority   suggested urgency
+     * @param estimate   rough cost in USD
+     * @param safetyRisk true when the text suggests danger such as gas, fire or flooding
+     * @param summary    one-line explanation
+     * @param tips       immediate steps for the resident
+     */
     public record Result(String category, String priority, BigDecimal estimate, boolean safetyRisk, String summary, List<String> tips) {
     }
 
+    /**
+     * Words that point to each trade category.
+     */
     private static final Map<String, List<String>> KEYWORDS = new LinkedHashMap<>();
 
     static {
@@ -21,9 +34,19 @@ public final class TriageEngine {
         KEYWORDS.put("PEST", List.of("roach", "ants", "mice", "rat ", "bed bug", "pest", "termite", "wasp"));
     }
 
+    /**
+     * Words that make a request an emergency or a safety risk.
+     */
     private static final List<String> EMERGENCY = List.of("gas smell", "smell gas", "gas leak", "fire", "smoke", "sparking", "burst", "flooding", "no heat in winter",
             "carbon monoxide", "sewage", "break-in", "broken lock", "exposed wire");
 
+    /**
+     * Classifies a request by keyword scoring (no AI needed).
+     *
+     * @param title       the request title
+     * @param description details, may be null
+     * @return the best-matching category with priority and estimate
+     */
     public static Result classify(String title, String description) {
         String text = (title + " " + (description == null ? "" : description)).toLowerCase() + " ";
         String category = "GENERAL";

@@ -37,6 +37,9 @@ public class AuthController {
         return Map.of("enabled", true, "users", users);
     }
 
+    /**
+     * Signs in as a demo persona without a password. Only works when demo mode is on.
+     */
     @PostMapping("/demo-login")
     public Map<String, Object> demoLogin(@RequestBody Map<String, String> body) {
         String id = body.get("userId");
@@ -44,6 +47,9 @@ public class AuthController {
         return auth.demoLogin(UUID.fromString(id));
     }
 
+    /**
+     * Signs in with email and password.
+     */
     @PostMapping("/login")
     public Map<String, Object> login(@RequestBody Map<String, String> body) {
         return auth.login(body.get("email"), body.get("password"));
@@ -58,11 +64,17 @@ public class AuthController {
         return m;
     }
 
+    /**
+     * Sends a one-time sign-in code to an email address.
+     */
     @PostMapping("/otp/request")
     public Map<String, Object> requestOtp(@RequestBody Map<String, String> body) {
         return auth.requestOtp(body.get("email"));
     }
 
+    /**
+     * Checks a one-time code and signs the user in.
+     */
     @PostMapping("/otp/verify")
     public Map<String, Object> verifyOtp(@RequestBody Map<String, String> body) {
         return auth.verifyOtp(body.get("email"), body.get("code"));

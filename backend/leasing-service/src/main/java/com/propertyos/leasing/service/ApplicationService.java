@@ -19,6 +19,9 @@ import java.util.*;
 /** Applications: simulated screening, AI summary and recommendation, decisions. */
 @Service
 public class ApplicationService {
+    /**
+     * Workflow key for applications.
+     */
     private static final String WF = "APPLICATION";
     private final Db db;
     private final StateMachine sm;
@@ -38,6 +41,11 @@ public class ApplicationService {
         this.ai = ai;
     }
 
+    /**
+     * Lists applications.
+     *
+     * @param status workflow state to filter by, or null for all
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(String status) {
         String sql = """
@@ -47,6 +55,12 @@ public class ApplicationService {
         return status == null ? db.list(sql + " order by a.submitted_at desc") : db.list(sql + " where a.status = ? order by a.submitted_at desc", status);
     }
 
+    /**
+     * Returns an application with its listing terms and the actions the user may take.
+     *
+     * @param id the application
+     * @throws ApiException (404) when not found
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> get(UUID id) {
         Map<String, Object> a = new LinkedHashMap<>(db.one("Application", """
@@ -107,6 +121,13 @@ public class ApplicationService {
         return get(id);
     }
 
+    /**
+     * Applies a workflow action to an application and notifies the applicant where the rules say so.
+     *
+     * @param id     the application
+     * @param action the workflow action
+     * @param reason why, when the action requires one
+     */
     @Transactional
     public Map<String, Object> act(UUID id, String action, String reason) {
         Map<String, Object> a = db.one("Application", "select * from leasing.application where id = ?", id);

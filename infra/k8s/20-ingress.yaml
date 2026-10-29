@@ -1,0 +1,19 @@
+# Public entry: TLS terminates here; only the gateway is exposed.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: propertyos
+  namespace: propertyos
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 30m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "100"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.example.com]
+      secretName: propertyos-tls
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: api-gateway, port: {number: 8080}}}}

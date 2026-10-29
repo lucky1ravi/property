@@ -32,6 +32,13 @@ public class PublicService {
         return UserContextHolder.runAsSystem(null, () -> tx.execute(st -> work.get()));
     }
 
+    /**
+     * Public: lists live listings matching the filters. Runs as the system because visitors are not signed in.
+     *
+     * @param city    city filter, or null
+     * @param beds    minimum bedrooms, or null
+     * @param maxRent maximum monthly rent, or null
+     */
     public List<Map<String, Object>> listings(String city, Integer beds, Integer maxRent) {
         return asSystem(() -> queryListings(city, beds, maxRent));
     }
@@ -60,6 +67,11 @@ public class PublicService {
         return db.list(sql.toString(), args.toArray());
     }
 
+    /**
+     * Public: returns one live listing.
+     *
+     * @throws ApiException (404) when it is not live
+     */
     public Map<String, Object> listing(UUID id) {
         return asSystem(() -> {
             Map<String, Object> l = findLive(id);
@@ -76,14 +88,23 @@ public class PublicService {
                 where l.id = ? and l.status = 'LIVE'""", id);
     }
 
+    /**
+     * Public: records an enquiry from the website as a lead.
+     */
     public Map<String, Object> enquire(UUID listingId, Map<String, Object> body) {
         return asSystem(() -> leads.enquire(listingId, body, "WEBSITE"));
     }
 
+    /**
+     * Public: books a showing requested from the website.
+     */
     public Map<String, Object> requestShowing(UUID listingId, Map<String, Object> body) {
         return asSystem(() -> leads.book(listingId, body, true));
     }
 
+    /**
+     * Public: stores a rental application and returns a signed token the applicant uses to upload documents.
+     */
     public Map<String, Object> apply(UUID listingId, Map<String, Object> b) {
         return asSystem(() -> doApply(listingId, b));
     }

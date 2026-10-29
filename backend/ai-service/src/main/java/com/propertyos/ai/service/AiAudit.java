@@ -19,6 +19,20 @@ public class AiAudit {
         this.guardrails = guardrails;
     }
 
+    /**
+     * Writes one audit row. Prompts are redacted and every field is cut to its column length. Does nothing when no company is signed in.
+     *
+     * @param kind       chat, studio or capability
+     * @param capability which feature ran
+     * @param prompt     the request text (redacted before saving)
+     * @param tools      tools used
+     * @param provider   provider and model
+     * @param in         input tokens
+     * @param out        output tokens
+     * @param blocked    true when a guardrail stopped the request
+     * @param reason     why it was blocked, or null
+     * @param fallback   true when rules answered instead of a model
+     */
     @Transactional
     public void record(String kind, String capability, String prompt, List<String> tools, String provider, int in, int out, boolean blocked, String reason, boolean fallback, long ms) {
         UserContext ctx = UserContextHolder.get();
@@ -29,6 +43,9 @@ public class AiAudit {
                 UUID.randomUUID(), ctx.orgId(), ctx.userId(), ctx.name(), trim(kind, 20), trim(capability, 40), trim(guardrails.redact(prompt), 1900), db.json(tools), trim(provider, 60), in, out, blocked, trim(reason, 190), fallback, (int) ms);
     }
 
+    /**
+     * Returns interaction, blocked, fallback, token and latency figures for the company.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> summary() {
         Map<String, Object> s = new LinkedHashMap<>(db.one("Summary", """

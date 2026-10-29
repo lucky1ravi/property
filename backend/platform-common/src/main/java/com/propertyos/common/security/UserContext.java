@@ -31,13 +31,34 @@ public record UserContext(
         Map<String, String> fieldRules,
         boolean system
 ) {
+    /**
+     * Scope of the platform operator.
+     */
     public static final String SCOPE_PLATFORM = "PLATFORM";
+    /**
+     * Scope covering a whole company.
+     */
     public static final String SCOPE_ORG = "ORG";
+    /**
+     * Scope limited to assigned properties.
+     */
     public static final String SCOPE_PROPERTY = "PROPERTY";
+    /**
+     * Scope limited to an owner's own properties.
+     */
     public static final String SCOPE_OWNER = "OWNER";
+    /**
+     * Scope limited to a resident's own records.
+     */
     public static final String SCOPE_TENANT = "TENANT";
+    /**
+     * Scope limited to a vendor's own jobs.
+     */
     public static final String SCOPE_VENDOR = "VENDOR";
 
+    /**
+     * Tells whether the user belongs to the platform operator rather than to a customer company.
+     */
     public boolean isPlatformAdmin() {
         return SCOPE_PLATFORM.equals(scope);
     }
@@ -63,10 +84,18 @@ public record UserContext(
         return fieldRules.getOrDefault(field, "VISIBLE");
     }
 
+    /**
+     * Tells whether the user has the given scope.
+     */
     public boolean isScope(String s) {
         return s.equals(scope);
     }
 
+    /**
+     * Creates the identity used by background jobs, with every permission.
+     *
+     * @param orgId the company the job works for, or null for platform-wide work
+     */
     public static UserContext system(UUID orgId) {
         return new UserContext(null, orgId, "System", "system@propertyos.local", List.of("SYSTEM"),
                 Set.of("*:*"), orgId == null ? SCOPE_PLATFORM : SCOPE_ORG, null, List.of(), Map.of(), Map.of(), true);

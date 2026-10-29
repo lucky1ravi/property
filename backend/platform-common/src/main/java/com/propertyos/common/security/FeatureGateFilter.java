@@ -23,9 +23,15 @@ import java.util.Map;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class FeatureGateFilter extends OncePerRequestFilter {
+    /**
+     * URL prefix to the product module that gates it.
+     */
     private static final Map<String, String> MODULES = Map.of(
             "/api/leasing/", "LEASING", "/api/billing/", "PAYMENTS", "/api/maintenance/", "MAINTENANCE",
             "/api/documents/", "DOCUMENTS", "/api/ai/", "AI_ASSISTANT", "/api/workflow/rules", "AUTOMATIONS");
+    /**
+     * Module key to the name shown in "not included in your plan" messages.
+     */
     private static final Map<String, String> LABELS = Map.of(
             "LEASING", "Leasing", "PAYMENTS", "Payments", "MAINTENANCE", "Maintenance", "DOCUMENTS", "Files and documents", "AI_ASSISTANT", "The AI assistant", "AUTOMATIONS", "Automations");
     private final ConfigClient config;

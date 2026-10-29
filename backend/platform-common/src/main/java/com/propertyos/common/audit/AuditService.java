@@ -21,6 +21,18 @@ public class AuditService {
         this.mapper = mapper;
     }
 
+    /**
+     * Writes an entry to the audit trail with the signed-in user as the actor.
+     *
+     * Failures are logged but never block the business action.
+     *
+     * @param entityType kind of record changed, for example {@code LEASE}
+     * @param entityId   the record
+     * @param action     what happened
+     * @param fromState  state before, or null
+     * @param toState    state after, or null
+     * @param details    extra facts to keep with the entry
+     */
     public void record(String entityType, UUID entityId, String action, String fromState, String toState, Map<String, ?> details) {
         UserContext ctx = UserContextHolder.get();
         try {

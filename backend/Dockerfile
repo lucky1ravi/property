@@ -12,9 +12,10 @@ COPY billing-service billing-service
 COPY maintenance-service maintenance-service
 COPY workflow-service workflow-service
 COPY ai-service ai-service
+COPY document-service document-service
 RUN mvn -q -B -DskipTests package \
  && mkdir /jars \
- && for s in api-gateway identity-service leasing-service billing-service maintenance-service workflow-service ai-service; do cp $s/target/app.jar /jars/$s.jar; done
+ && for s in api-gateway identity-service leasing-service billing-service maintenance-service workflow-service ai-service document-service; do cp $s/target/app.jar /jars/$s.jar; done
 
 FROM eclipse-temurin:21-jre
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && useradd -r -u 10001 propertyos
@@ -25,4 +26,6 @@ RUN chmod +x /app/docker-entrypoint.sh
 USER propertyos
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k"
 EXPOSE 8080
+# Single-service mode: report healthy only when the service answers its own readiness probe.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=90s --retries=3 CMD curl -fs http://localhost:${PORT:-8080}/actuator/health/readiness || exit 1
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

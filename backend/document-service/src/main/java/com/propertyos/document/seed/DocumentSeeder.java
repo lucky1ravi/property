@@ -32,6 +32,9 @@ import java.util.List;
 @Component
 public class DocumentSeeder implements EventHandler {
     private static final Logger log = LoggerFactory.getLogger(DocumentSeeder.class);
+    /**
+     * Text put in every demo document so it cannot be mistaken for a real record.
+     */
     private static final String SAMPLE = "Sample document generated for the PropertyOS demo. Not a real record.";
     private final Db db;
     private final ServiceClient client;
@@ -50,16 +53,25 @@ public class DocumentSeeder implements EventHandler {
         this.demo = demo;
     }
 
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "documents.demo-reset";
     }
 
+    /**
+     * Event types this handler wants.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("DemoResetRequested");
     }
 
+    /**
+     * Clears demo documents on a reset; {@link #seedWhenReady()} recreates them once the other services have restored their records.
+     */
     @Override
     public void handle(DomainEvent e) {
         // Clear now; the scheduler re-seeds shortly after, once the other services have restored their records.
@@ -69,6 +81,9 @@ public class DocumentSeeder implements EventHandler {
         db.update("delete from document.seed_state where org_id = ?", e.orgId());
     }
 
+    /**
+     * Timer: in demo mode, creates sample documents once the records they attach to exist.
+     */
     @Scheduled(fixedDelay = 30_000, initialDelay = 25_000)
     public void seedWhenReady() {
         if (!demo) return;

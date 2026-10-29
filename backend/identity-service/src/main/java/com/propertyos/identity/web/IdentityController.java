@@ -19,6 +19,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
+/**
+ * Company administration: users, roles and permissions, configuration with history and rollback, and the audit trail.
+ */
 @RestController
 @RequestMapping("/api/identity")
 public class IdentityController {
@@ -74,24 +77,36 @@ public class IdentityController {
     }
 
     // ---------------- users ----------------
+    /**
+     * Lists the company's users with their roles and properties.
+     */
     @GetMapping("/users")
     @RequiresPermission("USER:VIEW")
     public List<Map<String, Object>> users() {
         return access.users();
     }
 
+    /**
+     * Creates a user and assigns roles and properties.
+     */
     @PostMapping("/users")
     @RequiresPermission("USER:CREATE")
     public Map<String, Object> createUser(@RequestBody Map<String, Object> body) {
         return access.createUser(body);
     }
 
+    /**
+     * Changes a user's details, status, roles or properties.
+     */
     @PutMapping("/users/{id}")
     @RequiresPermission("USER:EDIT")
     public void updateUser(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
         access.updateUser(id, body);
     }
 
+    /**
+     * Deletes a user. A person cannot delete their own account.
+     */
     @DeleteMapping("/users/{id}")
     @RequiresPermission("USER:DELETE")
     public void deleteUser(@PathVariable UUID id) {
@@ -99,36 +114,54 @@ public class IdentityController {
     }
 
     // ---------------- roles and permission matrix ----------------
+    /**
+     * Returns the catalogue of features, actions, scopes and field rules used by the role editor.
+     */
     @GetMapping("/catalog")
     public Map<String, Object> catalog() {
         return Map.of("features", FeatureCatalog.FEATURES, "actions", FeatureCatalog.ACTIONS,
                 "scopes", FeatureCatalog.SCOPES, "fields", FeatureCatalog.FIELDS);
     }
 
+    /**
+     * Lists the company's roles with their permissions.
+     */
     @GetMapping("/roles")
     @RequiresPermission({"ROLE:VIEW", "USER:VIEW"})
     public List<Map<String, Object>> roles() {
         return access.roles();
     }
 
+    /**
+     * Creates a custom role.
+     */
     @PostMapping("/roles")
     @RequiresPermission("ROLE:CONFIGURE")
     public Map<String, Object> createRole(@RequestBody Map<String, Object> body) {
         return access.createRole(body);
     }
 
+    /**
+     * Edits a role's name, description, scope, colour or field rules.
+     */
     @PutMapping("/roles/{id}")
     @RequiresPermission("ROLE:CONFIGURE")
     public void updateRole(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
         access.updateRole(id, body);
     }
 
+    /**
+     * Replaces a role's permissions.
+     */
     @PutMapping("/roles/{id}/permissions")
     @RequiresPermission("ROLE:CONFIGURE")
     public Map<String, Object> setPermissions(@PathVariable UUID id, @RequestBody List<Map<String, Object>> grants) {
         return access.setPermissions(id, grants);
     }
 
+    /**
+     * Deletes a custom role. Built-in roles can be edited but not deleted.
+     */
     @DeleteMapping("/roles/{id}")
     @RequiresPermission("ROLE:CONFIGURE")
     public void deleteRole(@PathVariable UUID id) {
@@ -136,17 +169,26 @@ public class IdentityController {
     }
 
     // ---------------- configuration ----------------
+    /**
+     * Returns the effective configuration: the company's changes merged over the defaults.
+     */
     @GetMapping("/config")
     public ObjectNode config() {
         return config.effective(UserContextHolder.orgId());
     }
 
+    /**
+     * Returns only what the company has changed from the defaults.
+     */
     @GetMapping("/config/overrides")
     @RequiresPermission("SETTINGS:VIEW")
     public ObjectNode overrides() {
         return config.overrides(UserContextHolder.orgId());
     }
 
+    /**
+     * Replaces one configuration section and records it in the history.
+     */
     @PutMapping("/config/{section}")
     @RequiresPermission("SETTINGS:CONFIGURE")
     public ObjectNode updateConfig(@PathVariable String section, @RequestBody JsonNode body,
@@ -154,12 +196,18 @@ public class IdentityController {
         return config.updateSection(section, body, summary);
     }
 
+    /**
+     * Lists recent configuration versions.
+     */
     @GetMapping("/config/history")
     @RequiresPermission("SETTINGS:VIEW")
     public List<Map<String, Object>> history() {
         return config.history();
     }
 
+    /**
+     * Restores the configuration as it was at an earlier version.
+     */
     @PostMapping("/config/rollback/{version}")
     @RequiresPermission("SETTINGS:CONFIGURE")
     public ObjectNode rollback(@PathVariable int version) {
@@ -167,11 +215,17 @@ public class IdentityController {
     }
 
     // ---------------- audit ----------------
+    /**
+     * Returns the audit trail of one record, oldest first.
+     */
     @GetMapping("/audit/{entityId}")
     public List<Map<String, Object>> timeline(@PathVariable UUID entityId) {
         return transactional(() -> audit.timeline(entityId));
     }
 
+    /**
+     * Returns the latest audit entries, optionally for one kind of record. The limit is capped at 500.
+     */
     @GetMapping("/audit")
     @RequiresPermission("AUDIT:VIEW")
     public List<Map<String, Object>> recent(@RequestParam(defaultValue = "100") int limit,

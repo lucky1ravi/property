@@ -31,7 +31,13 @@ import java.util.UUID;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class AuthFilter extends OncePerRequestFilter {
+    /**
+     * Header carrying the shared service-to-service token.
+     */
     public static final String INTERNAL_HEADER = "X-Internal-Token";
+    /**
+     * Header carrying the company on service-to-service calls.
+     */
     public static final String ORG_HEADER = "X-Org-Id";
 
     private final JwtService jwt;
@@ -49,7 +55,7 @@ public class AuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String path = req.getRequestURI();
         String correlation = req.getHeader("X-Correlation-Id");
-        MDC.put("correlationId", correlation == null ? UUID.randomUUID().toString() : correlation);
+        if (MDC.get("correlationId") == null) MDC.put("correlationId", correlation == null ? UUID.randomUUID().toString() : correlation);
         try {
             if ("OPTIONS".equalsIgnoreCase(req.getMethod()) || path.startsWith("/actuator")) {
                 chain.doFilter(req, res);
@@ -92,7 +98,7 @@ public class AuthFilter extends OncePerRequestFilter {
             chain.doFilter(req, res);
         } finally {
             UserContextHolder.clear();
-            MDC.clear();
+            MDC.remove("userId");
         }
     }
 

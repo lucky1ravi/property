@@ -40,6 +40,13 @@ public class BillingService {
     }
 
     // ---------- Invoices ----------
+    /**
+     * Lists invoices with balance and days overdue.
+     *
+     * @param status   status filter, or null
+     * @param tenantId resident filter, or null
+     * @param kind     kind of charge filter, or null
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> invoices(String status, UUID tenantId, String kind) {
         StringBuilder sql = new StringBuilder("select i.*, (amount - paid) as balance, greatest(current_date - due_date, 0) as days_overdue from billing.invoice i where 1=1");
@@ -54,6 +61,11 @@ public class BillingService {
         return db.list(sql.toString(), a.toArray());
     }
 
+    /**
+     * Returns an invoice with its payments and audit timeline.
+     *
+     * @throws ApiException (404) when not found
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> invoice(UUID id) {
         Map<String, Object> i = new LinkedHashMap<>(db.one("Invoice", "select i.*, (amount - paid) as balance from billing.invoice i where id = ?", id));
@@ -84,6 +96,13 @@ public class BillingService {
         return Map.of("id", id);
     }
 
+    /**
+     * Voids an invoice.
+     *
+     * @param id     the invoice
+     * @param reason why it is voided
+     * @throws ApiException (400) without a reason, (409) when payments are applied
+     */
     @Transactional
     public Map<String, Object> voidInvoice(UUID id, String reason) {
         if (reason == null || reason.isBlank()) throw ApiException.badRequest("A reason is required to void an invoice.");
@@ -188,6 +207,11 @@ public class BillingService {
     }
 
     // ---------- Payments ----------
+    /**
+     * Lists the 300 most recent payments, or one resident's payments.
+     *
+     * @param tenantId resident filter, or null
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> payments(UUID tenantId) {
         return tenantId == null ? db.list("select * from billing.payment order by created_at desc limit 300")
@@ -287,6 +311,9 @@ public class BillingService {
         }
     }
 
+    /**
+     * Returns the signed-in resident's balance, recent invoices and payment methods.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> mine() {
         UUID t = UserContextHolder.require().partyId();
@@ -302,6 +329,12 @@ public class BillingService {
         return out;
     }
 
+    /**
+     * Saves a payment method. Only the type and last four digits are stored.
+     *
+     * @param b type, last4 and optional nickname
+     * @throws ApiException (400) when last4 is missing
+     */
     @Transactional
     public Map<String, Object> addMethod(Map<String, Object> b) {
         UUID t = UserContextHolder.require().partyId();
@@ -318,6 +351,13 @@ public class BillingService {
         return Map.of("id", id);
     }
 
+    /**
+     * Turns autopay on for one method (turning it off for the others) or off.
+     *
+     * @param methodId the payment method
+     * @param on true to enable
+     * @throws ApiException (404) when the method is not the resident's
+     */
     @Transactional
     public void setAutopay(UUID methodId, boolean on) {
         UUID t = UserContextHolder.require().partyId();

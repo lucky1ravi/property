@@ -23,6 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class ConfigClient {
     private static final Logger log = LoggerFactory.getLogger(ConfigClient.class);
+    /**
+     * How long a company's configuration is cached, in milliseconds.
+     */
     private static final long TTL_MS = 15_000;
     private final ServiceClient client;
     private final Map<UUID, Cached> cache = new ConcurrentHashMap<>();
@@ -36,10 +39,21 @@ public class ConfigClient {
         this.defaults = mapper.readTree(new ClassPathResource("config/defaults.json").getInputStream());
     }
 
+    /**
+     * Returns the built-in default configuration that applies when a company has changed nothing.
+     */
     public JsonNode defaults() {
         return defaults;
     }
 
+    /**
+     * Returns the effective configuration for a company: its own settings merged over the defaults.
+     *
+     * Results are cached briefly; use {@link #invalidate(UUID)} after a change.
+     *
+     * @param orgId the company, or null for the defaults
+     * @return the merged configuration tree
+     */
     public JsonNode forOrg(UUID orgId) {
         if (orgId == null) return defaults;
         Cached c = cache.get(orgId);
@@ -54,6 +68,9 @@ public class ConfigClient {
         }
     }
 
+    /**
+     * Returns the effective configuration for the signed-in user's company.
+     */
     public JsonNode current() {
         return forOrg(UserContextHolder.orgId());
     }
@@ -66,16 +83,37 @@ public class ConfigClient {
         return n == null ? MissingNode.getInstance() : n;
     }
 
+    /**
+     * Reads a numeric setting.
+     *
+     * @param path     slash-separated path, for example {@code fees/lateFee}
+     * @param fallback value used when the setting is missing
+     * @return the setting as a decimal
+     */
     public BigDecimal number(String path, String fallback) {
         JsonNode n = at(path);
         return n.isMissingNode() || n.isNull() ? new BigDecimal(fallback) : new BigDecimal(n.asText());
     }
 
+    /**
+     * Reads a true/false setting.
+     *
+     * @param path     slash-separated path
+     * @param fallback value used when the setting is missing
+     * @return the setting
+     */
     public boolean flag(String path, boolean fallback) {
         JsonNode n = at(path);
         return n.isMissingNode() || n.isNull() ? fallback : n.asBoolean();
     }
 
+    /**
+     * Reads a text setting.
+     *
+     * @param path     slash-separated path
+     * @param fallback value used when the setting is missing
+     * @return the setting
+     */
     public String text(String path, String fallback) {
         JsonNode n = at(path);
         return n.isMissingNode() || n.isNull() ? fallback : n.asText();
@@ -87,10 +125,21 @@ public class ConfigClient {
         return n.isMissingNode() ? at("stateRules/DEFAULT") : n;
     }
 
+    /**
+     * Tells whether a product feature is switched on for the signed-in user's company.
+     *
+     * @param feature the feature key, for example {@code DOCUMENTS}
+     * @return true unless the company has turned the feature off
+     */
     public boolean featureEnabled(String feature) {
         return flag("features/" + feature, true);
     }
 
+    /**
+     * Drops the cached configuration for a company so the next read fetches fresh values.
+     *
+     * @param orgId the company whose settings changed
+     */
     public void invalidate(UUID orgId) {
         cache.remove(orgId);
     }

@@ -21,8 +21,14 @@ public final class LeaseDocument {
     private LeaseDocument() {
     }
 
+    /**
+     * Date format used inside lease text, for example "March 1, 2026".
+     */
     private static final DateTimeFormatter D = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.US);
 
+    /**
+     * Notices a state requires in a lease, by state code.
+     */
     private static final Map<String, List<String>> DISCLOSURES = Map.of(
             "CA", List.of("Megan's Law database notice (Civil Code 2079.10a)", "Mold and dampness disclosure",
                     "Bed bug information (Civil Code 1954.603)", "Smoking policy disclosure"),
@@ -33,9 +39,35 @@ public final class LeaseDocument {
             "WA", List.of("Mold disclosure (RCW 59.18.060)", "Fire safety and smoke detection disclosure", "Deposit checklist (RCW 59.18.260)")
     );
 
+    /**
+     * The generated lease.
+     *
+     * @param text        full lease text
+     * @param deposit     deposit actually charged after state limits
+     * @param adjustments notes about any change made to comply with state rules
+     * @param terms       key terms for display
+     */
     public record Result(String text, BigDecimal deposit, List<String> adjustments, Map<String, Object> terms) {
     }
 
+    /**
+     * Builds lease text from the parties, dates, rent and the state's rules (deposit cap, required notices) and the company's fee settings.
+     *
+     * @param company  the management company
+     * @param tenantName resident's name
+     * @param propertyName building name
+     * @param address  street address
+     * @param unitLabel unit
+     * @param start    lease start
+     * @param end      lease end
+     * @param rent     monthly rent in USD
+     * @param requestedDeposit deposit asked for
+     * @param state    two-letter US state code
+     * @param rule     the state's rule set
+     * @param fees     the company's fee settings
+     * @param pets     pet terms, or null
+     * @return the generated lease
+     */
     public static Result generate(String company, String tenantName, String propertyName, String address, String unitLabel,
                                   LocalDate start, LocalDate end, BigDecimal rent, BigDecimal requestedDeposit, String state,
                                   JsonNode rule, JsonNode fees, String pets) {

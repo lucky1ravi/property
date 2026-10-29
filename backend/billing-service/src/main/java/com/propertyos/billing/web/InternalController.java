@@ -17,6 +17,9 @@ public class InternalController {
         this.db = db;
     }
 
+    /**
+     * Service-to-service: a short description of an invoice, used to attach documents to it.
+     */
     @GetMapping("/invoices/{id}/brief")
     @Transactional(readOnly = true)
     public Map<String, Object> invoice(@PathVariable UUID id) {
@@ -25,6 +28,9 @@ public class InternalController {
                 from billing.invoice where id = ?""", id);
     }
 
+    /**
+     * Service-to-service: a short description of an owner statement, used to attach documents to it.
+     */
     @GetMapping("/statements/{id}/brief")
     @Transactional(readOnly = true)
     public Map<String, Object> statement(@PathVariable UUID id) {

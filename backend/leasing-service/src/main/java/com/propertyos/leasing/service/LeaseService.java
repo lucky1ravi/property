@@ -23,6 +23,9 @@ import java.util.*;
 /** Leases: generate with state rules, e-sign, activation, renewals, notice and move-out. */
 @Service
 public class LeaseService {
+    /**
+     * Workflow key for leases.
+     */
     private static final String WF = "LEASE";
     private final Db db;
     private final StateMachine sm;
@@ -42,6 +45,11 @@ public class LeaseService {
         this.ai = ai;
     }
 
+    /**
+     * Lists leases.
+     *
+     * @param status workflow state to filter by, or null for all
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(String status) {
         String sql = """
@@ -51,6 +59,12 @@ public class LeaseService {
         return status == null ? db.list(sql + " order by end_date") : db.list(sql + " where status = ? order by end_date", status);
     }
 
+    /**
+     * Returns a lease with the actions the user may take.
+     *
+     * @param id the lease
+     * @throws ApiException (404) when not found
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> get(UUID id) {
         Map<String, Object> l = new LinkedHashMap<>(db.one("Lease", "select * from leasing.lease where id = ?", id));
@@ -67,6 +81,13 @@ public class LeaseService {
         return get((UUID) l.get("id"));
     }
 
+    /**
+     * Creates a draft lease from an approved application.
+     *
+     * @param applicationId the application
+     * @param b optional start date, term, rent or deposit overrides
+     * @throws ApiException (409) unless the application is approved
+     */
     @Transactional
     public Map<String, Object> fromApplication(UUID applicationId, Map<String, Object> b) {
         Map<String, Object> a = db.one("Application", "select * from leasing.application where id = ?", applicationId);
@@ -99,6 +120,13 @@ public class LeaseService {
         return out;
     }
 
+    /**
+     * Applies a workflow action to a lease, with side effects on the unit, for example marking it occupied when the lease activates.
+     *
+     * @param id     the lease
+     * @param action the workflow action
+     * @param body  reason and any action-specific fields
+     */
     @Transactional
     public Map<String, Object> act(UUID id, String action, Map<String, Object> body) {
         Map<String, Object> l = db.one("Lease", "select * from leasing.lease where id = ?", id);

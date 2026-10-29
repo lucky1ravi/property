@@ -37,26 +37,48 @@ public abstract class BaseEntity {
         updatedAt = OffsetDateTime.now();
     }
 
+    /**
+     * Returns the row's unique identifier.
+     */
     public UUID getId() {
         return id;
     }
 
+    /**
+     * Sets the row's unique identifier.
+     *
+     * @param id the identifier
+     */
     public void setId(UUID id) {
         this.id = id;
     }
 
+    /**
+     * Returns the company (tenant) that owns this row.
+     */
     public UUID getOrgId() {
         return orgId;
     }
 
+    /**
+     * Sets the owning company (tenant).
+     *
+     * @param orgId the company identifier
+     */
     public void setOrgId(UUID orgId) {
         this.orgId = orgId;
     }
 
+    /**
+     * Returns when the row was created.
+     */
     public OffsetDateTime getCreatedAt() {
         return createdAt;
     }
 
+    /**
+     * Returns when the row was last changed.
+     */
     public OffsetDateTime getUpdatedAt() {
         return updatedAt;
     }

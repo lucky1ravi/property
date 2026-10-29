@@ -28,21 +28,40 @@ public class OpenAiLlm implements Llm {
         this.baseUrl = baseUrl;
     }
 
+    /**
+     * Returns {@code openai}.
+     */
     @Override
     public String provider() {
         return "openai";
     }
 
+    /**
+     * Returns the model name in use.
+     */
     @Override
     public String model() {
         return model;
     }
 
+    /**
+     * Tells whether image input is allowed; set {@code OPENAI_VISION=false} to turn it off.
+     */
     @Override
     public boolean supportsVision() {
         return !"false".equalsIgnoreCase(System.getenv("OPENAI_VISION"));
     }
 
+    /**
+     * Asks the model about an image.
+     *
+     * @param system the instructions
+     * @param prompt the question
+     * @param image  the image bytes
+     * @param mime   the image type
+     * @return the model's text answer
+     * @throws Exception when the call fails
+     */
     @Override
     public String vision(String system, String prompt, byte[] image, String mime) throws Exception {
         ObjectNode body = mapper.createObjectNode();
@@ -61,6 +80,15 @@ public class OpenAiLlm implements Llm {
         return mapper.readTree(res.body()).path("choices").path(0).path("message").path("content").asText("");
     }
 
+    /**
+     * Sends a conversation, optionally with tools, and returns the model's answer or tool calls.
+     *
+     * @param system     the instructions
+     * @param messages   the conversation so far
+     * @param tools      tools the model may call, or empty
+     * @param jsonOutput true to ask for a JSON answer
+     * @throws Exception when the call fails
+     */
     @Override
     public Reply chat(String system, List<Msg> messages, List<ToolSpec> tools, boolean jsonOutput) throws Exception {
         ObjectNode body = mapper.createObjectNode();

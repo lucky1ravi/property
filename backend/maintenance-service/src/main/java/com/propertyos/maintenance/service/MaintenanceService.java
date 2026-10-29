@@ -1,5 +1,6 @@
 package com.propertyos.maintenance.service;
 
+import org.springframework.web.client.RestClientException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.propertyos.common.client.AiClient;
 import com.propertyos.common.client.ServiceClient;
@@ -25,6 +26,9 @@ import java.util.*;
 /** Work orders: intake, AI triage, owner approval limits, vendor matching, SLA and completion. */
 @Service
 public class MaintenanceService {
+    /**
+     * Workflow key for work orders.
+     */
     static final String WF = "WORK_ORDER";
     private final Db db;
     private final StateMachine sm;
@@ -50,6 +54,12 @@ public class MaintenanceService {
     }
 
     // ---------- Reads ----------
+    /**
+     * Lists work orders with hours left on their SLA.
+     *
+     * @param status   status filter, or null
+     * @param priority priority filter, or null
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(String status, String priority) {
         StringBuilder sql = new StringBuilder("""
@@ -65,6 +75,11 @@ public class MaintenanceService {
         return db.list(sql.toString(), a.toArray());
     }
 
+    /**
+     * Returns a work order with its allowed actions and SLA.
+     *
+     * @throws ApiException (404) when not found
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> get(UUID id) {
         Map<String, Object> w = new LinkedHashMap<>(db.one("Work order", """
@@ -77,6 +92,12 @@ public class MaintenanceService {
     }
 
     // ---------- Intake and triage ----------
+    /**
+     * Creates a work order from a staff or resident request, classifying it with {@link TriageEngine} when category or priority is missing.
+     *
+     * @param b title, description and location details
+     * @return the new work order
+     */
     @Transactional
     public Map<String, Object> create(Map<String, Object> b) {
         UserContext ctx = UserContextHolder.require();
@@ -186,7 +207,7 @@ public class MaintenanceService {
         try {
             JsonNode o = client.get(ServiceClient.Service.LEASING, "/internal/leasing/owners/" + ownerId);
             return new BigDecimal(o.path("approval_limit").asText());
-        } catch (Exception e) {
+        } catch (RestClientException | NumberFormatException e) {
             return config.number("approvals.maintenanceOwnerLimit", "500");
         }
     }
@@ -224,11 +245,14 @@ public class MaintenanceService {
         try {
             JsonNode n = client.get(ServiceClient.Service.LEASING, "/internal/leasing/property/" + propertyId);
             return n.path("city").asText(null);
-        } catch (Exception e) {
+        } catch (RestClientException e) {
             return null;
         }
     }
 
+    /**
+     * Lists vendors with open job counts and recent ratings.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> vendors() {
         return db.list("""
@@ -238,6 +262,13 @@ public class MaintenanceService {
     }
 
     // ---------- Actions ----------
+    /**
+     * Applies a workflow action to a work order and performs its side effects, for example notifying the resident.
+     *
+     * @param id     the work order
+     * @param action the workflow action
+     * @param body  reason and any action-specific fields
+     */
     @Transactional
     public Map<String, Object> act(UUID id, String action, Map<String, Object> body) {
         Map<String, Object> w = db.one("Work order", "select * from maintenance.work_order where id = ?", id);
@@ -307,17 +338,31 @@ public class MaintenanceService {
         notifier.toParty(vendorId, "New job assigned", "A new work order is waiting for you.", "/maintenance/" + id);
     }
 
+    /**
+     * Adds a comment to a work order.
+     *
+     * @param id       the work order
+     * @param body     the message
+     * @param internal true to hide it from the resident
+     * @throws ApiException (400) when the message is blank
+     */
     @Transactional
     public Map<String, Object> comment(UUID id, String body, boolean internal) {
         Map<String, Object> w = db.one("Work order", "select * from maintenance.work_order where id = ?", id);
         UserContext ctx = UserContextHolder.require();
         if (body == null || body.isBlank()) throw ApiException.badRequest("Write a message first.");
+        // Only staff can write notes that residents, owners and vendors cannot see; anyone else's comment is always visible.
+        boolean staff = List.of(UserContext.SCOPE_ORG, UserContext.SCOPE_PROPERTY, UserContext.SCOPE_PLATFORM).contains(ctx.scope());
+        internal = internal && staff;
         db.update("insert into maintenance.work_order_comment (id, org_id, work_order_id, property_id, owner_id, tenant_id, vendor_id, author, body, internal) values (?,?,?,?,?,?,?,?,?,?)",
                 UUID.randomUUID(), ctx.orgId(), id, w.get("property_id"), w.get("owner_id"), w.get("tenant_id"), w.get("vendor_id"), ctx.name(), body, internal);
         return get(id);
     }
 
     // ---------- Stats and SLA ----------
+    /**
+     * Returns open orders, emergencies, SLA breaches and related figures.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> stats() {
         Map<String, Object> s = new LinkedHashMap<>(db.one("Stats", """
@@ -354,6 +399,11 @@ public class MaintenanceService {
                 db.list("select distinct org_id from maintenance.work_order").stream().map(r -> (UUID) r.get("org_id")).toList()));
     }
 
+    /**
+     * Marks open work orders past their SLA as breached and notifies managers.
+     *
+     * @return how many were escalated
+     */
     @Transactional
     public int escalate() {
         List<Map<String, Object>> late = db.list("select id, title, priority, property_name from maintenance.work_order where status not in ('CLOSED','REJECTED','COMPLETED') and sla_due_at < now() and not sla_breached");
@@ -367,11 +417,19 @@ public class MaintenanceService {
     }
 
     // ---------- Recurring maintenance ----------
+    /**
+     * Lists recurring tasks, soonest due first.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> recurring() {
         return db.list("select * from maintenance.recurring_task order by next_due");
     }
 
+    /**
+     * Adds a recurring task for a property.
+     *
+     * @param b propertyId, title, schedule and first due date
+     */
     @Transactional
     public Map<String, Object> addRecurring(Map<String, Object> b) {
         UUID propertyId = Req.requiredUuid(b, "propertyId");

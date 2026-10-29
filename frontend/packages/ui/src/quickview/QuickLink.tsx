@@ -2,7 +2,13 @@ import { Avatar } from '../components/primitives';
 import type { ReactNode } from 'react';
 import { useSession } from '../lib/session';
 
+/**
+ * Kinds of record that can open in the quick-view panel.
+ */
 export type QuickKind = 'property' | 'owner' | 'unit' | 'tenant' | 'vendor' | 'workorder' | 'invoice' | 'payment' | 'applicant';
+/**
+ * A record to open in the quick-view panel.
+ */
 export interface QuickTarget { kind: QuickKind; id: string; name?: string }
 
 const EVENT = 'pos:quickview';
@@ -11,6 +17,9 @@ const EVENT = 'pos:quickview';
 export function openQuickView(t: QuickTarget) {
   window.dispatchEvent(new CustomEvent<QuickTarget>(EVENT, { detail: t }));
 }
+/**
+ * Browser event name used to ask the panel to open a record.
+ */
 export const QUICKVIEW_EVENT = EVENT;
 
 /** Permission needed to open each panel, and the sign-in scopes that may not see it. */

@@ -44,6 +44,9 @@ public class LlmProvider {
         log.info("AI provider: {}", built == null ? "offline (rules only)" : built.provider() + " / " + built.model());
     }
 
+    /**
+     * Returns the text model, or empty when running offline.
+     */
     public Optional<Llm> get() {
         return Optional.ofNullable(llm);
     }
@@ -53,6 +56,9 @@ public class LlmProvider {
         return Optional.ofNullable(vision);
     }
 
+    /**
+     * Returns {@code provider:model}, or {@code offline}.
+     */
     public String describe() {
         return llm == null ? "offline" : llm.provider() + ":" + llm.model();
     }

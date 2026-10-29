@@ -33,6 +33,9 @@ public class LeaseAlerts {
         return Deadlines.thresholds(config, "alerts/leaseExpiry/daysBefore", List.of(30, 60, 90));
     }
 
+    /**
+     * Returns lease expiries inside the alert horizon, or nothing when lease-expiry alerts are switched off.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> deadlines() {
         if (!config.flag("alerts/leaseExpiry/enabled", true)) return List.of();
@@ -60,6 +63,9 @@ public class LeaseAlerts {
         return sent;
     }
 
+    /**
+     * Daily timer: for each company, sends the lease alerts that are due.
+     */
     @Scheduled(cron = "0 15 7 * * *", zone = "America/Chicago")
     public void daily() {
         List<UUID> orgs = UserContextHolder.runAsSystem(null, () -> new TransactionTemplate(tm).execute(st ->

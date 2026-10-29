@@ -22,6 +22,9 @@ import java.util.*;
  */
 @Service
 public class ChatService {
+    /**
+     * Kinds of record a conversation can be linked to.
+     */
     private static final Set<String> CONTEXTS = Set.of("GENERAL", "WORK_ORDER", "INVOICE", "LEASE", "APPLICATION", "PROPERTY");
 
     private final Db db;
@@ -114,6 +117,9 @@ public class ChatService {
     }
 
     // ---------- Contacts ----------
+    /**
+     * Lists people the user may message, according to the company's chat rules.
+     */
     public List<Map<String, Object>> contacts() {
         requireEnabled();
         List<Person> dir = directory();
@@ -130,6 +136,9 @@ public class ChatService {
     }
 
     // ---------- Conversations ----------
+    /**
+     * Lists the user's 200 latest conversations with last message and unread counts.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> list() {
         requireEnabled();
@@ -151,6 +160,11 @@ public class ChatService {
                 .orElseThrow(() -> ApiException.notFound("Conversation"));
     }
 
+    /**
+     * Returns a conversation with its members and messages, and marks it (and its notifications) read for the user.
+     *
+     * @throws ApiException (404) when the user is not a member
+     */
     @Transactional
     public Map<String, Object> get(UUID id) {
         member(id);
@@ -163,6 +177,11 @@ public class ChatService {
         return c;
     }
 
+    /**
+     * Starts a conversation with the given people.
+     *
+     * @param b subject, member ids, optional linked record and first message
+     */
     @Transactional
     public Map<String, Object> create(Map<String, Object> b) {
         requireEnabled();
@@ -195,6 +214,12 @@ public class ChatService {
         return Map.of("id", id);
     }
 
+    /**
+     * Adds a message, reopens a resolved conversation and notifies the other members.
+     *
+     * @param id   the conversation
+     * @param body the message text
+     */
     @Transactional
     public Map<String, Object> post(UUID id, String body) {
         requireEnabled();
@@ -210,6 +235,12 @@ public class ChatService {
         return Map.of("ok", true);
     }
 
+    /**
+     * Marks a conversation resolved or reopens it, adding a system message that says so.
+     *
+     * @param id       the conversation
+     * @param resolved true to resolve
+     */
     @Transactional
     public Map<String, Object> resolve(UUID id, boolean resolved) {
         member(id);
@@ -221,6 +252,11 @@ public class ChatService {
     }
 
     // ---------- Catch-up (AI with a plain fallback) ----------
+    /**
+     * Summarises the conversation with open questions (and, for staff, a suggested reply). Falls back to a plain rule-based summary when no model is available.
+     *
+     * @throws ApiException (400) when summaries are turned off or there are no messages
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> assist(UUID id) {
         member(id);

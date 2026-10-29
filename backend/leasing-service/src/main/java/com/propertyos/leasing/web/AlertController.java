@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+/**
+ * Lease-expiry deadlines and the manual trigger for the alert run.
+ */
 @RestController
 @RequestMapping("/api/leasing")
 public class AlertController {
@@ -16,9 +19,15 @@ public class AlertController {
         this.alerts = alerts;
     }
 
+    /**
+     * Lists upcoming lease deadlines (expiry and renewal notices).
+     */
     @GetMapping("/deadlines") @RequiresPermission("ALERT:VIEW")
     public Object deadlines() { return Deadlines.publicView(alerts.deadlines()); }
 
+    /**
+     * Sends due lease alerts now instead of waiting for the daily timer.
+     */
     @PostMapping("/alerts/run") @RequiresPermission("ALERT:CONFIGURE")
     public Object run() { return Map.of("sent", alerts.run()); }
 }

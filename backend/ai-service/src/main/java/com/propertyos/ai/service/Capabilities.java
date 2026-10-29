@@ -32,8 +32,18 @@ public class Capabilities {
         this.audit = audit;
     }
 
+    /**
+     * Maps each capability name to the configuration key that switches it on or off.
+     */
     private static final Map<String, String> CONFIG_KEY = Map.of("listing", "LISTING_WRITER", "lead-reply", "LEASING_AGENT", "screening", "SCREENING", "triage", "MAINTENANCE_TRIAGE", "thread", "CONVERSATION_ASSIST");
 
+    /**
+     * Runs a named text capability: checks it is switched on, applies guardrails, calls the model and falls back to rules when none is available.
+     *
+     * @param capability listing, lead-reply, screening, triage or thread
+     * @param input      the capability's request data
+     * @throws ApiException (404) for an unknown capability, (503) when turned off
+     */
     public JsonNode run(String capability, JsonNode input) {
         String key = CONFIG_KEY.get(capability);
         if (key == null) throw ApiException.notFound("AI capability");

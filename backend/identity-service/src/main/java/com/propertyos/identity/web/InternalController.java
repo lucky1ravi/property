@@ -22,6 +22,9 @@ public class InternalController {
         this.tx = tx;
     }
 
+    /**
+     * Service-to-service: effective configuration of a company.
+     */
     @GetMapping("/config/{orgId}")
     public ObjectNode config(@PathVariable UUID orgId) {
         return config.effective(orgId);
@@ -39,6 +42,9 @@ public class InternalController {
         });
     }
 
+    /**
+     * Service-to-service: name and email of a user, or an empty object when unknown.
+     */
     @GetMapping("/users/{id}")
     public Map<String, Object> user(@PathVariable UUID id) {
         return tx.read(() -> store.user(id).map(u -> Map.<String, Object>of("id", u.get("id"), "name", u.get("name"),
@@ -58,6 +64,9 @@ public class InternalController {
                 }).toList());
     }
 
+    /**
+     * Service-to-service: every company, used by timers that run per company.
+     */
     @GetMapping("/orgs")
     public List<Map<String, Object>> orgs() {
         return tx.read(store::orgs);

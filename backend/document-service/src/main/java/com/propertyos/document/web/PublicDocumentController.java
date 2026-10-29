@@ -6,6 +6,7 @@ import com.propertyos.common.rls.Db;
 import com.propertyos.common.security.SignedLinks;
 import com.propertyos.common.security.UserContextHolder;
 import com.propertyos.common.web.ApiException;
+import com.propertyos.document.service.DocumentRequirements;
 import com.propertyos.document.service.DocumentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,13 +27,15 @@ import java.util.*;
 public class PublicDocumentController {
     private static final Logger log = LoggerFactory.getLogger(PublicDocumentController.class);
     private final DocumentService docs;
+    private final DocumentRequirements requirements;
     private final SignedLinks links;
     private final ServiceClient client;
     private final Db db;
     private final TransactionTemplate tx;
 
-    public PublicDocumentController(DocumentService docs, SignedLinks links, ServiceClient client, Db db, PlatformTransactionManager tm) {
+    public PublicDocumentController(DocumentService docs, DocumentRequirements requirements, SignedLinks links, ServiceClient client, Db db, PlatformTransactionManager tm) {
         this.docs = docs;
+        this.requirements = requirements;
         this.links = links;
         this.client = client;
         this.db = db;
@@ -48,6 +51,9 @@ public class PublicDocumentController {
         return a;
     }
 
+    /**
+     * Public (signed link): lists what an applicant has uploaded, the checklist and the accepted document types.
+     */
     @GetMapping("/files")
     public Object files(@PathVariable UUID applicationId, @RequestParam String token) {
         JsonNode a = application(applicationId, token);
@@ -57,7 +63,7 @@ public class PublicDocumentController {
             out.put("applicant", a.path("applicant_name").asText());
             out.put("home", a.path("label").asText());
             out.put("files", db.list("select doc_type as type, file_name, review_status, review_note, created_at from document.document where entity_type = 'APPLICATION' and entity_id = ? and status = 'ACTIVE' order by created_at", applicationId));
-            out.put("checklist", docs.requirements("APPLICATION", applicationId).get("items"));
+            out.put("checklist", requirements.requirements("APPLICATION", applicationId).get("items"));
             List<String> types = new ArrayList<>();
             for (String c : List.of("IDENTITY", "APPLICATION")) docs.categories().path(c).path("types").forEach(t -> types.add(t.asText()));
             types.remove("Screening report");
@@ -66,6 +72,9 @@ public class PublicDocumentController {
         }));
     }
 
+    /**
+     * Public (signed link): adds a file to one application.
+     */
     @PostMapping(value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Object upload(@PathVariable UUID applicationId, @RequestParam String token, @RequestParam("file") MultipartFile file,
                          @RequestParam(required = false) String docType) throws java.io.IOException {

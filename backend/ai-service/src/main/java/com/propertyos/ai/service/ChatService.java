@@ -26,6 +26,9 @@ import java.util.function.BiFunction;
 @Service
 public class ChatService {
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
+    /**
+     * Most tool-call rounds the assistant may take for one message, so a confused model cannot loop forever.
+     */
     private static final int MAX_STEPS = 5;
     private final LlmProvider provider;
     private final Guardrails guardrails;
@@ -202,9 +205,27 @@ public class ChatService {
         return out;
     }
 
+    /**
+     * The assistant's reply.
+     *
+     * @param answer         text shown to the user
+     * @param provider       which model or rules answered
+     * @param toolsUsed     tools called, with their results
+     * @param pendingAction a proposed change awaiting confirmation, or null
+     * @param suggestions   follow-up questions
+     * @param blocked       true when a guardrail stopped the request
+     */
     public record ChatResult(String answer, String provider, List<Map<String, Object>> toolsUsed, Map<String, Object> pendingAction, List<String> suggestions, boolean blocked) {
     }
 
+    /**
+     * Answers a message. Screens it for prompt injection, redacts personal data, lets the model call permission-checked tools, screens the answer for fair-housing problems and records the audit. Falls back to rules when no model is available.
+     *
+     * @param bearer  the caller's token, forwarded to tools
+     * @param message the user's message
+     * @param history earlier turns
+     * @throws ApiException (403) when the assistant is turned off
+     */
     @Transactional
     public ChatResult chat(String bearer, String message, List<Map<String, String>> history) {
         UserContext ctx = UserContextHolder.require();
@@ -296,6 +317,14 @@ public class ChatService {
         return Map.of("id", id, "tool", tool.name(), "summary", summary);
     }
 
+    /**
+     * Approves or cancels an action the assistant proposed, running it with the caller's permissions if approved.
+     *
+     * @param bearer  the caller's token
+     * @param id      the pending action
+     * @param approve true to run it
+     * @throws ApiException (409) when it was already handled
+     */
     @Transactional
     public Map<String, Object> confirm(String bearer, UUID id, boolean approve) {
         UserContext ctx = UserContextHolder.require();

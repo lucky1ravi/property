@@ -1,0 +1,40 @@
+# Namespace, shared settings and the secret skeleton. Replace the secret values (or use your secret manager) before applying.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: propertyos
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: propertyos-config
+  namespace: propertyos
+data:
+  DEMO_MODE: "false"
+  PGHOST: "postgres.propertyos.svc"   # point at a managed, replicated PostgreSQL (primary + standby) in production
+  PGPORT: "5432"
+  PGDATABASE: "propertyos"
+  PGSSL: "?sslmode=require"
+  DB_POOL_SIZE: "10"
+  ALLOWED_ORIGINS: "https://app.example.com"
+  API_DOCS_ENABLED: "false"
+  LOGGING_STRUCTURED_FORMAT_CONSOLE: "ecs"      # one JSON object per log line, with the correlation id
+  IDENTITY_URL: "http://identity-service:8081"
+  LEASING_URL: "http://leasing-service:8082"
+  BILLING_URL: "http://billing-service:8083"
+  MAINTENANCE_URL: "http://maintenance-service:8084"
+  WORKFLOW_URL: "http://workflow-service:8085"
+  AI_URL: "http://ai-service:8086"
+  DOCUMENTS_URL: "http://document-service:8087"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: propertyos-secrets
+  namespace: propertyos
+type: Opaque
+stringData:
+  JWT_SECRET: "CHANGE-ME-at-least-32-random-characters"
+  INTERNAL_TOKEN: "CHANGE-ME-random-service-token"
+  PGUSER: "propertyos"
+  PGPASSWORD: "CHANGE-ME"

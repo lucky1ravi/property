@@ -1,6 +1,9 @@
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, Line, ComposedChart, Legend } from 'recharts';
 import { fmt } from '../lib/format';
 
+/**
+ * Colour palette shared by all charts.
+ */
 export const CHART = {
   primary: '#1F6869',
   primarySoft: '#9CC3C1',
@@ -19,6 +22,15 @@ type Fmt = 'usd' | 'num' | 'pct';
 const fmtv = (f: Fmt) => (v: number) => (f === 'usd' ? fmt.usd(v) : f === 'pct' ? `${v}%` : fmt.num(v));
 const compact = (f: Fmt) => (v: number) => (f === 'usd' ? (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : `$${v}`) : f === 'pct' ? `${v}%` : fmt.num(v));
 
+/**
+ * Line chart of one measure over time.
+ *
+ * @param data   rows to plot
+ * @param x      field holding the x value
+ * @param y      field holding the y value
+ * @param format how to format values: dollars, number or percent
+ * @param height chart height in pixels
+ */
 export function TrendChart({ data, x, y, format = 'usd', height = 220, color = CHART.primary }: { data: any[]; x: string; y: string; format?: Fmt; height?: number; color?: string }) {
   return (
     <ResponsiveContainer width="100%" height={height}>

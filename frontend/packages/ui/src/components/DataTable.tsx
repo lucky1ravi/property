@@ -4,6 +4,9 @@ import { Search, ArrowUpDown, ArrowUp, ArrowDown, Download, SlidersHorizontal, X
 import { Skeleton, Select } from './primitives';
 import { EmptyState } from './layout';
 
+/**
+ * One column of a {@link DataTable}: its heading, how to render a row's cell and whether it can be sorted.
+ */
 export interface Column<T> {
   key: string;
   header: ReactNode;
@@ -18,6 +21,9 @@ export interface Column<T> {
   filter?: 'text' | 'select' | 'date' | 'number' | false;
 }
 
+/**
+ * Props for {@link DataTable}.
+ */
 export interface DataTableProps<T> {
   rows: T[] | undefined;
   columns: Column<T>[];

@@ -18,7 +18,8 @@ import java.util.*;
 
 /**
  * The document library: upload, versions, linking to records, sharing with owners, residents and vendors,
- * review of files sent in by others, retention and legal hold, trash, and requirement checklists.
+ * review of files sent in by others, retention and legal hold, and trash. Filing suggestions live in
+ * {@link DocumentClassifier} and requirement checklists in {@link DocumentRequirements}.
  */
 @Service
 public class DocumentService {
@@ -29,8 +30,10 @@ public class DocumentService {
     private final AuditService audit;
     private final EventPublisher events;
     private final Notifier notifier;
+    private final DocumentClassifier classifier;
 
-    public DocumentService(Db db, ConfigClient config, FileRules rules, Lookups lookups, AuditService audit, EventPublisher events, Notifier notifier) {
+    public DocumentService(Db db, ConfigClient config, FileRules rules, Lookups lookups, AuditService audit, EventPublisher events, Notifier notifier,
+                           DocumentClassifier classifier) {
         this.db = db;
         this.config = config;
         this.rules = rules;
@@ -38,8 +41,12 @@ public class DocumentService {
         this.audit = audit;
         this.events = events;
         this.notifier = notifier;
+        this.classifier = classifier;
     }
 
+    /**
+     * Scopes that belong to company staff rather than residents, owners or vendors.
+     */
     public static final List<String> STAFF_SCOPES = List.of(UserContext.SCOPE_ORG, UserContext.SCOPE_PROPERTY, UserContext.SCOPE_PLATFORM);
 
     static boolean staff(UserContext ctx) {
@@ -48,10 +55,16 @@ public class DocumentService {
 
     // ------------------------------------------------------------------ configuration
 
+    /**
+     * Returns the configured document categories and their types.
+     */
     public JsonNode categories() {
         return config.at("documents/categories");
     }
 
+    /**
+     * Returns the display name of a category, with a readable fallback.
+     */
     public String categoryLabel(String key) {
         return categories().path(key).path("label").asText(key == null ? "Other" : key.charAt(0) + key.substring(1).toLowerCase().replace('_', ' '));
     }
@@ -80,6 +93,9 @@ public class DocumentService {
         return out;
     }
 
+    /**
+     * Returns what the upload form needs: categories, types, file rules and the records documents can attach to.
+     */
     public Map<String, Object> meta() {
         UserContext ctx = UserContextHolder.require();
         Map<String, Object> m = new LinkedHashMap<>();
@@ -108,61 +124,11 @@ public class DocumentService {
         return m;
     }
 
-    // ------------------------------------------------------------------ smart filing
-
-    private static final String[][] FILING = {
-            {"w-9|w9|form w9", "TAX", "W-9"}, {"1099-nec", "TAX", "1099-NEC"}, {"1099", "TAX", "1099-MISC"}, {"sales tax", "TAX", "Sales tax return"},
-            {"acord|coi|certificate of insurance|cert of ins", "INSURANCE", "Certificate of insurance"}, {"renter", "INSURANCE", "Renters insurance"},
-            {"insurance|policy|declarations", "INSURANCE", "Property insurance policy"},
-            {"paystub|pay stub|pay_stub|payslip|earnings statement|w-2|w2", "APPLICATION", "Proof of income"}, {"bank statement|bank_statement", "APPLICATION", "Bank statement"},
-            {"offer letter|offer_letter|employment letter", "APPLICATION", "Offer letter"}, {"reference", "APPLICATION", "Reference letter"},
-            {"screening|credit report|background", "APPLICATION", "Screening report"},
-            {"passport", "IDENTITY", "Passport"}, {"license|licence|driver|photo id|photo_id|state id|id card", "IDENTITY", "Photo ID"},
-            {"pet addendum|pet_addendum|pet", "LEASE", "Pet addendum"}, {"addendum", "LEASE", "Lease addendum"}, {"move-in|move in|movein", "LEASE", "Move-in inspection"},
-            {"move-out|move out|moveout", "LEASE", "Move-out inspection"}, {"renewal", "LEASE", "Renewal offer"}, {"lease", "LEASE", "Lease agreement"},
-            {"utility|electric|water bill|gas bill|sewer", "BILL", "Utility bill"}, {"property tax", "BILL", "Property tax bill"}, {"hoa", "BILL", "HOA bill"},
-            {"quote|estimate|proposal", "BILL", "Quote"}, {"receipt", "BILL", "Receipt"}, {"invoice|bill", "BILL", "Vendor invoice"},
-            {"owner statement|statement", "STATEMENT", "Owner statement"},
-            {"management agreement", "CONTRACT", "Management agreement"}, {"vendor agreement|service agreement", "CONTRACT", "Vendor agreement"},
-            {"agreement|contract", "CONTRACT", "Service contract"},
-            {"permit", "PROPERTY", "Permit"}, {"certificate of occupancy", "PROPERTY", "Certificate of occupancy"}, {"appraisal", "PROPERTY", "Appraisal"},
-            {"floor plan|floorplan", "PROPERTY", "Floor plan"}, {"inspection", "PROPERTY", "Inspection report"},
-            {"notice to vacate|vacate", "NOTICE", "Notice to vacate"}, {"entry notice|notice of entry", "NOTICE", "Entry notice"}, {"rent increase", "NOTICE", "Rent increase notice"},
-            {"late notice|late rent", "NOTICE", "Late rent notice"}, {"adverse action", "NOTICE", "Adverse action notice"},
-    };
-
-    /** Suggests where a file belongs from its name (rule based, explainable). The person always confirms. */
-    public Map<String, Object> classify(String fileName, String entityType) {
-        String n = (fileName == null ? "" : fileName).toLowerCase().replace('_', ' ');
-        Map<String, Object> m = new LinkedHashMap<>();
-        for (String[] r : FILING) {
-            for (String kw : r[0].split("\\|")) {
-                if (n.contains(kw.replace('_', ' '))) {
-                    m.put("category", r[1]);
-                    m.put("docType", r[2]);
-                    m.put("confidence", 0.85);
-                    m.put("reason", "The file name mentions “" + kw + "”.");
-                    return m;
-                }
-            }
-        }
-        boolean image = n.matches(".*\\.(jpg|jpeg|png|heic|webp|gif)$");
-        if (image && "WORK_ORDER".equals(entityType)) {
-            m.put("category", "WORK_ORDER"); m.put("docType", "Photo"); m.put("confidence", 0.7); m.put("reason", "A photo added to a work order.");
-        } else if ("APPLICATION".equals(entityType)) {
-            m.put("category", "APPLICATION"); m.put("docType", "Proof of income"); m.put("confidence", 0.4); m.put("reason", "Added to an application.");
-        } else if ("VENDOR".equals(entityType)) {
-            m.put("category", "INSURANCE"); m.put("docType", "Certificate of insurance"); m.put("confidence", 0.4); m.put("reason", "Added to a vendor record.");
-        } else if ("INVOICE".equals(entityType) || "STATEMENT".equals(entityType)) {
-            m.put("category", "BILL"); m.put("docType", "Receipt"); m.put("confidence", 0.4); m.put("reason", "Added to a billing record.");
-        } else {
-            m.put("category", image ? "PROPERTY" : "OTHER"); m.put("docType", image ? "Inspection report" : "Other"); m.put("confidence", 0.2); m.put("reason", "No strong clue in the file name.");
-        }
-        return m;
-    }
-
     // ------------------------------------------------------------------ reading
 
+    /**
+     * Document columns returned by list and detail queries (leaves out the file bytes).
+     */
     private static final String COLS = """
             id, org_id, title, category, doc_type, description, status, source, entity_type, entity_id, entity_label, property_id, property_name, unit_id,
             owner_id, tenant_id, vendor_id, share_owner, share_tenant, share_vendor, sensitive, tags, expires_on, retain_until, legal_hold, review_status,
@@ -195,6 +161,11 @@ public class DocumentService {
         return m;
     }
 
+    /**
+     * Lists documents the user may see. Residents, owners and vendors see only documents shared with them.
+     *
+     * @param f filters such as category, type, status, record and search text
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> list(Map<String, String> f) {
         UserContext ctx = UserContextHolder.require();
@@ -248,6 +219,11 @@ public class DocumentService {
         return d;
     }
 
+    /**
+     * Returns one document with versions and history, if the user may see it.
+     *
+     * @throws ApiException (404) when missing or not visible
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> get(UUID id) {
         UserContext ctx = UserContextHolder.require();
@@ -284,11 +260,19 @@ public class DocumentService {
                        Boolean shareOwner, Boolean shareTenant, Boolean shareVendor, LocalDate expiresOn, List<String> tags, boolean allowDuplicate) {
     }
 
+    /**
+     * Validates and stores a new document, rejecting duplicates and unsafe files.
+     *
+     * @param originalName the uploaded file name
+     * @param data         the file bytes
+     * @param meta         the document's details
+     * @throws ApiException (400/409) for an invalid file or a duplicate
+     */
     @Transactional
     public Map<String, Object> upload(String originalName, byte[] data, Meta meta) {
         UserContext ctx = UserContextHolder.require();
         FileRules.Checked file = rules.check(originalName, data);
-        Map<String, Object> suggestion = classify(file.fileName(), meta.entityType());
+        Map<String, Object> suggestion = classifier.classify(file.fileName(), meta.entityType());
         String category = blank(meta.category()) ? (String) suggestion.get("category") : meta.category();
         if (!categories().has(category)) throw ApiException.badRequest("Unknown document category: " + category);
         if (!uploadCategories(ctx).contains(category))
@@ -360,7 +344,7 @@ public class DocumentService {
         config.at("documents/uploads/applicantCategories").forEach(n -> allowed.add(n.asText()));
         if (allowed.isEmpty()) allowed.addAll(List.of("APPLICATION", "IDENTITY"));
         FileRules.Checked file = rules.check(originalName, data);
-        if (blank(category)) category = (String) classify(file.fileName(), "APPLICATION").get("category");
+        if (blank(category)) category = (String) classifier.classify(file.fileName(), "APPLICATION").get("category");
         if (!allowed.contains(category)) category = "APPLICATION";
         Lookups.Links links = lookups.resolve("APPLICATION", applicationId);
         Optional<Map<String, Object>> dup = db.find("select id from document.document where sha256 = ? and entity_id = ? and status <> 'DELETED'", file.sha256(), applicationId);
@@ -368,7 +352,7 @@ public class DocumentService {
         long count = db.value(Long.class, "select count(*) from document.document where entity_id = ? and uploader_scope = 'APPLICANT'", applicationId);
         if (count >= 20) throw ApiException.badRequest("You've reached the limit of 20 files for one application. Contact the leasing office.");
         UUID id = UUID.randomUUID();
-        String type = blank(docType) ? (String) classify(file.fileName(), "APPLICATION").get("docType") : docType;
+        String type = blank(docType) ? (String) classifier.classify(file.fileName(), "APPLICATION").get("docType") : docType;
         insert(id, ctx.orgId(), type + " – " + applicantName, category, type, null, "UPLOAD", "APPLICATION", applicationId, links, false, false, false,
                 true, List.of(), null, "PENDING", null, applicantName, "APPLICANT", file, data, "Uploaded by the applicant");
         audit.record("Document", id, "DOCUMENT_UPLOADED", null, "ACTIVE", Map.of("title", type, "by", applicantName + " (applicant)", "file", file.fileName(), "sha256", file.sha256()));
@@ -388,6 +372,9 @@ public class DocumentService {
         return id;
     }
 
+    /**
+     * Writes the document row, its first version and its history entry.
+     */
     public void insert(UUID id, UUID orgId, String title, String category, String docType, String description, String source, String entityType, UUID entityId,
                 Lookups.Links links, boolean shareOwner, boolean shareTenant, boolean shareVendor, boolean sensitive, List<String> tags, LocalDate expiresOn,
                 String review, UUID by, String byName, String byScope, FileRules.Checked file, byte[] data, String note) {
@@ -443,6 +430,11 @@ public class DocumentService {
         return l.label() == null || l.label().isBlank() ? base : base + " – " + l.label();
     }
 
+    /**
+     * Stores a new version of a document and makes it current.
+     *
+     * @param note what changed
+     */
     @Transactional
     public Map<String, Object> newVersion(UUID id, String originalName, byte[] data, String note) {
         UserContext ctx = UserContextHolder.require();
@@ -463,6 +455,9 @@ public class DocumentService {
         return get(id);
     }
 
+    /**
+     * Changes a document's title, details, tags, expiry and sharing, if the user may edit it.
+     */
     @Transactional
     public Map<String, Object> update(UUID id, Map<String, Object> b) {
         UserContext ctx = UserContextHolder.require();
@@ -512,6 +507,13 @@ public class DocumentService {
         return get(id);
     }
 
+    /**
+     * Records whether a file was accepted or rejected.
+     *
+     * @param decision {@code ACCEPTED} or {@code REJECTED}
+     * @param note    why; required for a rejection
+     * @throws ApiException (400) for another decision or a missing reason
+     */
     @Transactional
     public Map<String, Object> review(UUID id, String decision, String note) {
         UserContext ctx = UserContextHolder.require();
@@ -529,6 +531,12 @@ public class DocumentService {
         return get(id);
     }
 
+    /**
+     * Archives, restores or deletes a document after checking permissions. Deleting is blocked by legal hold, open signature requests and (for signed files) a missing administrator permission.
+     *
+     * @param action {@code ARCHIVE}, {@code RESTORE} or {@code DELETE}
+     * @param reason why, recorded in the history
+     */
     @Transactional
     public Map<String, Object> setStatus(UUID id, String action, String reason) {
         UserContext ctx = UserContextHolder.require();
@@ -574,12 +582,21 @@ public class DocumentService {
         return Map.of("id", id, "status", "PURGED");
     }
 
+    /**
+     * Deletes a document row and any stored files no other document uses.
+     */
     public void purgeRow(UUID id) {
         List<Map<String, Object>> blobs = db.list("select blob_id from document.document_version where document_id = ?", id);
         db.update("delete from document.document where id = ?", id);
         for (Map<String, Object> bl : blobs) db.update("delete from document.blob where id = ?", bl.get("blob_id"));
     }
 
+    /**
+     * Puts a document on or off legal hold.
+     *
+     * @param on true to hold
+     * @param reason why, recorded in the history
+     */
     @Transactional
     public Map<String, Object> legalHold(UUID id, boolean on, String reason) {
         UserContext ctx = UserContextHolder.require();
@@ -593,9 +610,23 @@ public class DocumentService {
 
     // ------------------------------------------------------------------ files
 
+    /**
+     * A file ready to send to a client.
+     *
+     * @param fileName the download name
+     * @param mimeType the content type
+     * @param bytes    the content
+     */
     public record FileData(String fileName, String mimeType, byte[] bytes) {
     }
 
+    /**
+     * Reads a document's file after checking the user may see it.
+     *
+     * @param id      the document
+     * @param version a specific version, or null for the current one
+     * @param inline true when the file is for on-screen preview
+     */
     @Transactional
     public FileData download(UUID id, Integer version, boolean inline) {
         UserContext ctx = UserContextHolder.require();
@@ -608,6 +639,11 @@ public class DocumentService {
         return new FileData((String) ver.get("file_name"), (String) ver.get("mime_type"), (byte[]) ver.get("content"));
     }
 
+    /**
+     * Packs the chosen documents the user may see into one zip.
+     *
+     * @param ids the documents
+     */
     @Transactional
     public byte[] zip(List<UUID> ids) {
         UserContext ctx = UserContextHolder.require();
@@ -647,58 +683,11 @@ public class DocumentService {
         return "\"" + s.replace("\"", "\"\"") + "\"";
     }
 
-    // ------------------------------------------------------------------ requirements
-
-    /** Which required documents a record has and which are missing, per the organisation's checklist. */
-    @Transactional(readOnly = true)
-    public Map<String, Object> requirements(String entityType, UUID entityId) {
-        List<String> required = new ArrayList<>();
-        config.at("documents/requirements/" + entityType).forEach(n -> required.add(n.asText()));
-        List<Map<String, Object>> docs = db.list("select id, title, doc_type, review_status, expires_on, signature_status from document.document where entity_type = ? and entity_id = ? and status = 'ACTIVE'", entityType, entityId);
-        if ("LEASE".equals(entityType)) {
-            // Renters insurance and inspections can sit on the resident rather than the lease.
-            Optional<Map<String, Object>> t = db.find("select tenant_id from document.document where entity_type = 'LEASE' and entity_id = ? and tenant_id is not null limit 1", entityId);
-            t.ifPresent(x -> docs.addAll(db.list("select id, title, doc_type, review_status, expires_on, signature_status from document.document where tenant_id = ? and status = 'ACTIVE' and (entity_id is distinct from ?)", x.get("tenant_id"), entityId)));
-        }
-        if ("VENDOR".equals(entityType))
-            docs.addAll(db.list("select id, title, doc_type, review_status, expires_on, signature_status from document.document where vendor_id = ? and status = 'ACTIVE' and (entity_id is distinct from ?) and category in ('TAX','INSURANCE','CONTRACT')", entityId, entityId));
-        if ("OWNER".equals(entityType))
-            docs.addAll(db.list("select id, title, doc_type, review_status, expires_on, signature_status from document.document where owner_id = ? and status = 'ACTIVE' and (entity_id is distinct from ?) and category in ('TAX','CONTRACT')", entityId, entityId));
-        List<Map<String, Object>> items = new ArrayList<>();
-        int missing = 0;
-        for (String type : required) {
-            Map<String, Object> match = null;
-            for (Map<String, Object> d : docs) {
-                if (!type.equalsIgnoreCase(String.valueOf(d.get("doc_type"))) || "REJECTED".equals(d.get("review_status"))) continue;
-                if ("PENDING".equals(String.valueOf(d.get("signature_status"))) || "PARTIAL".equals(String.valueOf(d.get("signature_status")))) { if (match == null) match = d; continue; }
-                match = d;
-                break;
-            }
-            Map<String, Object> i = new LinkedHashMap<>();
-            i.put("type", type);
-            String state;
-            if (match == null) state = "MISSING";
-            else if (match.get("expires_on") != null && LocalDate.parse(match.get("expires_on").toString()).isBefore(LocalDate.now())) state = "EXPIRED";
-            else if (List.of("PENDING", "PARTIAL").contains(String.valueOf(match.get("signature_status")))) state = "AWAITING_SIGNATURE";
-            else if ("PENDING".equals(match.get("review_status"))) state = "IN_REVIEW";
-            else state = "ON_FILE";
-            if (!"ON_FILE".equals(state) && !"IN_REVIEW".equals(state) && !"AWAITING_SIGNATURE".equals(state)) missing++;
-            i.put("state", state);
-            if (match != null) { i.put("documentId", match.get("id")); i.put("title", match.get("title")); }
-            items.add(i);
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("entityType", entityType);
-        out.put("entityId", entityId);
-        out.put("items", items);
-        out.put("missing", missing);
-        out.put("complete", missing == 0);
-        return out;
-    }
-
-
     // ------------------------------------------------------------------ overview
 
+    /**
+     * Returns counts of active, archived, pending-review and soon-to-expire documents for the dashboard.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> summary() {
         UserContext ctx = UserContextHolder.require();
@@ -725,48 +714,6 @@ public class DocumentService {
         m.put("awaitingMySignature", db.value(Long.class, "select count(*) from document.signature_signer s join document.signature_request r on r.id = s.request_id where s.status = 'PENDING' and r.status = 'PENDING' and s.user_id = ?", ctx.userId()));
         m.put("outForSignature", staff(ctx) ? db.value(Long.class, "select count(*) from document.signature_request where status = 'PENDING'") : 0);
         return m;
-    }
-
-    /** Records with required documents missing, expired or waiting for review, across applications, leases, vendors and owners. */
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> requirementGaps() {
-        UserContext ctx = UserContextHolder.require();
-        if (!staff(ctx)) return List.of();
-        List<Map<String, Object>> out = new ArrayList<>();
-        java.util.function.Predicate<String> inScope = pid -> !UserContext.SCOPE_PROPERTY.equals(ctx.scope()) || (pid != null && ctx.propertyIds() != null && ctx.propertyIds().stream().anyMatch(x -> x.toString().equals(pid)));
-        record Src(String type, com.propertyos.common.client.ServiceClient.Service svc, String path, String label, String link) { }
-        List<Src> sources = List.of(
-                new Src("APPLICATION", com.propertyos.common.client.ServiceClient.Service.LEASING, "/internal/leasing/applications-brief", "label", "/leasing/applications/"),
-                new Src("LEASE", com.propertyos.common.client.ServiceClient.Service.LEASING, "/internal/leasing/leases-brief", "label", "/leasing/leases/"),
-                new Src("VENDOR", com.propertyos.common.client.ServiceClient.Service.MAINTENANCE, "/internal/maintenance/vendors-brief", "label", "/maintenance/vendors?id="),
-                new Src("OWNER", com.propertyos.common.client.ServiceClient.Service.LEASING, "/internal/leasing/owners-brief", "label", "/leasing/owners?id="));
-        for (Src s : sources) {
-            if (!config.at("documents/requirements/" + s.type()).isArray() || config.at("documents/requirements/" + s.type()).isEmpty()) continue;
-            if ("OWNER".equals(s.type()) && UserContext.SCOPE_PROPERTY.equals(ctx.scope())) continue;
-            for (JsonNode e : lookups.list(s.svc(), s.path())) {
-                if (!"VENDOR".equals(s.type()) && !inScope.test(e.path("property_id").asText(null))) continue;
-                UUID id = UUID.fromString(e.path("id").asText());
-                Map<String, Object> r = requirements(s.type(), id);
-                List<Map<String, Object>> gaps = new ArrayList<>();
-                for (Object o : (List<?>) r.get("items")) {
-                    @SuppressWarnings("unchecked") Map<String, Object> i = (Map<String, Object>) o;
-                    if (!"ON_FILE".equals(i.get("state"))) gaps.add(i);
-                }
-                if (gaps.isEmpty()) continue;
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("entityType", s.type());
-                row.put("entityId", id);
-                row.put("label", e.path(s.label()).asText());
-                row.put("status", e.path("status").asText(null));
-                row.put("propertyId", e.path("property_id").asText(null));
-                row.put("link", s.link() + id);
-                row.put("missing", r.get("missing"));
-                row.put("items", gaps);
-                out.add(row);
-            }
-        }
-        out.sort(Comparator.comparing((Map<String, Object> x) -> -((Number) x.get("missing")).intValue()));
-        return out;
     }
 
     // ------------------------------------------------------------------ helpers

@@ -45,6 +45,9 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
   );
 }
 
+/**
+ * Dialog with a title, body and optional footer. Closes on Escape and when the backdrop is clicked.
+ */
 export function Modal({ open, onClose, title, children, footer, size = 'md' }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; footer?: ReactNode; size?: 'sm' | 'md' | 'lg' }) {
   useEscape(open, onClose);
   return (

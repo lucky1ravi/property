@@ -21,6 +21,13 @@ public class AiClient {
         this.client = client;
     }
 
+    /**
+     * Calls an AI capability in the AI service.
+     *
+     * @param capability the capability name
+     * @param input      the request data
+     * @return the response, or empty when the AI service is unavailable so callers can fall back to rules
+     */
     public Optional<JsonNode> call(String capability, Map<String, ?> input) {
         try {
             JsonNode r = client.post(ServiceClient.Service.AI, "/internal/ai/" + capability, input);

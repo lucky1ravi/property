@@ -28,12 +28,40 @@ public class StateMachine {
         this.audit = audit;
     }
 
+    /**
+     * What a transition did.
+     *
+     * @param from       state before
+     * @param to         state after
+     * @param transition the rule that was applied
+     */
     public record Outcome(String from, String to, WorkflowDefinition.Transition transition) {
     }
 
+    /**
+     * Applies a named action to a record's workflow state.
+     *
+     * Asks {@link WorkflowEngine} to authorise the action (valid from the current state, user holds the permission, reason and approval limit respected), then updates the status and writes the audit entry, all in the caller's transaction.
+     *
+     * @param entityType  kind of record, for example {@code LEASE}
+     * @param table       table holding the record's {@code status}
+     * @param id          the record
+     * @param workflowKey which workflow's rules to use
+     * @param action      the transition to perform
+     * @param reason      why, when the transition requires one
+     * @param amount      amount checked against the user's limit, or null
+     * @param details     extra facts for the audit entry
+     * @return the before and after states
+     * @throws ApiException when the action is not allowed from the current state or for this user
+     */
     public Outcome apply(String entityType, String table, UUID id, String workflowKey, String action, String reason,
                          BigDecimal amount, Map<String, ?> details) {
-        String current = db.value(String.class, "select status from " + table + " where id = ?", id);
+        String current;
+        try {
+            current = db.value(String.class, "select status from " + table + " where id = ?", id);
+        } catch (org.springframework.dao.EmptyResultDataAccessException missing) {
+            current = null;
+        }
         if (current == null) throw com.propertyos.common.web.ApiException.notFound(entityType);
         WorkflowDefinition.Transition t = engine.authorize(workflowKey, current, action, reason, amount);
         db.update("update " + table + " set status = ?, updated_at = now() where id = ?", t.to(), id);

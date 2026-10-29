@@ -1,0 +1,94 @@
+# workflow-service: Deployment (2+ replicas, zero-downtime rollout), Service, autoscaler and disruption budget.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-service
+  namespace: propertyos
+  labels: {app: workflow-service, part-of: propertyos}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector:
+    matchLabels: {app: workflow-service}
+  template:
+    metadata:
+      labels: {app: workflow-service, part-of: propertyos}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8085"
+    spec:
+      terminationGracePeriodSeconds: 45
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app: workflow-service}}
+      containers:
+        - name: workflow-service
+          image: propertyos/backend:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - {name: SERVICE, value: workflow-service}
+            - {name: PORT, value: "8085"}
+          envFrom:
+            - configMapRef: {name: propertyos-config}
+            - secretRef: {name: propertyos-secrets}
+          ports:
+            - {name: http, containerPort: 8085}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "1", memory: 768Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: false, capabilities: {drop: [ALL]}}
+          startupProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /actuator/health/readiness, port: http}
+            periodSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec: {command: ["sh", "-c", "sleep 10"]}   # let the load balancer stop sending traffic before shutdown starts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-service
+  namespace: propertyos
+spec:
+  selector: {app: workflow-service}
+  ports:
+    - {name: http, port: 8085, targetPort: http}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: workflow-service
+  namespace: propertyos
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: workflow-service}
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 70}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: workflow-service
+  namespace: propertyos
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: workflow-service}

@@ -10,6 +10,9 @@ import java.util.List;
  * Letter-size pages, Helvetica, automatic wrapping and page breaks. No external library needed.
  */
 public final class Pdf {
+    /**
+     * Page size in points (US Letter) and the margin.
+     */
     private static final int WIDTH = 612, HEIGHT = 792, MARGIN = 60;
 
     private record Line(String text, boolean bold, int size, int gapBefore) {
@@ -22,16 +25,25 @@ public final class Pdf {
         this.footer = footer;
     }
 
+    /**
+     * Adds a large bold title line.
+     */
     public Pdf title(String t) {
         lines.add(new Line(t, true, 16, 0));
         return this;
     }
 
+    /**
+     * Adds a bold heading line.
+     */
     public Pdf heading(String t) {
         lines.add(new Line(t, true, 11, 10));
         return this;
     }
 
+    /**
+     * Adds wrapped body text; null is ignored.
+     */
     public Pdf text(String t) {
         if (t == null) return this;
         for (String para : t.replace("\r", "").split("\n", -1)) {
@@ -44,10 +56,16 @@ public final class Pdf {
         return this;
     }
 
+    /**
+     * Adds a "label: value" line, showing "-" for a blank value.
+     */
     public Pdf field(String label, String value) {
         return text(label + ": " + (value == null || value.isBlank() ? "-" : value));
     }
 
+    /**
+     * Adds vertical space.
+     */
     public Pdf space() {
         lines.add(new Line("", false, 10, 0));
         return this;
@@ -88,6 +106,9 @@ public final class Pdf {
         return b.toString();
     }
 
+    /**
+     * Lays the content out on pages and returns the PDF file.
+     */
     public byte[] bytes() {
         // Lay out into pages.
         List<StringBuilder> pages = new ArrayList<>();

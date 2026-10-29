@@ -20,6 +20,7 @@
 
     <modules>
         <module>platform-common</module>
+        <module>platform-test-support</module>
         <module>api-gateway</module>
         <module>identity-service</module>
         <module>leasing-service</module>
@@ -28,13 +29,27 @@
         <module>workflow-service</module>
         <module>ai-service</module>
         <module>document-service</module>
+        <module>platform-system-tests</module>
     </modules>
 
     <properties>
         <java.version>21</java.version>
         <spring-cloud.version>2024.0.1</spring-cloud.version>
+        <resilience4j.version>2.2.0</resilience4j.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <springdoc.version>2.8.6</springdoc.version>
+        <jacoco.version>0.8.12</jacoco.version>
+        <coverage.minimum>90</coverage.minimum>
+        <testcontainers.version>1.21.4</testcontainers.version><!-- 1.21.4+ is needed for Docker Engine 29 -->
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <dependencyManagement>
         <dependencies>
@@ -44,6 +59,22 @@
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.propertyos</groupId>
+                <artifactId>platform-test-support</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+                <version>${springdoc.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.propertyos</groupId>
@@ -67,4 +98,38 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <plugins>
+            <!-- Unit tests (*Test) run in "test"; Docker-based integration tests (*IT) run in "verify". -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals><goal>prepare-agent</goal></goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals><goal>report</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

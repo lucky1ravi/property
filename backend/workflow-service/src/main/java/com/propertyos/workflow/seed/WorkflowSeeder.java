@@ -27,6 +27,9 @@ public class WorkflowSeeder implements EventHandler {
         this.demo = demo;
     }
 
+    /**
+     * On startup in demo mode, creates sample automation rules and conversations when the database is empty.
+     */
     @EventListener(ApplicationReadyEvent.class)
     public void seedIfEmpty() {
         if (!demo) return;
@@ -40,16 +43,25 @@ public class WorkflowSeeder implements EventHandler {
         }
     }
 
+    /**
+     * Name under which this handler's event position is stored.
+     */
     @Override
     public String subscriber() {
         return "workflow.demo-reset";
     }
 
+    /**
+     * Event types this handler wants.
+     */
     @Override
     public Set<String> eventTypes() {
         return Set.of("DemoResetRequested");
     }
 
+    /**
+     * Clears the demo company's workflow data when a demo reset is requested.
+     */
     @Override
     public void handle(DomainEvent event) {
         UserContextHolder.runAsSystem(event.orgId(), () -> {

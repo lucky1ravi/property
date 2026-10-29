@@ -7,12 +7,18 @@ import { useSession } from '../lib/session';
 import { Badge, Button, Skeleton } from './primitives';
 import { ConfirmDialog } from './overlay';
 
+/**
+ * One photo as listed by the photo review screens.
+ */
 export interface MediaRow {
   id: string; kind: 'PROPERTY' | 'PROFILE'; subject_id: string; subject_label?: string; file_name: string; status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
   decided_by?: 'AI' | 'PERSON'; ai_verdict?: string; ai_confidence?: number | string; ai_category?: string; ai_labels?: string[]; ai_quality?: number | null; ai_caption?: string | null; ai_quality_issues?: string[]; ai_reason?: string; ai_provider?: string; ai_simulated?: boolean;
   threshold_used?: number; flag_reason?: string; reviewer_name?: string; decision_note?: string; uploaded_by: string; uploaded_by_name?: string; created_at: string; publicUrl?: string | null;
 }
 
+/**
+ * Query keys to refresh after a photo changes.
+ */
 export const MEDIA_INVALIDATE = ['/api/documents/media'];
 
 /** Shows a photo that needs the session token (pending and rejected photos are never public). */
@@ -30,6 +36,9 @@ export function AuthImage({ id, alt, className }: { id: string; alt: string; cla
   return <img src={url} alt={alt} className={clsx('object-cover', className)} />;
 }
 
+/**
+ * Badge showing whether a photo is pending, approved or rejected and whether AI or a person decided.
+ */
 export function MediaStatus({ m }: { m: Pick<MediaRow, 'status' | 'decided_by'> }) {
   if (m.status === 'APPROVED') return <Badge tone="good">{m.decided_by === 'AI' ? 'Published by AI check' : 'Approved by reviewer'}</Badge>;
   if (m.status === 'REJECTED') return <Badge tone="crit">{m.decided_by === 'AI' ? 'Rejected by AI check' : 'Rejected'}</Badge>;

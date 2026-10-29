@@ -33,11 +33,19 @@ public class StatementService {
         this.notifier = notifier;
     }
 
+    /**
+     * Lists owner statements, newest period first.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> statements() {
         return db.list("select * from billing.owner_statement order by period desc, owner_name");
     }
 
+    /**
+     * Returns one owner statement.
+     *
+     * @throws ApiException (404) when not found
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> statement(UUID id) {
         return db.one("Statement", "select * from billing.owner_statement where id = ?", id);
@@ -74,6 +82,11 @@ public class StatementService {
         return statement(id);
     }
 
+    /**
+     * Publishes a draft statement. By default an owner needs a W-9 on file first (company setting).
+     *
+     * @throws ApiException (409) when already published or the W-9 is missing
+     */
     @Transactional
     public Map<String, Object> publish(UUID id) {
         Map<String, Object> s = statement(id);
@@ -88,6 +101,11 @@ public class StatementService {
         return statement(id);
     }
 
+    /**
+     * Records an expense against a property and owner.
+     *
+     * @param b propertyId, ownerId, amount, category and description
+     */
     @Transactional
     public Map<String, Object> addExpense(Map<String, Object> b) {
         UUID id = UUID.randomUUID();
@@ -100,6 +118,9 @@ public class StatementService {
     }
 
     // ---------- Deposits ----------
+    /**
+     * Lists security deposits, newest first.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> deposits() {
         return db.list("select * from billing.deposit order by created_at desc");

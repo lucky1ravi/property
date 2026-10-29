@@ -14,6 +14,12 @@ propertyos:
     enabled: ${DEMO_MODE:true}
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 30MB
   datasource:
     url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:propertyos}${PGSSL:}
     username: ${PGUSER:postgres}
@@ -41,15 +47,53 @@ spring:
     virtual:
       enabled: true
 
+# Finish in-flight requests before stopping, so a rolling deploy or scale-down never drops a user's request.
+server:
+  shutdown: graceful
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-swallow-size: 2MB
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+      group:
+        # Liveness: is the process alive? Never depends on the database or other services, or a database blip would restart every pod.
+        liveness:
+          include: livenessState
+        # Readiness: can this instance serve traffic? Needs its own database, but not its neighbours.
+        readiness:
+          include: readinessState,db
+  metrics:
+    tags:
+      application: ${spring.application.name:service}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  info:
+    env:
+      enabled: true
+
+# Fast-failing calls between services (see ServiceClient). Tune per environment.
+propertyos.resilience:
+  failure-rate-percent: ${RESILIENCE_FAILURE_RATE:50}
+  minimum-calls: ${RESILIENCE_MIN_CALLS:10}
+  open-seconds: ${RESILIENCE_OPEN_SECONDS:20}
+  max-concurrent: ${RESILIENCE_MAX_CONCURRENT:50}
+
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: false          # one combined UI is served by the gateway
+  default-produces-media-type: application/json
+  paths-to-match: /api/**       # service-to-service /internal/** endpoints are never published
 
 logging:
   pattern:

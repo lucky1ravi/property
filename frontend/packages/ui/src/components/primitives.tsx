@@ -22,6 +22,9 @@ const sizes: Record<Size, string> = {
   lg: 'h-11 px-5 text-[15px] gap-2',
 };
 
+/**
+ * Props for {@link Button}.
+ */
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
@@ -29,6 +32,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
 }
 
+/**
+ * Button with variants and a loading state.
+ */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 'md', loading, icon, className, children, disabled, ...rest },
   ref,
@@ -53,6 +59,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   );
 });
 
+/**
+ * Small loading indicator.
+ */
 export function Spinner({ className }: { className?: string }) {
   return (
     <svg className={clsx('animate-spin', className ?? 'h-4 w-4')} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -62,6 +71,9 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Grey placeholder block shown while data loads.
+ */
 export function Skeleton({ className }: { className?: string }) {
   return <div className={clsx('animate-pulse rounded bg-limestone-200', className)} />;
 }
@@ -82,6 +94,9 @@ const GOOD = ['LIVE', 'ACTIVE', 'APPROVED', 'PAID', 'CLOSED', 'COMPLETED', 'VERI
 const WARN = ['AWAITING_APPROVAL', 'DOCS_PENDING', 'FLAGGED', 'OWNER_REVIEW', 'PARTIALLY_PAID', 'PENDING', 'NOTICE_GIVEN', 'RENEWAL_OFFERED', 'URGENT', 'TENANT_SIGNED', 'SENT', 'DUE', 'AT_RISK', 'MEDIUM', 'VACANT', 'PAUSED', 'ENDED', 'SCHEDULED', 'REVIEW'];
 const CRIT = ['OVERDUE', 'REJECTED', 'DELINQUENT', 'EMERGENCY', 'NO_SHOW', 'FAILED', 'BREACHED', 'VOID', 'DECLINED', 'HIGH', 'CRITICAL', 'CANCELLED', 'WITHDRAWN'];
 
+/**
+ * Chooses a colour tone for a status word such as OVERDUE or APPROVED.
+ */
 export function toneFor(status?: string): Tone {
   const s = (status ?? '').toUpperCase();
   if (GOOD.includes(s)) return 'good';
@@ -91,6 +106,9 @@ export function toneFor(status?: string): Tone {
   return 'info';
 }
 
+/**
+ * Rounded label for a status, coloured by {@link toneFor} unless a tone is given.
+ */
 export function StatusPill({ status, label, tone, className }: { status?: string; label?: string; tone?: Tone; className?: string }) {
   const t = tone ?? toneFor(status);
   return (
@@ -104,6 +122,9 @@ export function StatusPill({ status, label, tone, className }: { status?: string
   );
 }
 
+/**
+ * Small coloured label.
+ */
 export function Badge({ children, tone = 'neutral', className }: { children: ReactNode; tone?: Tone; className?: string }) {
   return <span className={clsx('inline-flex items-center rounded px-1.5 py-0.5 text-2xs font-semibold ring-1 ring-inset', toneClass[tone], className)}>{children}</span>;
 }
@@ -165,10 +186,16 @@ const inputBase =
   'w-full rounded border border-limestone-300 bg-white px-3 text-sm text-graphite-900 placeholder:text-graphite-400 ' +
   'focus:border-federal-700 focus:outline-none focus:ring-2 focus:ring-federal-700/15 disabled:bg-limestone-100';
 
+/**
+ * Styled text input; forwards its ref.
+ */
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
   return <input ref={ref} className={clsx(inputBase, 'h-9', className)} {...rest} />;
 });
 
+/**
+ * Styled multi-line input; forwards its ref.
+ */
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea({ className, ...rest }, ref) {
   return <textarea ref={ref} className={clsx(inputBase, 'py-2 leading-relaxed', className)} {...rest} />;
 });
@@ -289,6 +316,9 @@ export const Select = forwardRef<HTMLButtonElement, Omit<SelectHTMLAttributes<HT
   );
 });
 
+/**
+ * On/off switch with an optional label.
+ */
 export function Toggle({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label?: string; disabled?: boolean }) {
   return (
     <button
@@ -308,6 +338,9 @@ export function Toggle({ checked, onChange, label, disabled }: { checked: boolea
   );
 }
 
+/**
+ * Shows an amount in US dollars; whole dollars unless {@code cents} is set.
+ */
 export function Money({ value, cents, className, tone }: { value: number | string | null | undefined; cents?: boolean; className?: string; tone?: 'auto' | 'none' }) {
   const n = typeof value === 'string' ? parseFloat(value) : value ?? 0;
   return (

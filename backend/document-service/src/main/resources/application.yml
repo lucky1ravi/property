@@ -17,3 +17,8 @@ spring:
 
 server:
   port: ${PORT:8087}
+
+# API description is served under /public/ so the gateway's Swagger UI can read it without a token.
+springdoc:
+  api-docs:
+    path: /api/documents/public/v3/api-docs

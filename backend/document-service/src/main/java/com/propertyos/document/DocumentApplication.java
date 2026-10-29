@@ -6,6 +6,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 /** Document management: files, versions, sharing, retention, requirements checklists and e-signatures. */
 @SpringBootApplication(scanBasePackages = "com.propertyos")
 public class DocumentApplication {
+    /**
+     * Starts the service in UTC.
+     *
+     * @param args command-line arguments
+     */
     public static void main(String[] args) {
         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"));
         System.setProperty("java.awt.headless", "true");

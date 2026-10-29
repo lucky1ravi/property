@@ -23,6 +23,13 @@ public class SignedLinks {
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * Creates a tamper-proof token for a one-purpose link.
+     *
+     * @param purpose what the link allows, for example {@code application-upload}
+     * @param id      the record it applies to
+     * @return the token to put in the link
+     */
     public String sign(String purpose, UUID id) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
@@ -34,6 +41,14 @@ public class SignedLinks {
         }
     }
 
+    /**
+     * Checks a link token in constant time.
+     *
+     * @param purpose what the link is supposed to allow
+     * @param id      the record it is supposed to apply to
+     * @param token   the token from the link
+     * @return true only when the token matches
+     */
     public boolean verify(String purpose, UUID id, String token) {
         if (token == null || id == null) return false;
         return MessageDigest.isEqual(sign(purpose, id).getBytes(StandardCharsets.UTF_8), token.getBytes(StandardCharsets.UTF_8));

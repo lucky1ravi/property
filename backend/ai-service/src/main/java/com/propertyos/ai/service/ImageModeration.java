@@ -35,8 +35,20 @@ public class ImageModeration {
         this.mapper = mapper;
     }
 
+    /**
+     * Categories the checker may report for a photo.
+     */
     private static final Set<String> CATEGORIES = Set.of("PROPERTY", "PERSON_PHOTO", "EXPLICIT", "VIOLENCE", "HATE", "NOT_PROPERTY", "OTHER");
 
+    /**
+     * Decides whether a photo is acceptable: uses the image model when available, otherwise a built-in simulated checker.
+     *
+     * @param kind     {@code PROPERTY} or {@code PROFILE}
+     * @param fileName the uploaded name
+     * @param mime     the image type
+     * @param image    the bytes
+     * @return decision, confidence and reasons
+     */
     public JsonNode check(String kind, String fileName, String mime, byte[] image) {
         boolean profile = "PROFILE".equalsIgnoreCase(kind);
         Optional<Llm> model = provider.vision();
@@ -110,8 +122,17 @@ public class ImageModeration {
 
     // ---- Built-in simulator (demo only)
     private static final List<String> EXPLICIT = List.of("nsfw", "nude", "naked", "sexy", "porn", "xxx", "lingerie", "adult", "erotic", "topless", "explicit");
+    /**
+     * File-name and description words that suggest violent content (used by the built-in simulated checker).
+     */
     private static final List<String> VIOLENT = List.of("gore", "blood", "weapon", "gun", "corpse", "violence", "fight");
+    /**
+     * Words that suggest a photo is not of a property (used by the built-in simulated checker).
+     */
     private static final List<String> OFF_TOPIC = List.of("meme", "selfie", "pizza", "burger", "food", "dog", "cat", "pet", "car", "screenshot", "memes", "party", "beach-babe");
+    /**
+     * Words that suggest a photo shows a room or the outside of a property (used by the built-in simulated checker).
+     */
     private static final List<String> PROPERTY_HINTS = List.of("kitchen", "bedroom", "bath", "living", "exterior", "front", "lobby", "pool", "gym", "garage", "patio", "balcony", "yard", "roof", "hall", "unit", "apt", "floor", "plan", "building", "house", "dining", "closet", "laundry", "view", "porch", "garden");
 
     private JsonNode simulate(boolean profile, String name, byte[] image) {
@@ -126,7 +147,8 @@ public class ImageModeration {
         BufferedImage img = null;
         try {
             img = ImageIO.read(new ByteArrayInputStream(image));
-        } catch (Exception ignored) {
+        } catch (java.io.IOException | IllegalArgumentException unreadable) {
+            // Not a decodable image: the simulator treats it as unknown and a person reviews it.
         }
         if (img == null) {
             return result("SAFE", 0.62, profile ? "PERSON_PHOTO" : "PROPERTY", List.of("image could not be analysed"), "The picture format could not be analysed here, so a person should confirm it.", who, true);

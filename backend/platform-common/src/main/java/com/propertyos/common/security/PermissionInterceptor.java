@@ -10,6 +10,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /** Enforces {@link RequiresPermission} on controller methods and classes. */
 @Component
 public class PermissionInterceptor implements HandlerInterceptor {
+    /**
+     * Rejects a call with 403 unless the user holds the permission named by {@link RequiresPermission} on the method or class. Methods without the annotation pass through.
+     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         if (!(handler instanceof HandlerMethod hm)) return true;

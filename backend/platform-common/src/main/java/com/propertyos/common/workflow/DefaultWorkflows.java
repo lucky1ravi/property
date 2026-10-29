@@ -22,10 +22,19 @@ public class DefaultWorkflows {
         }
     }
 
+    /**
+     * Returns a built-in workflow by key.
+     *
+     * @param key the workflow key, for example {@code LEASE}
+     * @return the definition, or null when unknown
+     */
     public WorkflowDefinition get(String key) {
         return byKey.get(key);
     }
 
+    /**
+     * Returns every built-in workflow.
+     */
     public Collection<WorkflowDefinition> all() {
         return byKey.values();
     }

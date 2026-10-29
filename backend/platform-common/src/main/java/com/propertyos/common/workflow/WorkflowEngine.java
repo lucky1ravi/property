@@ -26,6 +26,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class WorkflowEngine {
     private static final Logger log = LoggerFactory.getLogger(WorkflowEngine.class);
+    /**
+     * How long a company's workflow definition is cached, in milliseconds.
+     */
     private static final long TTL_MS = 15_000;
 
     private final ServiceClient client;
@@ -42,6 +45,12 @@ public class WorkflowEngine {
         this.mapper = mapper;
     }
 
+    /**
+     * Returns the workflow a company uses for a key: its own customised version if it has one, otherwise the built-in default. Results are cached briefly.
+     *
+     * @param key the workflow key
+     * @return the definition
+     */
     public WorkflowDefinition definition(String key) {
         UUID org = UserContextHolder.get() == null ? null : UserContextHolder.get().orgId();
         String cacheKey = org + ":" + key;
@@ -95,6 +104,13 @@ public class WorkflowEngine {
                 .toList();
     }
 
+    /**
+     * Returns how many hours a record may stay in a state.
+     *
+     * @param key   the workflow key
+     * @param state the state
+     * @return hours, or null when the state has no limit
+     */
     public Integer slaHours(String key, String state) {
         return definition(key).state(state).map(WorkflowDefinition.State::slaHours).orElse(null);
     }

@@ -17,11 +17,23 @@ public record DomainEvent(
         String actorName,
         OffsetDateTime createdAt
 ) {
+    /**
+     * Reads a text field from the event payload.
+     *
+     * @param field the payload field
+     * @return the value, or null when absent
+     */
     public String text(String field) {
         JsonNode n = payload.get(field);
         return n == null || n.isNull() ? null : n.asText();
     }
 
+    /**
+     * Reads an identifier field from the event payload.
+     *
+     * @param field the payload field
+     * @return the identifier, or null when absent or blank
+     */
     public UUID uuid(String field) {
         String s = text(field);
         return s == null || s.isBlank() ? null : UUID.fromString(s);

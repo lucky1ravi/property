@@ -1,5 +1,6 @@
 package com.propertyos.document.service;
 
+import org.springframework.web.client.RestClientException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.propertyos.common.client.ServiceClient;
 import com.propertyos.common.web.ApiException;
@@ -14,6 +15,7 @@ import java.util.*;
  */
 @Component
 public class Lookups {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Lookups.class);
     private final ServiceClient client;
 
     public Lookups(ServiceClient client) {
@@ -27,8 +29,17 @@ public class Lookups {
         }
     }
 
+    /**
+     * Kinds of record a document can be attached to.
+     */
     public static final Set<String> ENTITY_TYPES = Set.of("APPLICATION", "LEASE", "WORK_ORDER", "INVOICE", "STATEMENT", "PROPERTY", "OWNER", "VENDOR", "TENANT");
 
+    /**
+     * Finds the property, owner and resident a record belongs to, so a document inherits who may see it.
+     *
+     * @param type the record type
+     * @param id   the record
+     */
     public Links resolve(String type, UUID id) {
         if (type == null || id == null) return Links.empty(null);
         if (!ENTITY_TYPES.contains(type)) throw ApiException.badRequest("Documents can't be attached to " + type);
@@ -53,7 +64,7 @@ public class Lookups {
             };
         } catch (ApiException e) {
             throw e;
-        } catch (Exception e) {
+        } catch (RestClientException e) {
             throw ApiException.badRequest("The " + type.toLowerCase().replace('_', ' ') + " this file belongs to could not be found.");
         }
     }
@@ -68,7 +79,7 @@ public class Lookups {
         if (v == null || v.isNull() || v.asText().isBlank()) return null;
         try {
             return UUID.fromString(v.asText());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }
@@ -77,7 +88,8 @@ public class Lookups {
     public Optional<JsonNode> tenantLease(UUID tenantId) {
         try {
             return Optional.ofNullable(client.get(ServiceClient.Service.LEASING, "/internal/leasing/tenant-lease/" + tenantId));
-        } catch (Exception e) {
+        } catch (RestClientException e) {
+            log.debug("Tenant lease lookup failed: {}", e.getMessage());
             return Optional.empty();
         }
     }
@@ -87,16 +99,21 @@ public class Lookups {
         List<JsonNode> out = new ArrayList<>();
         try {
             for (JsonNode u : client.get(ServiceClient.Service.IDENTITY, "/internal/directory")) out.add(u);
-        } catch (Exception ignored) {
+        } catch (RestClientException e) {
+            log.debug("Directory lookup failed: {}", e.getMessage());
         }
         return out;
     }
 
+    /**
+     * Calls another service for a list, returning an empty result if it is unavailable.
+     */
     public JsonNode list(ServiceClient.Service s, String path) {
         try {
             JsonNode n = client.get(s, path);
             return n == null ? com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode() : n;
-        } catch (Exception e) {
+        } catch (RestClientException e) {
+            log.debug("Lookup {} failed: {}", path, e.getMessage());
             return com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode();
         }
     }
@@ -105,7 +122,8 @@ public class Lookups {
     public void syncVendorInsurance(UUID vendorId, java.time.LocalDate expires) {
         try {
             client.post(ServiceClient.Service.MAINTENANCE, "/internal/maintenance/vendors/" + vendorId + "/insurance", Map.of("expiresOn", expires.toString()));
-        } catch (Exception ignored) {
+        } catch (RestClientException e) {
+            log.debug("Vendor insurance sync failed: {}", e.getMessage()); // the certificate is filed either way; maintenance catches up on the next sync
         }
     }
 }

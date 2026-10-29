@@ -20,6 +20,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Shared web and transaction wiring that every service picks up through component scanning.
+ */
 @Configuration
 @EnableScheduling
 public class CommonConfig implements WebMvcConfigurer {
@@ -30,11 +33,20 @@ public class CommonConfig implements WebMvcConfigurer {
         this.permissionInterceptor = permissionInterceptor;
     }
 
+    /**
+     * Registers the permission interceptor that enforces {@link RequiresPermission}.
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(permissionInterceptor);
     }
 
+    /**
+     * Replaces the default transaction manager with one that sets the row-level-security context at the start of each transaction.
+     *
+     * @param emf the JPA entity manager factory
+     * @return the RLS-aware transaction manager
+     */
     @Bean
     @Primary
     public PlatformTransactionManager transactionManager(EntityManagerFactory emf) {

@@ -46,13 +46,15 @@ public class SignatureService {
         if (!config.featureEnabled("ESIGN")) throw ApiException.forbidden("E-signatures aren't included in your plan.");
     }
 
-    /** People who may sign this document: staff, plus the resident, owner or vendor the document is linked to. */
-    @Transactional(readOnly = true)
     /** Everyone on a request, whoever is asking: a signer must see who else signs and in what order. */
     private List<Map<String, Object>> signersOf(String sql, Object... args) {
         return docs.elevated(() -> db.list(sql, args));
     }
 
+    /**
+     * Lists people who may be asked to sign a document, with how each relates to it.
+     */
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> candidates(UUID documentId) {
         Map<String, Object> d = docs.load(documentId);
         Set<String> parties = new HashSet<>();
@@ -82,6 +84,13 @@ public class SignatureService {
         return out;
     }
 
+    /**
+     * Sends a document for signature.
+     *
+     * @param documentId the document
+     * @param b           signers and an optional message
+     * @throws ApiException (403) without permission, (409) unless the document is active and not already out for signature, (400) unless it is a PDF with at least one signer
+     */
     @Transactional
     @SuppressWarnings("unchecked")
     public Map<String, Object> create(UUID documentId, Map<String, Object> b) {
@@ -139,6 +148,12 @@ public class SignatureService {
         }
     }
 
+    /**
+     * Lists signature requests.
+     *
+     * @param mine   true for only those waiting for the signed-in user
+     * @param status status filter, or null
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(boolean mine, String status) {
         UserContext ctx = UserContextHolder.require();
@@ -172,6 +187,9 @@ public class SignatureService {
         return signers.stream().noneMatch(s -> ((Number) s.get("signer_order")).intValue() < mine && !"SIGNED".equals(s.get("status")));
     }
 
+    /**
+     * Returns one signature request with each signer's status.
+     */
     @Transactional
     public Map<String, Object> get(UUID id) {
         UserContext ctx = UserContextHolder.require();
@@ -195,6 +213,15 @@ public class SignatureService {
         return r;
     }
 
+    /**
+     * Records a signer's signature (typed name, consent, IP address and browser) respecting the signing order, and writes the document's hash to the audit trail.
+     *
+     * @param id        the signature request
+     * @param typedName the signer's typed name
+     * @param consent   must be true
+     * @param ip        caller address, kept as evidence
+     * @param userAgent caller's browser, kept as evidence
+     */
     @Transactional
     public Map<String, Object> sign(UUID id, String typedName, boolean consent, String ip, String userAgent) {
         enabled();
@@ -282,6 +309,9 @@ public class SignatureService {
         return java.sql.Timestamp.from(java.time.Instant.parse(o.toString()));
     }
 
+    /**
+     * Records that a signer declined, with a reason.
+     */
     @Transactional
     public Map<String, Object> decline(UUID id, String reason) {
         UserContext ctx = UserContextHolder.require();
@@ -299,6 +329,9 @@ public class SignatureService {
         return get(id);
     }
 
+    /**
+     * Cancels an open signature request.
+     */
     @Transactional
     public Map<String, Object> cancel(UUID id, String reason) {
         UserContext ctx = UserContextHolder.require();
@@ -314,6 +347,9 @@ public class SignatureService {
         return get(id);
     }
 
+    /**
+     * Re-notifies the signers of an open request (staff with e-signature permission only).
+     */
     @Transactional
     public Map<String, Object> remind(UUID id) {
         UserContext ctx = UserContextHolder.require();

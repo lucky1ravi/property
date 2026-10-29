@@ -2,6 +2,9 @@ const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD'
 const usd2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 const num = new Intl.NumberFormat('en-US');
 
+/**
+ * Formatters for dollars, numbers, percentages and dates in US English.
+ */
 export const fmt = {
   usd: (v: number | string | null | undefined, cents = false) => {
     const n = typeof v === 'string' ? parseFloat(v) : v ?? 0;

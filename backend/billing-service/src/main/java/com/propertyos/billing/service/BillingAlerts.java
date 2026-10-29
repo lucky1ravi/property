@@ -31,6 +31,9 @@ public class BillingAlerts {
         this.tm = tm;
     }
 
+    /**
+     * Who receives finance alerts: each entry is an audience type and a role key.
+     */
     private static final List<String[]> FINANCE = List.of(new String[]{"ROLE", "ACCOUNTANT"}, new String[]{"ROLE", "PROPERTY_MANAGER"});
 
     private List<Integer> thresholds(String key, List<Integer> fallback) {
@@ -42,6 +45,9 @@ public class BillingAlerts {
                 "FORM_1099", thresholds("form1099", List.of(14, 30, 60)), "W9_MISSING", List.of(0));
     }
 
+    /**
+     * Returns deposit-refund deadlines inside the alert horizon, or nothing when these alerts are switched off.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> deadlines() {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -85,6 +91,11 @@ public class BillingAlerts {
         return out;
     }
 
+    /**
+     * Sends the alerts that are due.
+     *
+     * @return how many notifications were sent
+     */
     @Transactional
     public int run() {
         Map<String, List<Integer>> th = allThresholds();
@@ -98,6 +109,9 @@ public class BillingAlerts {
         return sent;
     }
 
+    /**
+     * Daily timer: for each company, sends the billing alerts that are due.
+     */
     @Scheduled(cron = "0 5 7 * * *", zone = "America/Chicago")
     public void daily() {
         List<UUID> orgs = UserContextHolder.runAsSystem(null, () -> new TransactionTemplate(tm).execute(st ->

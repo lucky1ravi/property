@@ -16,6 +16,9 @@ import java.util.*;
 /** Users, custom roles and the permission matrix. All changes are versioned and audited. */
 @Service
 public class AccessAdminService {
+    /**
+     * Scopes a company role may have; {@code PLATFORM} is reserved for the platform operator.
+     */
     private static final Set<String> SCOPES = Set.of("ORG", "PROPERTY", "OWNER", "TENANT", "VENDOR");
     private final IdentityStore store;
     private final AuditService audit;
@@ -30,6 +33,9 @@ public class AccessAdminService {
     }
 
     // ---------------- users ----------------
+    /**
+     * Lists users with their roles and property access.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> users() {
         return store.users().stream().map(this::withJson).toList();
@@ -45,11 +51,18 @@ public class AccessAdminService {
     private Object json(Object raw) {
         try {
             return raw == null ? List.of() : mapper.readValue(raw.toString(), Object.class);
-        } catch (Exception e) {
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             return List.of();
         }
     }
 
+    /**
+     * Creates a user in the signed-in user's company.
+     *
+     * @param body email, name, title, phone, optional password (at least 10 characters), role ids, property ids
+     * @return the new user
+     * @throws ApiException (400) for a missing or invalid email or a short password
+     */
     @Transactional
     public Map<String, Object> createUser(Map<String, Object> body) {
         UUID orgId = UserContextHolder.orgId();
@@ -70,6 +83,12 @@ public class AccessAdminService {
         return Map.of("id", id);
     }
 
+    /**
+     * Changes a user's details and, when given, replaces their roles and properties.
+     *
+     * @param id   the user
+     * @param body the fields to change
+     */
     @Transactional
     public void updateUser(UUID id, Map<String, Object> body) {
         UUID orgId = UserContextHolder.orgId();
@@ -84,6 +103,12 @@ public class AccessAdminService {
         audit.record("User", id, "USER_UPDATED", null, str(body, "status"), Map.of("changes", body.keySet().toString()));
     }
 
+    /**
+     * Deletes a user.
+     *
+     * @param id the user
+     * @throws ApiException (400) when it is the signed-in user, (404) when not found
+     */
     @Transactional
     public void deleteUser(UUID id) {
         if (id.equals(UserContextHolder.require().userId())) throw ApiException.badRequest("You can't delete your own account");
@@ -92,6 +117,9 @@ public class AccessAdminService {
     }
 
     // ---------------- roles ----------------
+    /**
+     * Lists roles with their permissions and field rules.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> roles() {
         return store.roles().stream().map(r -> {
@@ -102,6 +130,12 @@ public class AccessAdminService {
         }).toList();
     }
 
+    /**
+     * Creates a custom role in the signed-in user's company.
+     *
+     * @param body name, description, scope, colour, field rules
+     * @return the new role
+     */
     @Transactional
     public Map<String, Object> createRole(Map<String, Object> body) {
         UUID orgId = UserContextHolder.orgId();
@@ -130,6 +164,12 @@ public class AccessAdminService {
         return Map.of("id", id);
     }
 
+    /**
+     * Edits a role's name, description, scope, colour or field rules.
+     *
+     * @param id   the role
+     * @param body the fields to change
+     */
     @Transactional
     public void updateRole(UUID id, Map<String, Object> body) {
         Map<String, Object> role = store.role(id).orElseThrow(() -> ApiException.notFound("Role"));
@@ -170,6 +210,12 @@ public class AccessAdminService {
                 "note", "Changes apply the next time affected users sign in or refresh their session.");
     }
 
+    /**
+     * Deletes a custom role.
+     *
+     * @param id the role
+     * @throws ApiException (400) for a built-in role, (404) when not found
+     */
     @Transactional
     public void deleteRole(UUID id) {
         Map<String, Object> role = store.role(id).orElseThrow(() -> ApiException.notFound("Role"));

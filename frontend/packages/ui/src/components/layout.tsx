@@ -2,6 +2,9 @@ import { type ReactNode, useState } from 'react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 
+/**
+ * Page title row with optional description, actions, meta line and back link.
+ */
 export function PageHeader({ title, description, actions, meta, back }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; meta?: ReactNode; back?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -39,6 +42,9 @@ export function Panel({ title, description, actions, children, className, padded
   );
 }
 
+/**
+ * Tab bar. The caller owns the selected value.
+ */
 export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { key: T; label: ReactNode; count?: number }[]; value: T; onChange: (v: T) => void; className?: string }) {
   return (
     <div role="tablist" className={clsx('flex gap-1 overflow-x-auto border-b border-limestone-200', className)}>
@@ -62,6 +68,9 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
   );
 }
 
+/**
+ * Message shown when a list has nothing yet; says what to do next.
+ */
 export function EmptyState({ icon, title, body, action }: { icon?: ReactNode; title: string; body?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center px-6 py-12 text-center">
@@ -95,6 +104,9 @@ export function StatStrip({ children, className }: { children: ReactNode; classN
   return <div className={clsx('grid grid-cols-2 divide-limestone-200 rounded-md border border-limestone-200 bg-white shadow-panel md:flex md:divide-x [&>*]:px-5 [&>*]:py-4 md:[&>*]:flex-1', className)}>{children}</div>;
 }
 
+/**
+ * Section that opens and closes under its title.
+ */
 export function Collapsible({ title, children, defaultOpen = false }: { title: ReactNode; children: ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -108,6 +120,9 @@ export function Collapsible({ title, children, defaultOpen = false }: { title: R
   );
 }
 
+/**
+ * Labelled values laid out in one to three columns.
+ */
 export function KeyValues({ items, cols = 2 }: { items: { label: string; value: ReactNode }[]; cols?: 1 | 2 | 3 }) {
   return (
     <dl className={clsx('grid gap-x-6 gap-y-3', cols === 1 && 'grid-cols-1', cols === 2 && 'grid-cols-1 sm:grid-cols-2', cols === 3 && 'grid-cols-2 lg:grid-cols-3')}>
