@@ -45,8 +45,13 @@ resource "aws_ecs_cluster" "main" {
   name = local.name
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = var.container_insights ? "enabled" : "disabled"
   }
+}
+
+resource "aws_ecs_cluster_capacity_providers" "main" {
+  cluster_name       = aws_ecs_cluster.main.name
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
 }
 
 resource "aws_service_discovery_private_dns_namespace" "main" {
@@ -80,7 +85,7 @@ resource "aws_ecs_task_definition" "svc" {
   family                   = "${local.name}-${each.key}"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = var.task_cpu
+  cpu                      = lookup(var.service_cpu, each.key, var.task_cpu)
   memory                   = var.task_memory
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
@@ -135,12 +140,20 @@ resource "aws_ecs_service" "identity" {
   cluster                = local.service_defaults.cluster
   task_definition        = aws_ecs_task_definition.svc["identity-service"].arn
   desired_count          = local.service_defaults.desired_count
-  launch_type            = local.service_defaults.launch_type
+  launch_type            = var.use_spot ? null : "FARGATE"
   enable_execute_command = local.service_defaults.enable_execute_command
   wait_for_steady_state  = true
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+
+  dynamic "capacity_provider_strategy" {
+    for_each = var.use_spot ? [1] : []
+    content {
+      capacity_provider = "FARGATE_SPOT"
+      weight            = 1
+    }
+  }
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -158,7 +171,7 @@ resource "aws_ecs_service" "identity" {
   lifecycle {
     ignore_changes = [task_definition]
   }
-  depends_on = [aws_db_instance.main]
+  depends_on = [aws_db_instance.main, aws_ecs_cluster_capacity_providers.main]
 }
 
 resource "aws_ecs_service" "worker" {
@@ -167,11 +180,19 @@ resource "aws_ecs_service" "worker" {
   cluster                = local.service_defaults.cluster
   task_definition        = aws_ecs_task_definition.svc[each.key].arn
   desired_count          = local.service_defaults.desired_count
-  launch_type            = local.service_defaults.launch_type
+  launch_type            = var.use_spot ? null : "FARGATE"
   enable_execute_command = local.service_defaults.enable_execute_command
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+
+  dynamic "capacity_provider_strategy" {
+    for_each = var.use_spot ? [1] : []
+    content {
+      capacity_provider = "FARGATE_SPOT"
+      weight            = 1
+    }
+  }
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -195,12 +216,20 @@ resource "aws_ecs_service" "gateway" {
   cluster                = local.service_defaults.cluster
   task_definition        = aws_ecs_task_definition.svc["api-gateway"].arn
   desired_count          = local.service_defaults.desired_count
-  launch_type            = local.service_defaults.launch_type
+  launch_type            = var.use_spot ? null : "FARGATE"
   enable_execute_command = local.service_defaults.enable_execute_command
 
   health_check_grace_period_seconds  = 120
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+
+  dynamic "capacity_provider_strategy" {
+    for_each = var.use_spot ? [1] : []
+    content {
+      capacity_provider = "FARGATE_SPOT"
+      weight            = 1
+    }
+  }
   deployment_circuit_breaker {
     enable   = true
     rollback = true

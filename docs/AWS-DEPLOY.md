@@ -126,8 +126,8 @@ Terraform owns the infrastructure and the first task definitions; the pipeline o
 
 ## What it costs
 
-Roughly **US$8 a day (about US$250 a month)** while running, in Mumbai: eight Fargate tasks at 0.5 vCPU / 1 GiB,
-a `db.t4g.small` database, the load balancer, and a public IPv4 address for each task and for the load balancer.
+Roughly **US$7 a day (about US$220 a month)** with the defaults, in Mumbai: eight Fargate tasks at 0.5 vCPU / 1 GiB,
+a `db.t4g.micro` database, the load balancer, and a public IPv4 address for each task and for the load balancer.
 CloudFront and Secrets Manager are small at demo traffic. Destroy it when the interview is over:
 
 ```powershell
@@ -135,8 +135,17 @@ cd infra/aws
 terraform destroy
 ```
 
-Cheaper levers: `db_instance_class = "db.t4g.micro"`, `task_memory = 1024` is already the floor for these Spring apps,
-and a NAT-free layout is already used. Stopping everything without destroying: set `desired_count = 0` and apply.
+Cost levers, biggest first (set in `terraform.tfvars`; figures are estimates):
+
+| Lever | Setting | Saves | Trade-off |
+|---|---|---|---|
+| Fargate Spot | `use_spot = true` | about 70% of the task cost (around US$100 a month) | AWS can reclaim a task with 2 minutes' notice; it is replaced automatically, leaving a short gap. |
+| Smaller tasks for light services | `service_cpu = { ai-service = 256, ... }` | about US$8 a month per service | Slower startup and less headroom under load. |
+| Switch off when idle | `desired_count = 0`, then apply | nearly all the task cost | The app is down until you set it back to 1. The database keeps running. |
+| Destroy after the demo | `terraform destroy` | everything | Data is lost and the next deploy takes about 15 minutes. |
+
+Already applied: no NAT gateway, Container Insights off, `db.t4g.micro`, 14-day log retention, one database for all services.
+Use `db_instance_class = "db.t4g.small"` if you will run the load tests live.
 
 ## Design choices and limits
 

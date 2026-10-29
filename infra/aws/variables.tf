@@ -28,15 +28,15 @@ variable "vpc_cidr" {
 }
 
 variable "db_instance_class" {
-  description = "RDS instance size. t4g.small keeps 8 services x 5 pooled connections comfortably under max_connections."
+  description = "RDS instance size. t4g.micro is enough for the demo; use db.t4g.small for live load tests."
   type        = string
-  default     = "db.t4g.small"
+  default     = "db.t4g.micro"
 }
 
 variable "db_pool_size" {
   description = "Hikari pool size per service (DB_POOL_SIZE)."
   type        = number
-  default     = 5
+  default     = 3
 }
 
 variable "desired_count" {
@@ -90,4 +90,22 @@ variable "restrict_alb_to_cloudfront" {
   description = "true = the ALB only accepts traffic from CloudFront (recommended). false = open to the internet, so the raw ALB URL also works."
   type        = bool
   default     = true
+}
+
+variable "use_spot" {
+  description = "Run tasks on Fargate Spot: about 70% cheaper, but AWS can reclaim a task with 2 minutes' notice (it is replaced automatically, with a short gap for a one-task service)."
+  type        = bool
+  default     = false
+}
+
+variable "service_cpu" {
+  description = "Per-service CPU override, e.g. { ai-service = 256 }. Valid Fargate pairs apply: 256 CPU needs 512, 1024 or 2048 MiB of memory."
+  type        = map(number)
+  default     = {}
+}
+
+variable "container_insights" {
+  description = "Detailed per-task CloudWatch metrics. They are billed per metric, so they are off by default."
+  type        = bool
+  default     = false
 }

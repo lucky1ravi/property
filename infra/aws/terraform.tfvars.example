@@ -11,3 +11,13 @@ desired_count = 1
 
 # Set to false if this AWS account already has a GitHub OIDC provider.
 # create_github_oidc_provider = false
+
+# ---- Cost levers (see docs/AWS-DEPLOY.md) ----
+# Fargate Spot is about 70% cheaper. A reclaimed task is replaced automatically; for a short demo that is usually fine.
+# use_spot = true
+
+# Smaller CPU for the lighter services (needs 512, 1024 or 2048 MiB memory; 1024 is the default).
+# service_cpu = { ai-service = 256, document-service = 256, workflow-service = 256, maintenance-service = 256, billing-service = 256 }
+
+# Use db.t4g.small instead if you will run the load tests live.
+# db_instance_class = "db.t4g.small"
