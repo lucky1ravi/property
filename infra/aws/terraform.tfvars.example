@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars and adjust.
+region      = "ap-south-1"
+environment = "demo"
+demo_mode   = true
+
+# 1 task per service = cut-down demo. Use 2 for high availability across both zones.
+desired_count = 1
+
+# Optional: get e-mailed when an alarm fires.
+# alarm_email = "you@example.com"
+
+# Set to false if this AWS account already has a GitHub OIDC provider.
+# create_github_oidc_provider = false

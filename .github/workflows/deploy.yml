@@ -1,0 +1,132 @@
+name: Deploy to AWS
+
+# Manual: builds the image, rolls the ECS services one by one, publishes the frontend, then smoke-tests the result.
+# Needs the repository variables printed by `terraform output github_variables` (see docs/AWS-DEPLOY.md).
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: Build and deploy the backend services
+        type: boolean
+        default: true
+      frontend:
+        description: Build and publish the frontend
+        type: boolean
+        default: true
+      smoke:
+        description: Run the Gatling smoke test against the deployed app
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC to AWS
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  backend:
+    name: Backend (build, push, roll out)
+    if: ${{ inputs.backend }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push image
+        id: image
+        working-directory: backend
+        run: |
+          uri="${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}"
+          docker build -t "$uri:${GITHUB_SHA}" -t "$uri:latest" .
+          docker push "$uri:${GITHUB_SHA}"
+          docker push "$uri:latest"
+          echo "uri=$uri:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - name: Roll out (identity first, gateway last)
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          IMAGE: ${{ steps.image.outputs.uri }}
+        run: |
+          # Identity creates the shared schema, so it goes first; workers can go together; the gateway last.
+          infra/aws/deploy-service.sh "$CLUSTER" identity-service "$IMAGE"
+          pids=()
+          for s in leasing-service billing-service maintenance-service workflow-service ai-service document-service; do
+            infra/aws/deploy-service.sh "$CLUSTER" "$s" "$IMAGE" & pids+=($!)
+          done
+          fail=0; for p in "${pids[@]}"; do wait "$p" || fail=1; done
+          [ "$fail" = 0 ] || { echo "a worker rollout failed"; exit 1; }
+          infra/aws/deploy-service.sh "$CLUSTER" api-gateway "$IMAGE"
+      - name: Smoke check through CloudFront
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.APP_URL }}/api/identity/public/demo-users" || true)
+            [ "$code" = 200 ] && { echo "API answered 200"; exit 0; }
+            echo "attempt $i: HTTP $code"; sleep 10
+          done
+          echo "API did not answer 200 in time"; exit 1
+
+  frontend:
+    name: Frontend (build, upload, invalidate)
+    if: ${{ inputs.frontend && !cancelled() && (needs.backend.result == 'success' || needs.backend.result == 'skipped') }}
+    needs: backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ vars.APP_URL }}
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Upload with cache headers
+        working-directory: frontend/dist
+        run: |
+          bucket="s3://${{ vars.FRONTEND_BUCKET }}"
+          # Hashed assets never change: cache for a year. Everything else (index.html, remoteEntry.js) stays fresh.
+          aws s3 sync . "$bucket" --delete --exclude "*/assets/*" --exclude "assets/*" \
+            --cache-control "public, max-age=300"
+          aws s3 sync . "$bucket" --exclude "*" --include "assets/*" --include "*/assets/*" \
+            --cache-control "public, max-age=31536000, immutable"
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
+
+  smoke:
+    name: Performance smoke test
+    if: ${{ inputs.smoke && !cancelled() && needs.frontend.result != 'failure' && needs.backend.result != 'failure' }}
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Gatling smoke
+        working-directory: performance
+        run: mvn -B gatling:test -DbaseUrl="${{ vars.APP_URL }}" -Dorg=Summit -Dusers=3 -DrampSeconds=10 -DholdSeconds=20
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gatling-report
+          path: performance/target/gatling

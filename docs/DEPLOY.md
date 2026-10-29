@@ -68,6 +68,10 @@ The same image runs one service per container. Create six more Railway services 
 - Set `DEMO_MODE=false` for any real tenant data. It disables demo sign-in and the reset action.
 - Postgres row-level security is enforced for the application role; the gateway rate-limits public and signed-in traffic.
 
+## AWS (ECS Fargate)
+
+See [AWS-DEPLOY.md](AWS-DEPLOY.md) for the Terraform and GitHub Actions deployment to ECS Fargate.
+
 ## Kubernetes (high availability)
 
 `infra/k8s` holds ready-to-apply manifests: namespace and settings, then for each of the 8 services a Deployment (2 replicas, zero-downtime rolling updates, liveness/readiness/startup probes, resource limits, non-root), a Service, an autoscaler (CPU 70%) and a disruption budget. Network policies deny traffic by default; an ingress exposes only the gateway.
