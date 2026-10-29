@@ -1,0 +1,99 @@
+name: End-to-end tests
+
+# Manual only. It never runs on a push or pull request, so it cannot block a deploy.
+#   local: builds the platform, starts all 8 services plus the web app on the runner and runs the whole suite (API and browser).
+#   live:  runs the read-only checks against a deployed environment; it never creates accounts or data there.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to run the tests
+        type: choice
+        default: local
+        options: [local, live]
+      baseUrl:
+        description: Web address of the environment (live only)
+        default: https://dtqbmyulhq2jl.cloudfront.net
+      project:
+        description: Which tests to run
+        type: choice
+        default: all
+        options: [all, api, chromium]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: e2e
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Install the test tools
+        run: npm ci && npx playwright install --with-deps chromium
+
+      - uses: actions/setup-java@v4
+        if: inputs.target == 'local'
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build the platform
+        if: inputs.target == 'local'
+        working-directory: backend
+        run: mvn -B -ntp -q -DskipTests package
+      - name: Build the web app
+        if: inputs.target == 'local'
+        working-directory: frontend
+        run: npm ci && npm run build
+      - name: Start the platform
+        if: inputs.target == 'local'
+        run: bash tools/local-stack.sh start
+
+      - name: Run the tests (local stack)
+        if: inputs.target == 'local'
+        env:
+          E2E_MODE: local
+        run: npx playwright test ${{ inputs.project != 'all' && format('--project={0}', inputs.project) || '' }}
+      - name: Run the read-only tests (live)
+        if: inputs.target == 'live'
+        env:
+          E2E_MODE: live
+          E2E_ALLOW_WRITES: 'false'
+          E2E_BASE_URL: ${{ inputs.baseUrl }}
+          E2E_API_URL: ${{ inputs.baseUrl }}
+        run: npx playwright test ${{ inputs.project != 'all' && format('--project={0}', inputs.project) || '' }}
+
+      - name: Requirement coverage
+        if: always()
+        run: node tools/trace.mjs | tail -20
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            e2e/requirements/TRACEABILITY.md
+          if-no-files-found: ignore
+      - name: Show service logs on failure
+        if: failure() && inputs.target == 'local'
+        run: tail -n 60 .run/*.log

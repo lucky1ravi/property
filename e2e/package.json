@@ -1,0 +1,22 @@
+{
+  "name": "propertyos-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "End-to-end (browser + API) test suite for PropertyOS, built with Playwright",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=chromium",
+    "test:readonly": "E2E_ALLOW_WRITES=false playwright test",
+    "report": "playwright show-report",
+    "trace": "node tools/trace.mjs",
+    "stack:start": "bash tools/local-stack.sh start",
+    "stack:stop": "bash tools/local-stack.sh stop"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -6,7 +6,7 @@ This page is the map of everything around the code: how it is built, proven, shi
 
 | | |
 | --- | --- |
-| Backend | 7 business services + API gateway, Java 21, Spring Boot 3.4, 191 production classes, 212 documented endpoints |
+| Backend | 7 business services + API gateway, Java 21, Spring Boot 3.4, 191 production classes, 215 documented endpoints |
 | Frontend | React shell + 7 federated micro-frontends (admin, leasing, payments, maintenance, documents, insights, broker) |
 | Database | PostgreSQL 16, schema per service, 24 Flyway migrations, forced row-level security |
 | Tests | 165+ backend test methods across 21 unit-test and 16 integration/system classes, 90% merged-coverage gate (last full run 92.7-92.8%), Vitest, Gatling |

@@ -259,6 +259,8 @@ public class AuthService {
     /** Sends a one-time sign-in code. In demo mode the code is returned so reviewers can sign in. */
     public Map<String, Object> requestOtp(String email) {
         String normalized = email == null ? "" : email.trim().toLowerCase();
+        // A missing or malformed address is a mistake in the request, not an account lookup, so say so (unknown but valid addresses still get the same reply as known ones).
+        if (!normalized.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address.");
         Optional<Map<String, Object>> user = UserContextHolder.runAsSystem(null, () -> tx.execute(s -> store.userByEmail(normalized)));
         String code = String.format("%06d", random.nextInt(1_000_000));
         Map<String, Object> res = new LinkedHashMap<>();

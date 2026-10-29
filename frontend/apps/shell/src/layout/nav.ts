@@ -149,6 +149,18 @@ export function visibleNav(s: Session | undefined, persona: Persona, can: (p: st
   })).filter((g) => g.items.length > 0);
 }
 
+/** True when the path belongs to a menu page this person is not allowed to use, so the screen can say so instead of showing an empty page with buttons. */
+export function isBlockedPage(pathname: string, s: Session | undefined, persona: Persona, can: (p: string) => boolean, feature: (f: string) => boolean): boolean {
+  if (!s) return false;
+  const flat: NavItem[] = NAV.flatMap((g) => g.items.flatMap((i) => (i.children ? i.children.map((c) => ({ ...c, feature: c.feature ?? i.feature })) : [i])));
+  let best: NavItem | null = null;
+  for (const i of flat) {
+    if (i.to === '/app') continue;
+    if (pathname === i.to || pathname.startsWith(i.to + '/')) if (!best || i.to.length > best.to.length) best = i;
+  }
+  return !!best && !allowed(best, persona, can, feature);
+}
+
 export interface Crumb { label: string; to?: string }
 
 /** Breadcrumb trail for a path, built from the menu the person can see: Home › Section › Page › Details. */

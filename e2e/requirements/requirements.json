@@ -1,0 +1,917 @@
+[
+  {
+    "id": "SITE-01",
+    "area": "Public website",
+    "text": "Marketing site pages load (home, products, solutions, features, plans, why us, security, contact)"
+  },
+  {
+    "id": "SITE-02",
+    "area": "Public website",
+    "text": "Contact / request-a-demo form creates a request the operator can see"
+  },
+  {
+    "id": "SITE-03",
+    "area": "Public website",
+    "text": "Unknown URL shows a not-found page"
+  },
+  {
+    "id": "SITE-04",
+    "area": "Public website",
+    "text": "Public rental site lists live homes without signing in"
+  },
+  {
+    "id": "SITE-05",
+    "area": "Public website",
+    "text": "A prospect can open a home, enquire, book a showing and apply without an account"
+  },
+  {
+    "id": "SITE-06",
+    "area": "Public website",
+    "text": "Site content and plans are served from the platform"
+  },
+  {
+    "id": "SITE-07",
+    "area": "Public website",
+    "text": "Every marketing page sets its own tab title and has one main heading and landmarks"
+  },
+  {
+    "id": "SITE-08",
+    "area": "Public website",
+    "text": "Header and footer links lead to the right pages and the logo goes home"
+  },
+  {
+    "id": "SITE-09",
+    "area": "Public website",
+    "text": "Home page: hero actions, product cards, governance and pricing sections link onward"
+  },
+  {
+    "id": "SITE-10",
+    "area": "Public website",
+    "text": "Products page has all six areas with their flow and the features the platform lists"
+  },
+  {
+    "id": "SITE-11",
+    "area": "Public website",
+    "text": "Solutions page has a section for each of the six roles reachable by anchor"
+  },
+  {
+    "id": "SITE-12",
+    "area": "Public website",
+    "text": "Features page lists every platform feature with the lowest plan that includes it"
+  },
+  {
+    "id": "SITE-13",
+    "area": "Public website",
+    "text": "Plans page shows each plan price, minimum, badge, features and a comparison table from the platform"
+  },
+  {
+    "id": "SITE-14",
+    "area": "Public website",
+    "text": "Choosing a plan opens the contact form set to pricing with the plan in the message"
+  },
+  {
+    "id": "SITE-15",
+    "area": "Public website",
+    "text": "Why-us and security pages show their sections and lead to the contact form"
+  },
+  {
+    "id": "SITE-16",
+    "area": "Public website",
+    "text": "Contact form: topics, number-only units, hidden bot trap, button enables only when valid"
+  },
+  {
+    "id": "SITE-17",
+    "area": "Public website",
+    "text": "Sending the contact form shows the thank-you and the operator sees the request"
+  },
+  {
+    "id": "SITE-18",
+    "area": "Public website",
+    "text": "On a phone the menu opens and closes and every page fits the width"
+  },
+  {
+    "id": "SITE-19",
+    "area": "Public website",
+    "text": "Skip link and image text alternatives on the marketing pages"
+  },
+  {
+    "id": "SITE-20",
+    "area": "Public website",
+    "text": "A signed-in visitor sees an Open PropertyOS link and sign-in sends them into the app"
+  },
+  {
+    "id": "SITE-21",
+    "area": "Public website",
+    "text": "Rental search filters by city, bedrooms and rent and says so when nothing matches"
+  },
+  {
+    "id": "SITE-22",
+    "area": "Public website",
+    "text": "An unknown home and an incomplete documents link show a helpful message"
+  },
+  {
+    "id": "SITE-23",
+    "area": "Public website",
+    "text": "A live home shows rent, deposit, details and photos; the application needs consent"
+  },
+  {
+    "id": "SITE-24",
+    "area": "Public website",
+    "text": "A visitor asks, requests a tour, applies and sends documents with the private link"
+  },
+  {
+    "id": "AUTH-01",
+    "area": "Sign-in",
+    "text": "A valid user signs in and gets a token and profile"
+  },
+  {
+    "id": "AUTH-02",
+    "area": "Sign-in",
+    "text": "A wrong password is refused with a friendly message"
+  },
+  {
+    "id": "AUTH-03",
+    "area": "Sign-in",
+    "text": "An unknown email is refused without revealing whether it exists"
+  },
+  {
+    "id": "AUTH-04",
+    "area": "Sign-in",
+    "text": "Protected endpoints refuse requests without a token (401)"
+  },
+  {
+    "id": "AUTH-05",
+    "area": "Sign-in",
+    "text": "A tampered or invalid token is refused (401)"
+  },
+  {
+    "id": "AUTH-06",
+    "area": "Sign-in",
+    "text": "/me returns name, role, permissions, features and branding"
+  },
+  {
+    "id": "AUTH-07",
+    "area": "Sign-in",
+    "text": "A token can be refreshed"
+  },
+  {
+    "id": "AUTH-08",
+    "area": "Sign-in",
+    "text": "A temporary password forces a change on first sign-in"
+  },
+  {
+    "id": "AUTH-09",
+    "area": "Sign-in",
+    "text": "A new password must meet the minimum length"
+  },
+  {
+    "id": "AUTH-10",
+    "area": "Sign-in",
+    "text": "Sign-in page shows demo personas in a demo environment and fills the form"
+  },
+  {
+    "id": "AUTH-11",
+    "area": "Sign-in",
+    "text": "A signed-in user is redirected from /signin to the app"
+  },
+  {
+    "id": "AUTH-12",
+    "area": "Sign-in",
+    "text": "A signed-out visitor to /app is sent to sign-in"
+  },
+  {
+    "id": "AUTH-13",
+    "area": "Sign-in",
+    "text": "Sign out clears the session"
+  },
+  {
+    "id": "AUTH-14",
+    "area": "Sign-in",
+    "text": "The session survives a page reload"
+  },
+  {
+    "id": "AUTH-15",
+    "area": "Sign-in",
+    "text": "Email one-time code request and verification endpoints validate input"
+  },
+  {
+    "id": "PROF-01",
+    "area": "Profile",
+    "text": "A user can change name, title and phone"
+  },
+  {
+    "id": "PROF-02",
+    "area": "Profile",
+    "text": "Email cannot be changed from the profile"
+  },
+  {
+    "id": "PROF-03",
+    "area": "Profile",
+    "text": "A photo must be a small jpeg, png or webp image"
+  },
+  {
+    "id": "PROF-04",
+    "area": "Profile",
+    "text": "A blank name is rejected"
+  },
+  {
+    "id": "PROF-05",
+    "area": "Profile",
+    "text": "The profile page shows the user's details, saves changes and keeps the email read-only"
+  },
+  {
+    "id": "PROF-06",
+    "area": "Profile",
+    "text": "The header shows the user's name and company"
+  },
+  {
+    "id": "RBAC-01",
+    "area": "Permissions",
+    "text": "Every role can call exactly the endpoints its permissions allow (matrix)"
+  },
+  {
+    "id": "RBAC-02",
+    "area": "Permissions",
+    "text": "A forbidden call returns 403 with a readable message"
+  },
+  {
+    "id": "RBAC-03",
+    "area": "Permissions",
+    "text": "The platform administrator is blocked from company data"
+  },
+  {
+    "id": "RBAC-04",
+    "area": "Permissions",
+    "text": "A resident sees only their own lease, invoices and requests"
+  },
+  {
+    "id": "RBAC-05",
+    "area": "Permissions",
+    "text": "A vendor sees only the jobs assigned to them"
+  },
+  {
+    "id": "RBAC-06",
+    "area": "Permissions",
+    "text": "An owner sees only their own properties"
+  },
+  {
+    "id": "RBAC-07",
+    "area": "Permissions",
+    "text": "A broker is limited to assigned properties"
+  },
+  {
+    "id": "RBAC-08",
+    "area": "Permissions",
+    "text": "Navigation shows only what each role may use (menu matrix)"
+  },
+  {
+    "id": "RBAC-09",
+    "area": "Permissions",
+    "text": "Owners permission: brokers can see but not add, edit or archive owners"
+  },
+  {
+    "id": "RBAC-10",
+    "area": "Permissions",
+    "text": "Leasing agent cannot approve; accountant cannot edit portfolio"
+  },
+  {
+    "id": "RBAC-11",
+    "area": "Permissions",
+    "text": "A direct URL to a page the role cannot use does not expose data"
+  },
+  {
+    "id": "ISOL-01",
+    "area": "Tenant isolation",
+    "text": "A second company cannot read the first company's records"
+  },
+  {
+    "id": "ISOL-02",
+    "area": "Tenant isolation",
+    "text": "A second company cannot change or archive the first company's records"
+  },
+  {
+    "id": "ISOL-03",
+    "area": "Tenant isolation",
+    "text": "Guessing an id from another company returns 404"
+  },
+  {
+    "id": "ISOL-04",
+    "area": "Tenant isolation",
+    "text": "User and role lists are per company"
+  },
+  {
+    "id": "ISOL-05",
+    "area": "Tenant isolation",
+    "text": "A role from another company cannot be assigned"
+  },
+  {
+    "id": "ISOL-06",
+    "area": "Tenant isolation",
+    "text": "A new company starts empty"
+  },
+  {
+    "id": "PLAT-01",
+    "area": "Platform admin",
+    "text": "Overview shows companies, users and activity"
+  },
+  {
+    "id": "PLAT-02",
+    "area": "Platform admin",
+    "text": "Companies list with plan, state, status and user counts"
+  },
+  {
+    "id": "PLAT-03",
+    "area": "Platform admin",
+    "text": "Onboarding creates a company, its admin and a one-time password"
+  },
+  {
+    "id": "PLAT-04",
+    "area": "Platform admin",
+    "text": "Onboarding validates name, admin email and plan"
+  },
+  {
+    "id": "PLAT-05",
+    "area": "Platform admin",
+    "text": "Plan and feature entitlements can be changed per company"
+  },
+  {
+    "id": "PLAT-06",
+    "area": "Platform admin",
+    "text": "A company admin cannot change its own entitlements"
+  },
+  {
+    "id": "PLAT-07",
+    "area": "Platform admin",
+    "text": "Product defaults can be viewed, saved and reset per section"
+  },
+  {
+    "id": "PLAT-08",
+    "area": "Platform admin",
+    "text": "Invalid product-default sections are rejected"
+  },
+  {
+    "id": "PLAT-09",
+    "area": "Platform admin",
+    "text": "Product defaults reach every company's configuration"
+  },
+  {
+    "id": "PLAT-10",
+    "area": "Platform admin",
+    "text": "Suspending a company requires a reason and a valid status"
+  },
+  {
+    "id": "PLAT-11",
+    "area": "Platform admin",
+    "text": "A suspended company's users cannot sign in"
+  },
+  {
+    "id": "PLAT-12",
+    "area": "Platform admin",
+    "text": "A suspended company's signed-in users are turned away by every service"
+  },
+  {
+    "id": "PLAT-13",
+    "area": "Platform admin",
+    "text": "A suspended company's homes leave the public site"
+  },
+  {
+    "id": "PLAT-14",
+    "area": "Platform admin",
+    "text": "Reactivating restores access with the same session"
+  },
+  {
+    "id": "PLAT-15",
+    "area": "Platform admin",
+    "text": "The platform itself cannot be suspended"
+  },
+  {
+    "id": "PLAT-16",
+    "area": "Platform admin",
+    "text": "Plans can be created, edited and deleted"
+  },
+  {
+    "id": "PLAT-17",
+    "area": "Platform admin",
+    "text": "Website features and contact requests can be managed"
+  },
+  {
+    "id": "PLAT-18",
+    "area": "Platform admin",
+    "text": "Operator actions are audited"
+  },
+  {
+    "id": "PLAT-19",
+    "area": "Platform admin",
+    "text": "Platform sidebar shows the platform name and only operator pages"
+  },
+  {
+    "id": "PLAT-20",
+    "area": "Platform admin",
+    "text": "Platform screens: overview, companies, product defaults, plans, website, audit"
+  },
+  {
+    "id": "ACC-01",
+    "area": "Users and roles",
+    "text": "Admin lists users with roles and status"
+  },
+  {
+    "id": "ACC-02",
+    "area": "Users and roles",
+    "text": "Creating a user returns a one-time temporary password"
+  },
+  {
+    "id": "ACC-03",
+    "area": "Users and roles",
+    "text": "A duplicate email is rejected"
+  },
+  {
+    "id": "ACC-04",
+    "area": "Users and roles",
+    "text": "Admin can reset a user's password"
+  },
+  {
+    "id": "ACC-05",
+    "area": "Users and roles",
+    "text": "Admin can edit and deactivate a user"
+  },
+  {
+    "id": "ACC-06",
+    "area": "Users and roles",
+    "text": "Roles list shows built-in roles with permission counts"
+  },
+  {
+    "id": "ACC-07",
+    "area": "Users and roles",
+    "text": "Admin can create, edit and delete custom roles"
+  },
+  {
+    "id": "ACC-08",
+    "area": "Users and roles",
+    "text": "A role's permissions can be changed per feature and action"
+  },
+  {
+    "id": "ACC-09",
+    "area": "Users and roles",
+    "text": "The permission catalog lists features and actions"
+  },
+  {
+    "id": "ACC-10",
+    "area": "Users and roles",
+    "text": "Owner, resident and vendor sign-ins link to their records"
+  },
+  {
+    "id": "ACC-11",
+    "area": "Users and roles",
+    "text": "Users and roles screens work, including the one-time password dialog"
+  },
+  {
+    "id": "CFG-01",
+    "area": "Configuration",
+    "text": "Company configuration is returned with defaults applied"
+  },
+  {
+    "id": "CFG-02",
+    "area": "Configuration",
+    "text": "A section can be changed and the change is versioned"
+  },
+  {
+    "id": "CFG-03",
+    "area": "Configuration",
+    "text": "Configuration history lists changes and can roll back"
+  },
+  {
+    "id": "CFG-04",
+    "area": "Configuration",
+    "text": "Overrides list only what the company changed"
+  },
+  {
+    "id": "CFG-05",
+    "area": "Configuration",
+    "text": "Plan gating hides features the plan excludes"
+  },
+  {
+    "id": "CFG-06",
+    "area": "Configuration",
+    "text": "Branding company name falls back to the company's own name"
+  },
+  {
+    "id": "CFG-07",
+    "area": "Configuration",
+    "text": "Configuration screen renders every section and saves a change"
+  },
+  {
+    "id": "CFG-08",
+    "area": "Configuration",
+    "text": "Audit log records who changed what"
+  },
+  {
+    "id": "PORT-01",
+    "area": "Portfolio",
+    "text": "Owners can be created, edited and archived with validation"
+  },
+  {
+    "id": "PORT-02",
+    "area": "Portfolio",
+    "text": "Properties can be created, edited and archived with validation"
+  },
+  {
+    "id": "PORT-03",
+    "area": "Portfolio",
+    "text": "Units can be created, edited, repriced and archived with validation"
+  },
+  {
+    "id": "PORT-04",
+    "area": "Portfolio",
+    "text": "Archived records are hidden and can be restored; parents restore first"
+  },
+  {
+    "id": "PORT-05",
+    "area": "Portfolio",
+    "text": "Records in use cannot be archived"
+  },
+  {
+    "id": "PORT-06",
+    "area": "Portfolio",
+    "text": "Portfolio screens list, search, add, edit and archive"
+  },
+  {
+    "id": "PORT-07",
+    "area": "Portfolio",
+    "text": "Property and unit detail pages open"
+  },
+  {
+    "id": "LEAS-01",
+    "area": "Leasing",
+    "text": "A unit can be listed; AI helps write the listing; submit leads to publish"
+  },
+  {
+    "id": "LEAS-02",
+    "area": "Leasing",
+    "text": "A published listing appears on the public site and a draft can be deleted"
+  },
+  {
+    "id": "LEAS-03",
+    "area": "Leasing",
+    "text": "Enquiries create leads that staff can answer"
+  },
+  {
+    "id": "LEAS-04",
+    "area": "Leasing",
+    "text": "Showings can be requested publicly and managed by staff"
+  },
+  {
+    "id": "LEAS-05",
+    "area": "Leasing",
+    "text": "An applicant applies publicly and is screened automatically"
+  },
+  {
+    "id": "LEAS-06",
+    "area": "Leasing",
+    "text": "Applications go through approve, owner review and lease creation"
+  },
+  {
+    "id": "LEAS-07",
+    "area": "Leasing",
+    "text": "A lease is sent, signed by the resident, countersigned and becomes active"
+  },
+  {
+    "id": "LEAS-08",
+    "area": "Leasing",
+    "text": "Lease renewal can be started"
+  },
+  {
+    "id": "LEAS-09",
+    "area": "Leasing",
+    "text": "A resident sees their own lease"
+  },
+  {
+    "id": "LEAS-10",
+    "area": "Leasing",
+    "text": "Leasing screens: overview, listings, leads, showings, applications, leases"
+  },
+  {
+    "id": "LEAS-11",
+    "area": "Leasing",
+    "text": "Applicant document upload link works for one application only"
+  },
+  {
+    "id": "BILL-01",
+    "area": "Billing",
+    "text": "A billing cycle creates invoices from active leases"
+  },
+  {
+    "id": "BILL-02",
+    "area": "Billing",
+    "text": "Invoices can be created and voided"
+  },
+  {
+    "id": "BILL-03",
+    "area": "Billing",
+    "text": "Payments can be quoted and recorded; autopay methods managed by residents"
+  },
+  {
+    "id": "BILL-04",
+    "area": "Billing",
+    "text": "Collections, aging and reminders work"
+  },
+  {
+    "id": "BILL-05",
+    "area": "Billing",
+    "text": "Deposits can be listed and settled"
+  },
+  {
+    "id": "BILL-06",
+    "area": "Billing",
+    "text": "Owner statements can be created and published; expenses recorded"
+  },
+  {
+    "id": "BILL-07",
+    "area": "Billing",
+    "text": "Tax: 1099 report, summary and owner W-9"
+  },
+  {
+    "id": "BILL-08",
+    "area": "Billing",
+    "text": "A resident sees only their own balance"
+  },
+  {
+    "id": "BILL-09",
+    "area": "Billing",
+    "text": "Payments screens: overview, invoices, collections, payments, statements, deposits, tax"
+  },
+  {
+    "id": "MAIN-01",
+    "area": "Maintenance",
+    "text": "A repair request can be created by staff and residents"
+  },
+  {
+    "id": "MAIN-02",
+    "area": "Maintenance",
+    "text": "A work order moves through assign, schedule, work, complete and verify"
+  },
+  {
+    "id": "MAIN-03",
+    "area": "Maintenance",
+    "text": "Comments can be added to a work order"
+  },
+  {
+    "id": "MAIN-04",
+    "area": "Maintenance",
+    "text": "Vendors can be created, edited, archived and reactivated"
+  },
+  {
+    "id": "MAIN-05",
+    "area": "Maintenance",
+    "text": "Recurring maintenance tasks can be added and run"
+  },
+  {
+    "id": "MAIN-06",
+    "area": "Maintenance",
+    "text": "SLA check and stats work"
+  },
+  {
+    "id": "MAIN-07",
+    "area": "Maintenance",
+    "text": "A vendor sees and updates only their jobs"
+  },
+  {
+    "id": "MAIN-08",
+    "area": "Maintenance",
+    "text": "Maintenance screens: work orders, vendors, preventive maintenance"
+  },
+  {
+    "id": "WORK-01",
+    "area": "Workflow and automation",
+    "text": "Workflow definitions can be viewed, edited, validated and reset"
+  },
+  {
+    "id": "WORK-02",
+    "area": "Workflow and automation",
+    "text": "Automation rules can be created, edited, toggled and deleted with validation"
+  },
+  {
+    "id": "WORK-03",
+    "area": "Workflow and automation",
+    "text": "A rule runs when its trigger event happens and is recorded"
+  },
+  {
+    "id": "WORK-04",
+    "area": "Workflow and automation",
+    "text": "A new company receives default automation rules"
+  },
+  {
+    "id": "WORK-05",
+    "area": "Workflow and automation",
+    "text": "Automation and workflow screens render and save"
+  },
+  {
+    "id": "CHAT-01",
+    "area": "Messages",
+    "text": "Contacts and conversations can be listed"
+  },
+  {
+    "id": "CHAT-02",
+    "area": "Messages",
+    "text": "A conversation needs a subject, a message and people"
+  },
+  {
+    "id": "CHAT-03",
+    "area": "Messages",
+    "text": "Members can reply, resolve and request an AI assist"
+  },
+  {
+    "id": "CHAT-04",
+    "area": "Messages",
+    "text": "A person sees only conversations they belong to"
+  },
+  {
+    "id": "CHAT-05",
+    "area": "Messages",
+    "text": "Messages screen lists, opens and sends"
+  },
+  {
+    "id": "NOTE-01",
+    "area": "Notifications",
+    "text": "Notifications list, mark read and mark all read"
+  },
+  {
+    "id": "NOTE-02",
+    "area": "Notifications",
+    "text": "Preferences can be read and changed"
+  },
+  {
+    "id": "NOTE-03",
+    "area": "Notifications",
+    "text": "Delivery log is available to automation viewers"
+  },
+  {
+    "id": "NOTE-04",
+    "area": "Notifications",
+    "text": "The bell shows unread notifications and the preferences page saves"
+  },
+  {
+    "id": "AI-01",
+    "area": "AI",
+    "text": "The assistant answers questions using permission-checked tools"
+  },
+  {
+    "id": "AI-02",
+    "area": "AI",
+    "text": "Changes proposed by the assistant need confirmation, once only (a proposal needs a model; offline, unknown or foreign ids are refused)"
+  },
+  {
+    "id": "AI-03",
+    "area": "AI",
+    "text": "Unauthenticated chat is refused"
+  },
+  {
+    "id": "AI-04",
+    "area": "AI",
+    "text": "Studio tools: lease abstract, anomaly scan, narrative, resident outlook, fair housing, photo triage"
+  },
+  {
+    "id": "AI-05",
+    "area": "AI",
+    "text": "Opportunities and broker queue are limited to the right roles"
+  },
+  {
+    "id": "AI-06",
+    "area": "AI",
+    "text": "Every AI call is audited"
+  },
+  {
+    "id": "AI-07",
+    "area": "AI",
+    "text": "AI works without a model configured (rules fallback)"
+  },
+  {
+    "id": "AI-08",
+    "area": "AI",
+    "text": "The assistant panel and AI tools screen work"
+  },
+  {
+    "id": "DOC-01",
+    "area": "Documents",
+    "text": "Documents can be uploaded, classified, edited, reviewed, archived, restored, deleted and purged"
+  },
+  {
+    "id": "DOC-02",
+    "area": "Documents",
+    "text": "Legal hold blocks deletion"
+  },
+  {
+    "id": "DOC-03",
+    "area": "Documents",
+    "text": "Requirements and gaps are reported per property and lease"
+  },
+  {
+    "id": "DOC-04",
+    "area": "Documents",
+    "text": "E-signature requests: signers, ordering, remind, sign, decline, cancel"
+  },
+  {
+    "id": "DOC-05",
+    "area": "Documents",
+    "text": "Photos can be uploaded, reviewed and removed"
+  },
+  {
+    "id": "DOC-06",
+    "area": "Documents",
+    "text": "Documents are only visible to permitted roles"
+  },
+  {
+    "id": "DOC-07",
+    "area": "Documents",
+    "text": "Files and documents screens render and upload"
+  },
+  {
+    "id": "REPT-01",
+    "area": "Reports and insights",
+    "text": "Home dashboard shows role-appropriate figures"
+  },
+  {
+    "id": "REPT-02",
+    "area": "Reports and insights",
+    "text": "Reports screen renders"
+  },
+  {
+    "id": "REPT-03",
+    "area": "Reports and insights",
+    "text": "Profit opportunities screen renders for allowed roles"
+  },
+  {
+    "id": "REPT-04",
+    "area": "Reports and insights",
+    "text": "Broker cockpit shows the work queue"
+  },
+  {
+    "id": "REPT-05",
+    "area": "Reports and insights",
+    "text": "Deadlines and alerts list and can be run"
+  },
+  {
+    "id": "OPS-01",
+    "area": "Operations",
+    "text": "Health, liveness and readiness probes answer"
+  },
+  {
+    "id": "OPS-02",
+    "area": "Operations",
+    "text": "Responses carry a correlation id and security headers"
+  },
+  {
+    "id": "OPS-03",
+    "area": "Operations",
+    "text": "The API is documented (OpenAPI per service)"
+  },
+  {
+    "id": "OPS-04",
+    "area": "Operations",
+    "text": "Rate-limit headers are present"
+  },
+  {
+    "id": "OPS-05",
+    "area": "Operations",
+    "text": "Internal endpoints are not reachable from outside"
+  },
+  {
+    "id": "OPS-06",
+    "area": "Operations",
+    "text": "Unknown API paths return a clean error"
+  },
+  {
+    "id": "JRNY-01",
+    "area": "Journeys",
+    "text": "New company from scratch through the browser: onboard, first sign-in, set up, run, suspend"
+  },
+  {
+    "id": "JRNY-02",
+    "area": "Journeys",
+    "text": "Leasing journey: list, enquire, apply, approve, lease, sign"
+  },
+  {
+    "id": "JRNY-03",
+    "area": "Journeys",
+    "text": "Rent journey: bill, pay, statement"
+  },
+  {
+    "id": "JRNY-04",
+    "area": "Journeys",
+    "text": "Repair journey: request, assign, complete, verify"
+  },
+  {
+    "id": "JRNY-05",
+    "area": "Journeys",
+    "text": "Owner journey: sees only own portfolio, approves"
+  },
+  {
+    "id": "JRNY-06",
+    "area": "Journeys",
+    "text": "Resident journey: lease, balance, repair request, message"
+  },
+  {
+    "id": "JRNY-07",
+    "area": "Journeys",
+    "text": "Vendor journey: sees job, updates it"
+  }
+]

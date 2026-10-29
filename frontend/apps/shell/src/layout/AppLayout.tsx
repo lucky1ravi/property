@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast, QuickViewHost } from '@propertyos/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Logo } from './Logo';
-import { visibleNav, breadcrumbs, type NavItem } from './nav';
+import { visibleNav, breadcrumbs, isBlockedPage, type NavItem } from './nav';
 import { Assistant } from './Assistant';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -86,7 +86,7 @@ export function AppLayout() {
           <div className="mx-auto max-w-[1360px] px-4 py-6 lg:px-8 lg:py-8">
             <Breadcrumbs pathname={loc.pathname} groups={groups} />
             <SectionTabs pathname={loc.pathname} groups={groups} />
-            <ErrorBoundary label="page" key={loc.pathname}><Outlet /></ErrorBoundary>
+            <ErrorBoundary label="page" key={loc.pathname}>{isBlockedPage(loc.pathname, session, persona, can, feature) ? <NoAccess /> : <Outlet />}</ErrorBoundary>
           </div>
         </main>
       </div>
@@ -332,4 +332,15 @@ function Notifications() {
 
 export function CloseButton({ onClick }: { onClick: () => void }) {
   return <button onClick={onClick} aria-label="Close" className="rounded p-1.5 text-graphite-500 hover:bg-limestone-100"><X className="h-5 w-5" /></button>;
+}
+
+/** Shown instead of a page the person's role can't use. The server refuses the data anyway; this just says so plainly. */
+function NoAccess() {
+  return (
+    <div className="mx-auto mt-16 max-w-md text-center" role="alert">
+      <h1 className="text-xl font-extrabold text-graphite-950">You don’t have access to this page</h1>
+      <p className="mt-2 text-graphite-600">Your role doesn’t include it. If you need it, ask your company administrator to change your role.</p>
+      <a href="/app" className="mt-4 inline-block font-semibold text-federal-900 underline">Go to your home page</a>
+    </div>
+  );
 }

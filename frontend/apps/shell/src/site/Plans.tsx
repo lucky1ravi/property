@@ -27,7 +27,7 @@ export function Plans() {
 
           <Container className="pb-16">
             <h2 className="text-2xl font-black tracking-[-0.02em] text-graphite-950">Compare every feature</h2>
-            <div className="mt-6 overflow-x-auto rounded-lg border border-limestone-300">
+            <div className="relative mt-6 overflow-x-auto rounded-lg border border-limestone-300">
               <table className="w-full min-w-[560px] border-collapse text-left text-sm">
                 <caption className="sr-only">Features included in each plan</caption>
                 <thead className="bg-limestone-100">

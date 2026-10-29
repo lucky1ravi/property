@@ -298,4 +298,15 @@ public class PortfolioService {
         }
         audit.record(kind.substring(0, 1).toUpperCase() + kind.substring(1), id, "RESTORED", "ARCHIVED", "ACTIVE", Map.of());
     }
+
+    /** Archived owners, properties or units, newest first, so they can be found and restored. kind is owner, property or unit. */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> archived(String kind) {
+        return switch (kind) {
+            case "owner" -> db.list("select id, name, contact, archived_at from leasing.owner where archived_at is not null order by archived_at desc");
+            case "property" -> db.list("select p.id, p.name, p.city, p.state, o.name as owner_name, p.archived_at from leasing.property p left join leasing.owner o on o.id = p.owner_id where p.archived_at is not null order by p.archived_at desc");
+            case "unit" -> db.list("select u.id, u.number, p.name as property_name, u.archived_at from leasing.unit u join leasing.property p on p.id = u.property_id where u.archived_at is not null order by u.archived_at desc");
+            default -> throw ApiException.notFound("Record");
+        };
+    }
 }

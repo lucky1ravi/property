@@ -33,12 +33,14 @@ Generated from the controllers in `backend/leasing-service`: **47 endpoints**. *
 | DELETE | `/api/leasing/owners/{id}` | OWNER:DELETE | `LeasingController.archiveOwner` |
 | PUT | `/api/leasing/owners/{id}` | OWNER:EDIT | `LeasingController.updateOwner` |
 | POST | `/api/leasing/owners/{id}/restore` | OWNER:DELETE | `LeasingController.restoreOwner` |
+| GET | `/api/leasing/owners/archived` | OWNER:DELETE | `LeasingController.archivedOwners` |
 | GET | `/api/leasing/properties` | PROPERTY:VIEW | `LeasingController.properties` |
 | POST | `/api/leasing/properties` | PROPERTY:CREATE | `LeasingController.createProperty` |
 | DELETE | `/api/leasing/properties/{id}` | PROPERTY:DELETE | `LeasingController.archiveProperty` |
 | GET | `/api/leasing/properties/{id}` | PROPERTY:VIEW | `LeasingController.property` |
 | PUT | `/api/leasing/properties/{id}` | PROPERTY:EDIT | `LeasingController.updateProperty` |
 | POST | `/api/leasing/properties/{id}/restore` | PROPERTY:DELETE | `LeasingController.restoreProperty` |
+| GET | `/api/leasing/properties/archived` | PROPERTY:DELETE | `LeasingController.archivedProperties` |
 | POST | `/api/leasing/properties/{id}/units` | PROPERTY:CREATE | `LeasingController.createUnit` |
 | GET | `/api/leasing/public/listings` | open | `PublicController.listings` |
 | GET | `/api/leasing/public/listings/{id}` | open | `PublicController.listing` |
@@ -53,3 +55,4 @@ Generated from the controllers in `backend/leasing-service`: **47 endpoints**. *
 | PUT | `/api/leasing/units/{id}` | PROPERTY:EDIT | `LeasingController.updateUnit` |
 | PUT | `/api/leasing/units/{id}/market-rent` | PROPERTY:EDIT | `LeasingController.marketRent` |
 | POST | `/api/leasing/units/{id}/restore` | PROPERTY:DELETE | `LeasingController.restoreUnit` |
+| GET | `/api/leasing/units/archived` | PROPERTY:DELETE | `LeasingController.archivedUnits` |

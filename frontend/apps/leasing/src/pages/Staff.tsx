@@ -120,6 +120,26 @@ function AddUnit({ open, onClose, propertyId, existing }: { open: boolean; onClo
   <ConfirmDialog open={confirm} title={`Archive unit ${existing?.number ?? ''}?`} body="The unit is hidden from lists. History is kept. It can’t be archived while occupied or listed." confirmLabel="Archive" tone="danger" loading={archive.isPending} onClose={() => setConfirm(false)} onConfirm={() => archive.mutate(undefined as never)} /></>);
 }
 
+
+/** Archived records with a Restore button each, for people who may archive them. Hidden until asked for. */
+function ArchivedList({ kind, perm }: { kind: 'owner' | 'property' | 'unit'; perm: string }) {
+  const { can } = useSession();
+  const [open, setOpen] = useState(false);
+  const plural = kind === 'property' ? 'properties' : `${kind}s`;
+  const path = `/api/leasing/${plural}/archived`;
+  const { data, isLoading } = useApi<any[]>(open && can(perm) ? path : null);
+  const restore = useAction((id: string) => api.post(`/api/leasing/${plural}/${id}/restore`), { success: 'Restored', invalidate: ['/api/leasing', path] });
+  if (!can(perm)) return null;
+  const label = (r: any) => (kind === 'unit' ? `${r.property_name} · Unit ${r.number}` : kind === 'property' ? `${r.name} (${r.city}, ${r.state})` : r.name);
+  return (<div className="border-t border-limestone-200 px-4 py-3">
+    <Button size="sm" variant="quiet" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide archived' : 'Show archived'}</Button>
+    {open && (isLoading ? <Skeleton className="mt-2 h-10" /> : (data ?? []).length === 0 ? <p className="mt-2 text-sm text-graphite-600">Nothing is archived.</p>
+      : <ul className="mt-2 divide-y divide-limestone-200 text-sm">{(data ?? []).map((r) => (
+        <li key={r.id} className="flex items-center justify-between gap-3 py-2"><span><span className="font-medium text-graphite-900">{label(r)}</span> <span className="text-xs text-graphite-500">archived {fmt.date(r.archived_at)}</span></span>
+          <Button size="sm" variant="secondary" loading={restore.isPending} onClick={() => restore.mutate(r.id)}>Restore</Button></li>))}</ul>)}
+  </div>);
+}
+
 function Properties({ embedded }: { embedded?: boolean }) {
   const { data, isLoading } = useApi<any[]>('/api/leasing/properties');
   const { can } = useSession();
@@ -137,6 +157,7 @@ function Properties({ embedded }: { embedded?: boolean }) {
   const t = (<Panel title="Properties" padded={false} actions={add && <><Button size="sm" variant="secondary" onClick={() => setAdding('unit')} disabled={!data?.length}>Add unit</Button><Button size="sm" variant="primary" onClick={() => setAdding('property')}>Add property</Button></>}>
     <DataTable rows={data} columns={cols} rowKey={(p) => p.id} loading={isLoading} exportName="properties" onRowClick={(p) => add && setEditing(p)}
       empty={{ title: 'No properties yet', body: add ? 'Add the owner, then the property, then its units.' : undefined, action: add ? <Button variant="primary" onClick={() => setAdding('property')}>Add your first property</Button> : undefined } as any} />
+    <ArchivedList kind="property" perm="PROPERTY:DELETE" />
     {add && <><AddProperty open={adding === 'property'} onClose={() => setAdding(null)} onNeedOwner={() => setAdding('owner')} />{can('OWNER:CREATE') && <AddOwner open={adding === 'owner'} onClose={() => setAdding(null)} />}<AddUnit open={adding === 'unit'} onClose={() => setAdding(null)} />
       <AddProperty open={!!editing} existing={editing} onClose={() => setEditing(null)} onNeedOwner={() => undefined} /></>}</Panel>);
   return embedded ? t : <><PageHeader title="Properties" /><SubNav />{t}</>;
@@ -161,6 +182,7 @@ function Units() {
   return (<><PageHeader title="Units" description="Every door in your portfolio, with rent and vacancy." /><SubNav />
     <Panel padded={false} actions={can('PROPERTY:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add unit</Button>}>
       <DataTable rows={data} columns={cols} rowKey={(u) => u.id} loading={isLoading} exportName="units" onRowClick={(u) => can('PROPERTY:EDIT') && setEditing(u)} empty={{ title: 'No units yet', body: can('PROPERTY:CREATE') ? 'Add a property first, then its units.' : undefined } as any} />
+      <ArchivedList kind="unit" perm="PROPERTY:DELETE" />
       {can('PROPERTY:CREATE') && <AddUnit open={adding} onClose={() => setAdding(false)} />}
       {can('PROPERTY:EDIT') && <AddUnit open={!!editing} existing={editing} onClose={() => setEditing(null)} />}</Panel></>);
 }
@@ -182,6 +204,7 @@ function Owners() {
   return (<><PageHeader title="Owners" description="Property owners, their contacts and management terms." /><SubNav />
     <Panel padded={false} actions={can('OWNER:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add owner</Button>}>
       <DataTable rows={data} columns={cols} rowKey={(o) => o.id} loading={isLoading} exportName="owners" onRowClick={(o) => can('OWNER:EDIT') && setEditing(o)} empty={{ title: 'No owners yet', body: can('OWNER:CREATE') ? 'Add the people or companies whose properties you manage.' : undefined } as any} />
+      <ArchivedList kind="owner" perm="OWNER:DELETE" />
       {can('OWNER:CREATE') && <AddOwner open={adding} onClose={() => setAdding(false)} />}
       {can('OWNER:EDIT') && <AddOwner open={!!editing} existing={editing} onClose={() => setEditing(null)} />}</Panel></>);
 }

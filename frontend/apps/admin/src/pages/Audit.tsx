@@ -58,7 +58,7 @@ function CompanyDetails({ org, onClose }: { org: any; onClose: () => void }) {
           <section><h3 className="text-sm font-extrabold text-graphite-950">Company</h3>
             <dl className="mt-1 divide-y divide-limestone-200">
               {row('Legal name', d.legal_name)}{row('State', d.state)}{row('Plan', d.plan)}
-              {row('Status', d.status === 'ACTIVE' ? 'Active' : `Suspended${d.status_reason ? ` — ${d.status_reason}` : ''}`)}{d.status !== 'ACTIVE' && d.status_changed_at && row('Suspended on', `${fmt.date(d.status_changed_at)} by ${d.status_changed_by ?? 'PropertyOS'}`)}{row('Created', fmt.date(d.created_at))}
+              {row('Status', d.status === 'ACTIVE' ? 'Active' : `Suspended — ${d.status_reason || 'no reason was recorded'}`)}{d.status !== 'ACTIVE' && d.status_changed_at && row('Suspended on', `${fmt.date(d.status_changed_at)} by ${d.status_changed_by ?? 'PropertyOS'}`)}{row('Created', fmt.date(d.created_at))}
               {row('Roles', d.roleCount)}
             </dl></section>
           <section><h3 className="text-sm font-extrabold text-graphite-950">Primary contact</h3>

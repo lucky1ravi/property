@@ -93,6 +93,24 @@ public class LeasingController {
     public void archiveUnit(@PathVariable UUID id) { portfolio.archiveUnit(id); }
 
     /**
+     * Lists archived owners.
+     */
+    @GetMapping("/owners/archived") @RequiresPermission("OWNER:DELETE")
+    public Object archivedOwners() { return portfolio.archived("owner"); }
+
+    /**
+     * Lists archived properties.
+     */
+    @GetMapping("/properties/archived") @RequiresPermission("PROPERTY:DELETE")
+    public Object archivedProperties() { return portfolio.archived("property"); }
+
+    /**
+     * Lists archived units.
+     */
+    @GetMapping("/units/archived") @RequiresPermission("PROPERTY:DELETE")
+    public Object archivedUnits() { return portfolio.archived("unit"); }
+
+    /**
      * Brings an archived owner back.
      */
     @PostMapping("/owners/{id}/restore") @RequiresPermission("OWNER:DELETE")
