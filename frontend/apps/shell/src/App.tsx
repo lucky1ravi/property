@@ -4,6 +4,7 @@ import { getToken } from '@propertyos/ui';
 import { SignIn } from './pages/SignIn';
 import { Messages } from './pages/Messages';
 import { Deadlines } from './pages/Deadlines';
+import { Profile } from './pages/Profile';
 import { Preferences } from './pages/Preferences';
 import { AppLayout } from './layout/AppLayout';
 import { RemoteModule } from './layout/RemoteModule';
@@ -87,6 +88,7 @@ export function App() {
             <Route path="messages" element={<Messages />} />
             <Route path="deadlines" element={<Deadlines />} />
             <Route path="preferences" element={<Preferences />} />
+            <Route path="profile" element={<Profile />} />
             <Route path="admin/*" element={<RemoteModule name="admin" loader={remotes.admin} />} />
           </Route>
           <Route path="*" element={<NotFound />} />

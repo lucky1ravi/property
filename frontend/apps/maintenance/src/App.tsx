@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import {
   DocumentsPanel,
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Modal, Field, Input, Select, Textarea, KeyValues, Timeline,
-  AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction, QuickLink } from '@propertyos/ui';
+  AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction, QuickLink, ConfirmDialog } from '@propertyos/ui';
 
 const BASE = '/app/maintenance';
 const inv = ['/api/maintenance'];
@@ -114,10 +114,45 @@ function Detail() {
   </>);
 }
 
+const TRADES = ['PLUMBING', 'ELECTRICAL', 'HVAC', 'APPLIANCE', 'GENERAL', 'LOCKSMITH', 'PAINTING', 'ROOFING', 'PEST_CONTROL', 'LANDSCAPING', 'CLEANING'];
+
+function AddVendor({ open, onClose, existing }: { open: boolean; onClose: () => void; existing?: any }) {
+  const blank = { name: '', contact: '', phone: '', email: '', trades: [] as string[], cities: '', insuranceExpires: '' };
+  const [f, setF] = useState<any>(blank);
+  const { can } = useSession();
+  const [confirm, setConfirm] = useState(false);
+  useEffect(() => { if (open) setF(existing ? { name: existing.name ?? '', contact: existing.contact ?? '', phone: existing.phone ?? '', email: existing.email ?? '', trades: existing.trades ?? [], cities: (existing.cities ?? []).join(', '), insuranceExpires: existing.insurance_expires ? String(existing.insurance_expires).slice(0, 10) : '' } : blank); }, [open, existing?.id]);
+  const body = () => ({ ...f, cities: f.cities.split(',').map((c: string) => c.trim()).filter(Boolean), insuranceExpires: f.insuranceExpires || undefined });
+  const setActive = useAction((active: boolean) => api.put(`/api/maintenance/vendors/${existing.id}`, { active }), { success: (_r: any, a: boolean) => (a ? 'Vendor reactivated' : 'Vendor archived'), invalidate: ['/api/maintenance/vendors'], onSuccess: () => { setConfirm(false); onClose(); } } as any);
+  const save = useAction(() => (existing ? api.put(`/api/maintenance/vendors/${existing.id}`, body()) : api.post('/api/maintenance/vendors', body())),
+    { success: existing ? 'Vendor updated' : 'Vendor added', invalidate: ['/api/maintenance/vendors'], onSuccess: () => { setF(blank); onClose(); } });
+  const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
+  const toggle = (t: string) => setF({ ...f, trades: f.trades.includes(t) ? f.trades.filter((x: string) => x !== t) : [...f.trades, t] });
+  return (<><Modal open={open} onClose={onClose} title={existing ? 'Edit vendor' : 'Add a vendor'} footer={<>{existing && can('VENDOR:EDIT') && (existing.active
+      ? <Button variant="danger" className="mr-auto" onClick={() => setConfirm(true)}>Archive</Button>
+      : <Button variant="secondary" className="mr-auto" loading={setActive.isPending} onClick={() => setActive.mutate(true)}>Reactivate</Button>)}<Button variant="quiet" onClick={onClose}>Cancel</Button><Button variant="primary" loading={save.isPending} disabled={!f.name.trim() || f.trades.length === 0} onClick={() => save.mutate(undefined as never)}>Save</Button></>}>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2"><Field label="Company name" required><Input value={f.name} onChange={set('name')} /></Field></div>
+      <Field label="Contact person"><Input value={f.contact} onChange={set('contact')} /></Field>
+      <Field label="Phone"><Input value={f.phone} inputMode="tel" onChange={set('phone')} /></Field>
+      <div className="sm:col-span-2"><Field label="Email"><Input type="email" value={f.email} onChange={set('email')} /></Field></div>
+      <fieldset className="sm:col-span-2"><legend className="mb-1.5 text-sm font-semibold text-graphite-800">Trades <span className="text-crit-600">*</span></legend>
+        <div className="flex flex-wrap gap-2">{TRADES.map((t) => (<label key={t} className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-semibold ${f.trades.includes(t) ? 'border-federal-900 bg-federal-900 text-white' : 'border-limestone-300 text-graphite-700'}`}>
+          <input type="checkbox" className="sr-only" checked={f.trades.includes(t)} onChange={() => toggle(t)} />{t.replace('_', ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase())}</label>))}</div></fieldset>
+      <Field label="Cities served" hint="Separate with commas"><Input value={f.cities} onChange={set('cities')} /></Field>
+      <Field label="Insurance valid until"><Input type="date" value={f.insuranceExpires} onChange={set('insuranceExpires')} /></Field>
+    </div></Modal>
+    <ConfirmDialog open={confirm} title={`Archive ${existing?.name ?? 'this vendor'}?`} body="They won’t be suggested or assigned new jobs. Past jobs and ratings are kept, and you can reactivate them. A vendor with open jobs can’t be archived." confirmLabel="Archive" tone="danger" loading={setActive.isPending} onClose={() => setConfirm(false)} onConfirm={() => setActive.mutate(false)} /></>);
+}
+
 function Vendors() {
   const { data, isLoading } = useApi<any[]>('/api/maintenance/vendors');
+  const { can } = useSession();
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const cols: Column<any>[] = [
     { key: 'name', header: 'Vendor', render: (r) => (<div><div className="font-semibold"><QuickLink kind="vendor" id={r.id}>{r.name}</QuickLink></div><div className="text-xs text-graphite-500">{r.contact} · {r.phone}</div></div>) },
+    { key: 'active', header: 'Status', render: (r) => (r.active ? <Badge tone="good">Active</Badge> : <Badge tone="neutral">Archived</Badge>) },
     { key: 'trades', header: 'Trades', value: (r) => (r.trades ?? []).join(', ') },
     { key: 'rating', header: 'Rating', align: 'right', value: (r) => Number(r.rating), render: (r) => `${r.rating} ★` },
     { key: 'jobs_completed', header: 'Jobs', align: 'right', hideOnMobile: true },
@@ -125,18 +160,34 @@ function Vendors() {
     { key: 'open_jobs', header: 'Open', align: 'right' },
     { key: 'insurance_expires', header: 'Insurance to', hideOnMobile: true, render: (r) => fmt.date(r.insurance_expires) },
   ];
-  return (<><PageHeader title="Vendors" description="Ranked automatically on rating, price, response time and current workload." /><SubNav /><Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} exportName="vendors" /></Panel></>);
+  return (<><PageHeader title="Vendors" description="Ranked automatically on rating, price, response time and current workload." /><SubNav /><Panel padded={false} actions={can('VENDOR:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add vendor</Button>}><AddVendor open={adding} onClose={() => setAdding(false)} /><AddVendor open={!!editing} existing={editing} onClose={() => setEditing(null)} /><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => can('VENDOR:EDIT') && setEditing(r)} exportName="vendors" /></Panel></>);
 }
 
 function Recurring() {
   const { data, isLoading } = useApi<any[]>('/api/maintenance/recurring');
+  const { can } = useSession();
+  const { data: props } = useApi<any[]>('/api/leasing/properties');
+  const [adding, setAdding] = useState(false);
+  const blank = { propertyId: '', title: '', category: 'GENERAL', everyMonths: '6', nextDue: '' };
+  const [t, setT] = useState(blank);
+  const addTask = useAction(() => api.post('/api/maintenance/recurring', { propertyId: t.propertyId, title: t.title, category: t.category, everyMonths: Number(t.everyMonths), nextDue: t.nextDue || undefined }),
+    { success: 'Recurring task added', invalidate: ['/api/maintenance/recurring'], onSuccess: () => { setT(blank); setAdding(false); } });
   const run = useAction(() => api.post<any>('/api/maintenance/recurring/run'), { success: 'Due tasks turned into requests', invalidate: inv });
   const cols: Column<any>[] = [
     { key: 'title', header: 'Task' }, { key: 'property_name', header: 'Property', hideOnMobile: true }, { key: 'category', header: 'Category' },
     { key: 'every_months', header: 'Every', render: (r) => `${r.every_months} months` }, { key: 'next_due', header: 'Next due', render: (r) => fmt.date(r.next_due) },
   ];
   return (<><PageHeader title="Preventive maintenance" description="Scheduled inspections and filter changes cost far less than emergency repairs." actions={<Button onClick={() => run.mutate(undefined)} loading={run.isPending}>Create due requests now</Button>} /><SubNav />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} /></Panel></>);
+    <Panel padded={false} actions={can('WORK_ORDER:EDIT') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add recurring task</Button>}>
+      <DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} empty={{ title: 'No recurring tasks yet', body: can('WORK_ORDER:EDIT') ? 'Add inspections or filter changes that repeat, and they turn into requests when due.' : undefined }} /></Panel>
+    <Modal open={adding} onClose={() => setAdding(false)} title="Add a recurring task" footer={<><Button variant="quiet" onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" disabled={!t.propertyId || !t.title.trim()} loading={addTask.isPending} onClick={() => addTask.mutate(undefined as never)}>Save</Button></>}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2"><Field label="Property" required><Select value={t.propertyId} onChange={(e) => setT({ ...t, propertyId: e.target.value })}><option value="">Choose a property</option>{(props ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field></div>
+        <div className="sm:col-span-2"><Field label="Task" required><Input value={t.title} onChange={(e) => setT({ ...t, title: e.target.value })} /></Field></div>
+        <Field label="Category"><Select value={t.category} onChange={(e) => setT({ ...t, category: e.target.value })}><option value="GENERAL">General</option><option value="HVAC">HVAC</option><option value="PLUMBING">Plumbing</option><option value="ELECTRICAL">Electrical</option><option value="PEST_CONTROL">Pest control</option><option value="LANDSCAPING">Landscaping</option></Select></Field>
+        <Field label="Repeats every (months)"><Input type="number" min={1} value={t.everyMonths} onChange={(e) => setT({ ...t, everyMonths: e.target.value })} /></Field>
+        <Field label="First due"><Input type="date" value={t.nextDue} onChange={(e) => setT({ ...t, nextDue: e.target.value })} /></Field>
+      </div></Modal></>);
 }
 
 export default function App() {

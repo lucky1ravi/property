@@ -58,8 +58,15 @@ public class ConfigService {
     public ObjectNode effective(UUID orgId) {
         ObjectNode result = configClient.defaults().deepCopy();
         result.set("plans", planService.asConfig());
+        store.productDefaults().forEach((section, json) -> {
+            if (SECTIONS.contains(section)) result.set(section, read(json)); // the operator's product-wide defaults
+        });
         ObjectNode over = overrides(orgId);
         merge(result, over);
+        JsonNode brand = result.get("branding");
+        if (brand instanceof ObjectNode b && b.path("companyName").asText("").isBlank()) {
+            store.org(orgId).ifPresent(o -> b.put("companyName", String.valueOf(o.get("name")))); // a company is shown under its own name
+        }
         result.set("plans", planService.asConfig()); // plans are the operator's, never a company's to override
         String plan = store.org(orgId).map(o -> (String) o.get("plan")).orElse("ENTERPRISE");
         applyPlan(result, plan, store.org(orgId).map(o -> read(String.valueOf(o.get("entitlements")))).orElse(mapper.createObjectNode()));

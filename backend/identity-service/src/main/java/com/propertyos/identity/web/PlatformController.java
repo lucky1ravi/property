@@ -26,8 +26,12 @@ public class PlatformController {
     private final Tx tx;
     private final com.propertyos.identity.service.ConfigService config;
     private final com.propertyos.identity.service.PlanService plans;
+    private final com.propertyos.common.events.EventPublisher events;
+    private final com.propertyos.common.security.SuspendedOrgs suspended;
 
-    public PlatformController(IdentityStore store, IdentitySeeder seeder, AuditService audit, JdbcTemplate jdbc, Tx tx, com.propertyos.identity.service.ConfigService config, com.propertyos.identity.service.PlanService plans) {
+    public PlatformController(IdentityStore store, IdentitySeeder seeder, AuditService audit, JdbcTemplate jdbc, Tx tx, com.propertyos.identity.service.ConfigService config, com.propertyos.identity.service.PlanService plans, com.propertyos.common.events.EventPublisher events, com.propertyos.common.security.SuspendedOrgs suspended) {
+        this.events = events;
+        this.suspended = suspended;
         this.config = config;
         this.plans = plans;
         this.store = store;
@@ -87,6 +91,8 @@ public class PlatformController {
             store.setTemporaryPassword(adminId, AuthService.hashPassword(temporaryPassword));
             audit.record("Organization", orgId, "ORG_ONBOARDED", null, "ACTIVE",
                     Map.of("name", name, "plan", chosenPlan, "by", UserContextHolder.require().name()));
+            // Other services give the new company what it starts with (for example the automation rule library).
+            events.publish(orgId, "OrganizationOnboarded", "Organization", orgId, Map.of("name", name));
         });
         // Shown once to the platform operator, who passes it to the new administrator. Only its hash is stored.
         return Map.of("orgId", orgId, "adminUserId", adminId, "defaultRoles", DefaultRoles.TEMPLATES.size(), "temporaryPassword", temporaryPassword);
@@ -142,11 +148,23 @@ public class PlatformController {
     @PutMapping("/orgs/{id}")
     @RequiresPermission("PLATFORM:CONFIGURE")
     public void updateOrg(@PathVariable UUID id, @RequestBody Map<String, String> body) {
-        String plan = body.get("plan");
+        String plan = body.get("plan"), status = body.get("status"), reason = body.get("reason");
         if (plan != null && !tx.read(() -> plans.exists(plan))) throw ApiException.badRequest("That plan doesn't exist.");
+        if (status != null && !List.of("ACTIVE", "SUSPENDED").contains(status)) throw ApiException.badRequest("Status must be ACTIVE or SUSPENDED.");
+        if (id.equals(com.propertyos.common.demo.DemoData.PLATFORM.id()) && status != null && !"ACTIVE".equals(status))
+            throw ApiException.badRequest("The platform's own account can't be suspended.");
+        if ("SUSPENDED".equals(status) && (reason == null || reason.isBlank())) throw ApiException.badRequest("Say why the company is being suspended, for the audit trail.");
         tx.run(() -> {
-            store.updateOrg(id, plan, body.get("status"));
-            audit.record("Organization", id, "ORG_UPDATED", null, body.get("status"), Map.of("plan", String.valueOf(plan)));
+            if (!store.org(id).isPresent()) throw ApiException.notFound("Company not found.");
+            String by = UserContextHolder.require().name();
+            if (plan != null) store.updateOrg(id, plan, null);
+            if (status != null) {
+                store.setOrgStatus(id, status, reason == null ? null : reason.trim(), by);
+                audit.record("Organization", id, "SUSPENDED".equals(status) ? "ORG_SUSPENDED" : "ORG_RESTORED", null, status,
+                        Map.of("reason", reason == null ? "" : reason.trim(), "by", by));
+            }
+            if (plan != null) audit.record("Organization", id, "ORG_UPDATED", null, status, Map.of("plan", plan));
         });
+        suspended.replace(tx.read(store::suspendedOrgIds)); // takes effect here at once; other services pick it up within seconds
     }
 }

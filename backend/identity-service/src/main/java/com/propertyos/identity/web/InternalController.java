@@ -72,6 +72,12 @@ public class InternalController {
         return tx.read(store::orgs);
     }
 
+    /** Service-to-service: ids of suspended companies, so every service can turn their sessions away. */
+    @GetMapping("/suspended-orgs")
+    public List<UUID> suspendedOrgs() {
+        return tx.read(store::suspendedOrgIds);
+    }
+
     /** Brokers assigned to a property, for showing assignment and capacity balancing. */
     @GetMapping("/brokers")
     public List<Map<String, Object>> brokers() {

@@ -136,7 +136,15 @@ function Payments() {
 function Statements() {
   const { can } = useSession();
   const { data, isLoading } = useApi<any[]>('/api/billing/statements');
-  const { data: owners } = useApi<any[]>(can('PROPERTY:VIEW') ? '/api/leasing/owners' : null);
+  const { data: owners } = useApi<any[]>(can('OWNER:VIEW') ? '/api/leasing/owners' : null);
+  const { data: props } = useApi<any[]>(can('PROPERTY:VIEW') ? '/api/leasing/properties' : null);
+  const [exp, setExp] = useState(false);
+  const blankExp = { propertyId: '', description: '', category: 'REPAIRS', amount: '', date: new Date().toISOString().slice(0, 10) };
+  const [e, setE] = useState(blankExp);
+  const addExpense = useAction(() => {
+    const p = props?.find((x) => x.id === e.propertyId);
+    return api.post('/api/billing/expenses', { propertyId: e.propertyId, ownerId: p?.owner_id, description: e.description, category: e.category, amount: Number(e.amount), date: e.date });
+  }, { success: 'Expense recorded. It appears on the next owner statement.', invalidate: inv, onSuccess: () => { setE(blankExp); setExp(false); } });
   const [open, setOpen] = useState<any>(null); const [gen, setGen] = useState(false);
   const [g, setG] = useState({ ownerId: '', period: new Date().toISOString().slice(0, 7) });
   const create = useAction(() => api.post('/api/billing/statements', { ownerId: g.ownerId, period: g.period, ownerName: owners?.find((o) => o.id === g.ownerId)?.name ?? 'Owner' }), { success: 'Statement drafted', invalidate: inv, onSuccess: () => setGen(false) });
@@ -149,13 +157,19 @@ function Statements() {
     { key: 'net_payout', header: 'Net payout', align: 'right', value: (r) => Number(r.net_payout), render: (r) => <b>{fmt.usd(r.net_payout, true)}</b> },
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status ?? 'DRAFT'} /> },
   ];
-  return (<><PageHeader title="Owner statements" description="Rent collected, fees and repairs, with the net payout for each owner." actions={can('OWNER_STATEMENT:CREATE') && <Button variant="primary" onClick={() => setGen(true)}>Generate statement</Button>} /><SubNav />
+  return (<><PageHeader title="Owner statements" description="Rent collected, fees and repairs, with the net payout for each owner." actions={can('OWNER_STATEMENT:CREATE') && <><Button variant="secondary" onClick={() => setExp(true)}>Record expense</Button><Button variant="primary" onClick={() => setGen(true)}>Generate statement</Button></>} /><SubNav />
     <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={setOpen} exportName="statements" /></Panel>
     <Drawer open={!!open} onClose={() => setOpen(null)} title={open ? `${open.owner_name} · ${open.period}` : ''}>
       {open && <div className="space-y-5"><KeyValues cols={2} items={[{ label: 'Rent collected', value: fmt.usd(open.rent_collected, true) }, { label: 'Fees collected', value: fmt.usd(open.fees_collected, true) }, { label: 'Management fee', value: fmt.usd(open.mgmt_fee, true) }, { label: 'Expenses', value: fmt.usd(open.expenses, true) }, { label: 'Net payout', value: <b>{fmt.usd(open.net_payout, true)}</b> }]} />
         <Panel title="Detail" padded={false}><ul className="divide-y divide-limestone-200 text-sm">{(open.lines ?? []).map((l: any, i: number) => <li key={i} className="flex justify-between gap-3 px-5 py-2"><span>{fmt.shortDate(l.date)} · {l.type} · {l.description}</span><Money value={l.amount} cents /></li>)}</ul></Panel>
         {can('OWNER_STATEMENT:CREATE') && open.status !== 'PUBLISHED' && <Button variant="primary" loading={publish.isPending} onClick={() => publish.mutate(open.id)}>Publish to owner</Button>}</div>}
     </Drawer>
+    <Modal open={exp} onClose={() => setExp(false)} title="Record an expense" footer={<><Button variant="quiet" onClick={() => setExp(false)}>Cancel</Button><Button variant="primary" disabled={!e.propertyId || !e.description.trim() || !(Number(e.amount) > 0)} loading={addExpense.isPending} onClick={() => addExpense.mutate(undefined as never)}>Save</Button></>}>
+      <div className="space-y-3"><Field label="Property" required><Select value={e.propertyId} onChange={(ev) => setE({ ...e, propertyId: ev.target.value })}><option value="">Choose a property</option>{(props ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
+        <Field label="What was it for?" required><Input value={e.description} onChange={(ev) => setE({ ...e, description: ev.target.value })} /></Field>
+        <div className="grid grid-cols-3 gap-3"><Field label="Category"><Select value={e.category} onChange={(ev) => setE({ ...e, category: ev.target.value })}><option value="REPAIRS">Repairs</option><option value="UTILITIES">Utilities</option><option value="INSURANCE">Insurance</option><option value="TAXES">Taxes</option><option value="LANDSCAPING">Landscaping</option><option value="OTHER">Other</option></Select></Field>
+          <Field label="Amount (USD)" required><Input type="number" min="0" step="0.01" value={e.amount} onChange={(ev) => setE({ ...e, amount: ev.target.value })} /></Field>
+          <Field label="Date"><Input type="date" value={e.date} onChange={(ev) => setE({ ...e, date: ev.target.value })} /></Field></div></div></Modal>
     <Modal open={gen} onClose={() => setGen(false)} title="Generate statement" footer={<><Button variant="quiet" onClick={() => setGen(false)}>Cancel</Button><Button variant="primary" disabled={!g.ownerId} loading={create.isPending} onClick={() => create.mutate(undefined)}>Generate</Button></>}>
       <div className="space-y-3"><Field label="Owner"><Select value={g.ownerId} onChange={(e) => setG({ ...g, ownerId: e.target.value })}><option value="">Choose an owner</option>{(owners ?? []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</Select></Field>
         <Field label="Month"><Input type="month" value={g.period} onChange={(e) => setG({ ...g, period: e.target.value })} /></Field></div></Modal></>);
@@ -253,7 +267,7 @@ function TaxCompliance() {
     { key: 'gross_collected', header: 'Rents collected', align: 'right', value: (r) => Number(r.gross_collected), render: (r) => fmt.usd(r.gross_collected, true) },
     { key: 'net_paid', header: 'Net paid out', align: 'right', hideOnMobile: true, value: (r) => Number(r.net_paid), render: (r) => fmt.usd(r.net_paid, true) },
     { key: 'reportable', header: '1099 needed', value: (r) => (r.reportable ? 'Yes' : 'No'), render: (r) => <Badge tone={r.reportable ? 'warn' : 'neutral'}>{r.reportable ? 'Yes' : 'Below threshold'}</Badge> },
-    { key: 'w9_on_file', header: 'W-9', value: (r) => (r.w9_on_file ? 'On file' : 'Missing'), render: (r) => r.w9_on_file ? <Badge tone="ok">On file{r.tin_last4 ? ` ····${r.tin_last4}` : ''}</Badge> : <Badge tone="crit">Missing</Badge> },
+    { key: 'w9_on_file', header: 'W-9', value: (r) => (r.w9_on_file ? 'On file' : 'Missing'), render: (r) => r.w9_on_file ? <Badge tone="good">On file{r.tin_last4 ? ` ····${r.tin_last4}` : ''}</Badge> : <Badge tone="crit">Missing</Badge> },
     { key: 'backup_withholding_due', header: 'Backup withholding', align: 'right', hideOnMobile: true, value: (r) => Number(r.backup_withholding_due), render: (r) => Number(r.backup_withholding_due) > 0 ? fmt.usd(r.backup_withholding_due, true) : '—' },
     { key: 'owner_id', header: '', sortable: false, render: (r) => can('TAX_REPORT:EDIT') && <Button size="sm" variant="quiet" onClick={() => setW9({ ...r, tin_type: r.tin_type ?? 'SSN' })}>{r.w9_on_file ? 'Update' : 'Record W-9'}</Button> },
   ];

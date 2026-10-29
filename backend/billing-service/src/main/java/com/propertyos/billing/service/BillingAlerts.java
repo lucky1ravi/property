@@ -19,6 +19,13 @@ import java.util.*;
 /** Deposit refund deadlines, sales-tax filing dates, 1099 dates and missing W-9s. */
 @Service
 public class BillingAlerts {
+    private com.propertyos.common.security.SuspendedOrgs suspended;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSuspended(com.propertyos.common.security.SuspendedOrgs suspended) {
+        this.suspended = suspended;
+    }
+
     private final Db db;
     private final ConfigClient config;
     private final Notifier notifier;
@@ -116,7 +123,9 @@ public class BillingAlerts {
     public void daily() {
         List<UUID> orgs = UserContextHolder.runAsSystem(null, () -> new TransactionTemplate(tm).execute(st ->
                 db.list("select distinct org_id from billing.invoice").stream().map(r -> (UUID) r.get("org_id")).toList()));
-        for (UUID org : orgs == null ? List.<UUID>of() : orgs)
+        for (UUID org : orgs == null ? List.<UUID>of() : orgs) {
+            if (suspended != null && suspended.contains(org)) continue; // a suspended company's reminders are paused
             UserContextHolder.runAsSystem(org, () -> new TransactionTemplate(tm).execute(st -> run()));
+        }
     }
 }

@@ -57,6 +57,17 @@ public class IdentityStore {
                 plan, status, id);
     }
 
+    /** Records a change of status: the reason (kept only while suspended), who made it and when. */
+    public void setOrgStatus(UUID id, String status, String reason, String by) {
+        jdbc.update("update identity.organization set status = ?, status_reason = ?, status_changed_by = ?, status_changed_at = now(), updated_at = now() where id = ?",
+                status, "SUSPENDED".equals(status) ? reason : null, by, id);
+    }
+
+    /** Ids of companies that are not active. */
+    public List<UUID> suspendedOrgIds() {
+        return jdbc.queryForList("select id from identity.organization where status <> 'ACTIVE'", UUID.class);
+    }
+
     // ---------------- users ----------------
     /**
      * Inserts a user.
@@ -99,6 +110,11 @@ public class IdentityStore {
     public void updateUser(UUID id, String name, String title, String phone, String status) {
         jdbc.update("update identity.app_user set name = coalesce(?, name), title = coalesce(?, title), phone = coalesce(?, phone), " +
                 "status = coalesce(?, status), updated_at = now() where id = ?", name, title, phone, status, id);
+    }
+
+    /** Sets a person's own name, title, phone and photo (null photo removes it). Email is never touched. */
+    public void updateProfile(UUID id, String name, String title, String phone, String photo) {
+        jdbc.update("update identity.app_user set name = ?, title = ?, phone = ?, photo = ?, updated_at = now() where id = ?", name, title, phone, photo, id);
     }
 
     /**
@@ -381,6 +397,13 @@ public class IdentityStore {
                 UUID.randomUUID(), orgId, roleId, feature, action, max);
     }
 
+    /** Gives every role that can view properties the new Owners view permission, once, so nothing disappears for existing roles. */
+    public void grantOwnerViewToPropertyViewers(UUID orgId) {
+        jdbc.update("insert into identity.role_permission (id, org_id, role_id, feature, action) " +
+                "select gen_random_uuid(), org_id, role_id, 'OWNER', 'VIEW' from identity.role_permission " +
+                "where org_id = ? and feature = 'PROPERTY' and action = 'VIEW' on conflict (role_id, feature, action) do nothing", orgId);
+    }
+
     /** Adds a field rule to a role only when the role has no rule for that field yet (an admin's choice is never overwritten). */
     public void addFieldRuleIfMissing(UUID roleId, String field, String access) {
         jdbc.update("update identity.role set field_rules = coalesce(field_rules, '{}'::jsonb) || jsonb_build_object(?::text, ?::text), updated_at = now() " +
@@ -393,5 +416,29 @@ public class IdentityStore {
     public long countOrgs() {
         Long c = jdbc.queryForObject("select count(*) from identity.organization", Long.class);
         return c == null ? 0 : c;
+    }
+
+    /** Product-level defaults the operator has set: section name to JSON text. */
+    public Map<String, String> productDefaults() {
+        Map<String, String> m = new java.util.LinkedHashMap<>();
+        jdbc.queryForList("select section, value from identity.product_default order by section")
+                .forEach(r -> m.put((String) r.get("section"), (String) r.get("value")));
+        return m;
+    }
+
+    /** Sets (or replaces) one section of the product defaults. */
+    public void saveProductDefault(String section, String json, String by) {
+        jdbc.update("insert into identity.product_default (section, value, updated_by, updated_at) values (?, ?, ?, now()) "
+                + "on conflict (section) do update set value = excluded.value, updated_by = excluded.updated_by, updated_at = now()", section, json, by);
+    }
+
+    /** Removes the operator's change to a section, so it falls back to the built-in default. */
+    public void deleteProductDefault(String section) {
+        jdbc.update("delete from identity.product_default where section = ?", section);
+    }
+
+    /** Ids of every company, for refreshing their configuration. */
+    public List<UUID> orgIds() {
+        return jdbc.queryForList("select id from identity.organization", UUID.class);
     }
 }

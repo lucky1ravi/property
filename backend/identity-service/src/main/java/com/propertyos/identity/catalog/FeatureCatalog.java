@@ -27,6 +27,7 @@ public final class FeatureCatalog {
     public static final List<Feature> FEATURES = List.of(
             new Feature("DASHBOARD", "Dashboards", "General", List.of("VIEW"), false),
             new Feature("PROPERTY", "Properties and units", "Portfolio", List.of("VIEW", "CREATE", "EDIT", "DELETE"), false),
+            new Feature("OWNER", "Owners", "Portfolio", List.of("VIEW", "CREATE", "EDIT", "DELETE"), false),
             new Feature("LISTING", "Listings", "Leasing", List.of("VIEW", "CREATE", "EDIT", "APPROVE", "DELETE"), false),
             new Feature("SHOWING", "Showings", "Leasing", List.of("VIEW", "CREATE", "EDIT"), false),
             new Feature("APPLICATION", "Applications", "Leasing", List.of("VIEW", "CREATE", "EDIT", "APPROVE"), false),

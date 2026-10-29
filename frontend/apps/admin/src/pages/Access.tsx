@@ -12,21 +12,48 @@ function UserModal({ user, roles, onClose }: { user: any | 'new' | null; roles: 
   const [f, setF] = useState<any>(null);
   if (user && f === null) setTimeout(() => setF(isNew ? { name: '', email: '', title: '', roleIds: [] } : { name: user.name, title: user.title ?? '', status: user.status, roleIds: (user.roles ?? []).map((r: any) => r.id) }), 0);
   const close = () => { setF(null); onClose(); };
-  const save = useAction(() => (isNew ? api.post('/api/identity/users', f) : api.put(`/api/identity/users/${user.id}`, f)), { success: isNew ? 'User invited' : 'User updated', invalidate: inv, onSuccess: close });
+  const partyRole = isNew ? (roles.filter((r) => f?.roleIds?.includes(r.id)).find((r) => ['OWNER', 'TENANT', 'VENDOR'].includes(r.scope)) ?? null) : null;
+  const partyType = partyRole?.scope as 'OWNER' | 'TENANT' | 'VENDOR' | undefined;
+  const { data: parties } = useApi<any[]>(partyType === 'OWNER' ? '/api/leasing/owners' : partyType === 'VENDOR' ? '/api/maintenance/vendors' : partyType === 'TENANT' ? '/api/leasing/residents' : null);
+  const [issued, setIssued] = useState<{ name: string; email: string; password: string } | null>(null);
+  const save = useAction(() => (isNew ? api.post<{ temporaryPassword: string }>('/api/identity/users', { ...f, partyType: partyType ?? undefined, partyId: partyType ? f.partyId || undefined : undefined }) : api.put(`/api/identity/users/${user.id}`, f)), {
+    success: isNew ? 'User added' : 'User updated', invalidate: inv,
+    onSuccess: (r: any) => { if (isNew && r?.temporaryPassword) setIssued({ name: f.name, email: f.email.trim().toLowerCase(), password: r.temporaryPassword }); close(); },
+  });
+  const reset = useAction(() => api.post<{ temporaryPassword: string }>(`/api/identity/users/${user.id}/reset-password`), {
+    success: 'New temporary password created', invalidate: inv,
+    onSuccess: (r: any) => { setIssued({ name: user.name, email: user.email, password: r.temporaryPassword }); close(); },
+  });
   const toggle = (id: string) => setF({ ...f, roleIds: f.roleIds.includes(id) ? f.roleIds.filter((x: string) => x !== id) : [...f.roleIds, id] });
-  return (
-    <Modal open={!!user && !!f} onClose={close} title={isNew ? 'Add a user' : user?.name ?? ''} footer={<><Button variant="quiet" onClick={close}>Cancel</Button><Button variant="primary" loading={save.isPending} disabled={!f?.name || (isNew && !f?.email)} onClick={() => save.mutate(undefined)}>{isNew ? 'Send invite' : 'Save'}</Button></>}>
+  return (<>
+    <Modal open={!!issued} onClose={() => setIssued(null)} title={`Give ${issued?.name ?? 'this person'} their sign-in`} footer={<Button variant="primary" onClick={() => setIssued(null)}>Done</Button>}>
+      <p className="text-sm text-graphite-700">They sign in with this email and temporary password, then choose their own. It is shown only now, so copy it before you close this.</p>
+      <dl className="mt-3 space-y-2 rounded bg-limestone-100 p-3 text-sm">
+        <div><dt className="text-xs text-graphite-600">Email</dt><dd className="font-semibold text-graphite-900">{issued?.email}</dd></div>
+        <div><dt className="text-xs text-graphite-600">Temporary password</dt><dd className="select-all font-mono text-base font-bold text-graphite-950">{issued?.password}</dd></div>
+      </dl>
+      <div className="mt-3"><Button variant="secondary" onClick={() => issued && navigator.clipboard?.writeText(`Email: ${issued.email}\nTemporary password: ${issued.password}`)}>Copy both</Button></div>
+    </Modal>
+    <Modal open={!!user && !!f} onClose={close} title={isNew ? 'Add a user' : user?.name ?? ''} footer={<><Button variant="quiet" onClick={close}>Cancel</Button><Button variant="primary" loading={save.isPending} disabled={!f?.name || (isNew && (!f?.email || (!!partyType && !f?.partyId)))} onClick={() => save.mutate(undefined)}>{isNew ? 'Send invite' : 'Save'}</Button></>}>
       {f && <div className="space-y-3">
         <Field label="Full name" required><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         {isNew && <Field label="Work email" required><Input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>}
         <Field label="Job title"><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></Field>
+        {isNew && partyType && <Field label={partyType === 'OWNER' ? 'Which owner is this?' : partyType === 'VENDOR' ? 'Which vendor is this?' : 'Which resident is this?'} required
+          hint="They will only see their own records.">
+          <Select value={f.partyId ?? ''} onChange={(e) => setF({ ...f, partyId: e.target.value })}><option value="">Choose…</option>
+            {(parties ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}{x.email ? ` · ${x.email}` : ''}</option>)}</Select>
+          {parties && parties.length === 0 && <span className="mt-1 block text-xs text-graphite-500">{partyType === 'TENANT' ? 'Residents appear here once they have a lease.' : partyType === 'OWNER' ? 'Add the owner under Portfolio → Owners first.' : 'Add the vendor under Maintenance → Vendors first.'}</span>}</Field>}
         {!isNew && <Field label="Status"><Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option></Select></Field>}
         <fieldset><legend className="mb-1.5 text-sm font-semibold text-graphite-800">Roles</legend>
           <div className="grid gap-1.5 sm:grid-cols-2">{roles.map((r) => (
             <label key={r.id} className="flex items-center gap-2 rounded border border-limestone-200 px-3 py-2 text-sm"><input type="checkbox" checked={f.roleIds.includes(r.id)} onChange={() => toggle(r.id)} /><span className="h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />{r.name}</label>))}</div></fieldset>
+        {!isNew && <div className="rounded border border-limestone-200 p-3"><div className="text-sm font-semibold text-graphite-800">Sign-in</div>
+          <p className="mt-0.5 text-xs text-graphite-500">Forgotten password? Create a new temporary one. Their current password stops working and they choose a new one at next sign-in.</p>
+          <Button className="mt-2" size="sm" variant="secondary" loading={reset.isPending} onClick={() => reset.mutate(undefined as never)}>Reset password</Button></div>}
       </div>}
     </Modal>
-  );
+  </>);
 }
 
 function Users({ roles }: { roles: any[] }) {

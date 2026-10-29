@@ -35,8 +35,10 @@ public class ListingService {
     private final WorkflowEngine wf;
     private final EventPublisher events;
     private final AiClient ai;
+    private final com.propertyos.common.audit.AuditService audit;
 
-    public ListingService(Db db, StateMachine sm, WorkflowEngine wf, EventPublisher events, AiClient ai) {
+    public ListingService(Db db, StateMachine sm, WorkflowEngine wf, EventPublisher events, AiClient ai, com.propertyos.common.audit.AuditService audit) {
+        this.audit = audit;
         this.db = db;
         this.sm = sm;
         this.wf = wf;
@@ -88,6 +90,7 @@ public class ListingService {
         UUID unitId = Req.requiredUuid(b, "unitId");
         Map<String, Object> u = db.one("Unit", """
                 select u.*, p.name as pname, p.city, p.state, p.amenities from leasing.unit u join leasing.property p on p.id = u.property_id where u.id = ?""", unitId);
+        if (u.get("archived_at") != null) throw ApiException.conflict("Unit " + u.get("number") + " is archived. Restore it first.");
         if (!"VACANT".equals(u.get("status"))) throw ApiException.conflict("Unit " + u.get("number") + " is occupied, so it can't be listed.");
         Long open = db.value(Long.class, "select count(*) from leasing.listing where unit_id = ? and status <> 'LEASED'", unitId);
         if (open != null && open > 0) throw ApiException.conflict("This unit already has an open listing.");
@@ -227,5 +230,18 @@ public class ListingService {
         return "Unit " + (u.containsKey("number") ? u.get("number") : "") + " offers " + u.get("sqft") + " sq ft with "
                 + (beds == 0 ? "an open studio layout" : beds + " bedrooms") + " and " + u.get("baths") + " baths in " + u.get("city") + ". "
                 + "Schedule a showing or apply online today.";
+    }
+
+    /**
+     * Deletes a draft listing that was never published. Published listings are paused or taken down instead, so their history stays.
+     *
+     * @throws ApiException (404) unknown listing, (409) the listing is not a draft
+     */
+    @Transactional
+    public void deleteDraft(UUID id) {
+        Map<String, Object> l = db.one("Listing", "select id, status, title from leasing.listing where id = ?", id);
+        if (!"DRAFT".equals(l.get("status"))) throw ApiException.conflict("Only a draft can be deleted. Pause a live listing, or take it back to draft first.");
+        db.update("delete from leasing.listing where id = ?", id);
+        audit.record("Listing", id, "DELETED", "DRAFT", null, Map.of("title", String.valueOf(l.get("title"))));
     }
 }

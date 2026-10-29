@@ -85,6 +85,10 @@ Everything is an environment variable; no secrets live in the repository. The fu
 
 | Doc | Contents |
 | --- | --- |
+| [JOURNEY](docs/JOURNEY.md) | **Start here:** the end-to-end engineering journey, quality scorecard and proof for every claim |
+| [HLD](docs/architecture/HLD.md), [LLD](docs/architecture/LLD.md), [Deployment](docs/architecture/DEPLOYMENT.md) | Architecture diagrams (Mermaid): context, request/event sequences, data, AWS runtime and pipeline |
+| [SAD](docs/SAD.md), [Technical design](docs/TECHNICAL-DESIGN.md) | Solution architecture, quality scenarios, known gaps; how the key mechanisms work |
+| [API reference](docs/api/README.md) | Endpoint inventory per service with required permission, plus live Swagger |
 | [MICROSERVICES](docs/MICROSERVICES.md) | Resilience, observability, health, security and HA standards, and where each is implemented |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | Services, data flow, design principles (SOLID) mapped to the code |
 | [SECURITY](docs/SECURITY.md) | Authentication, permissions, tenant isolation with RLS, fail-closed rules |

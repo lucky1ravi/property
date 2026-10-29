@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  Home, Gauge, Building2, KeyRound, Receipt, Wrench, BarChart3, Workflow, Settings2, Users, ScrollText, Globe2, LayoutTemplate, Layers3, FileSignature, CalendarCheck, HandCoins, Sparkles,
+  Home, Gauge, Building2, KeyRound, Receipt, Wrench, BarChart3, Workflow, Settings2, Users, ScrollText, Globe2, LayoutTemplate, Layers3, SlidersHorizontal, FileSignature, CalendarCheck, HandCoins, Sparkles,
   MessagesSquare, CalendarClock, Landmark, DoorOpen, UserRound, ClipboardList, Truck, Repeat, Inbox, CreditCard, Banknote, FileText, ListChecks, Briefcase, LayoutDashboard, Megaphone, FolderOpen, Camera,
 } from 'lucide-react';
 import type { Session, Persona } from '@propertyos/ui';
@@ -40,7 +40,7 @@ export const NAV: NavGroup[] = [
         children: [
           { to: '/app/leasing/properties', label: 'Properties', icon: Building2, perm: 'PROPERTY:VIEW', exclude: ['tenant', 'vendor'] },
           { to: '/app/leasing/units', label: 'Units', icon: DoorOpen, perm: 'PROPERTY:VIEW', exclude: ['tenant', 'vendor'] },
-          { to: '/app/leasing/owners', label: 'Owners', icon: Landmark, perm: 'PROPERTY:VIEW', exclude: ['tenant', 'vendor', 'owner'] },
+          { to: '/app/leasing/owners', label: 'Owners', icon: Landmark, perm: 'OWNER:VIEW', exclude: ['tenant', 'vendor', 'owner'] },
         ],
       },
       { to: '/app/leasing/my-lease', label: 'My lease', icon: FileSignature, personas: ['tenant'] },
@@ -113,11 +113,12 @@ export const NAV: NavGroup[] = [
         to: '/app/admin/access', label: 'Administration', icon: Settings2, perm: 'USER:VIEW',
         children: [
           { to: '/app/admin/access', label: 'Users and roles', icon: Users, perm: 'USER:VIEW' },
-          { to: '/app/admin/configuration', label: 'Configuration', icon: Settings2, perm: 'SETTINGS:VIEW' },
+          { to: '/app/admin/configuration', label: 'Configuration', icon: Settings2, perm: 'SETTINGS:VIEW', exclude: ['platform'] },
           { to: '/app/admin/audit', label: 'Audit log', icon: ScrollText, perm: 'AUDIT:VIEW' },
         ],
       },
       { to: '/app/admin/platform', label: 'Platform', icon: Globe2, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/defaults', label: 'Product defaults', icon: SlidersHorizontal, perm: 'PLATFORM:VIEW', personas: ['platform'] },
       { to: '/app/admin/plans', label: 'Plans', icon: Layers3, perm: 'PLATFORM:VIEW', personas: ['platform'] },
       { to: '/app/admin/website', label: 'Website', icon: LayoutTemplate, perm: 'PLATFORM:VIEW', personas: ['platform'] },
     ],

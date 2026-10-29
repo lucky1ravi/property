@@ -51,6 +51,72 @@ public class LeasingController {
     public Object createProperty(@RequestBody Map<String, Object> b) { return portfolio.createProperty(b); }
 
     /**
+     * Adds a property owner.
+     */
+    @PostMapping("/owners") @RequiresPermission("OWNER:CREATE")
+    public Object createOwner(@RequestBody Map<String, Object> b) { return portfolio.createOwner(b); }
+
+    /**
+     * Changes an owner's details and management terms.
+     */
+    @PutMapping("/owners/{id}") @RequiresPermission("OWNER:EDIT")
+    public void updateOwner(@PathVariable UUID id, @RequestBody Map<String, Object> b) { portfolio.updateOwner(id, b); }
+
+    /**
+     * Changes a property's details.
+     */
+    @PutMapping("/properties/{id}") @RequiresPermission("PROPERTY:EDIT")
+    public void updateProperty(@PathVariable UUID id, @RequestBody Map<String, Object> b) { portfolio.updateProperty(id, b); }
+
+    /**
+     * Changes a unit's number, size or rent.
+     */
+    @PutMapping("/units/{id}") @RequiresPermission("PROPERTY:EDIT")
+    public void updateUnit(@PathVariable UUID id, @RequestBody Map<String, Object> b) { portfolio.updateUnit(id, b); }
+
+    /**
+     * Archives an owner who has no properties.
+     */
+    @DeleteMapping("/owners/{id}") @RequiresPermission("OWNER:DELETE")
+    public void archiveOwner(@PathVariable UUID id) { portfolio.archiveOwner(id); }
+
+    /**
+     * Archives a property with no occupied units or open listings.
+     */
+    @DeleteMapping("/properties/{id}") @RequiresPermission("PROPERTY:DELETE")
+    public void archiveProperty(@PathVariable UUID id) { portfolio.archiveProperty(id); }
+
+    /**
+     * Archives a vacant unit with no open listing.
+     */
+    @DeleteMapping("/units/{id}") @RequiresPermission("PROPERTY:DELETE")
+    public void archiveUnit(@PathVariable UUID id) { portfolio.archiveUnit(id); }
+
+    /**
+     * Brings an archived owner back.
+     */
+    @PostMapping("/owners/{id}/restore") @RequiresPermission("OWNER:DELETE")
+    public void restoreOwner(@PathVariable UUID id) { portfolio.restore("owner", id); }
+
+    /**
+     * Brings an archived property back, with its units.
+     */
+    @PostMapping("/properties/{id}/restore") @RequiresPermission("PROPERTY:DELETE")
+    public void restoreProperty(@PathVariable UUID id) { portfolio.restore("property", id); }
+
+    /**
+     * Brings an archived unit back.
+     */
+    @PostMapping("/units/{id}/restore") @RequiresPermission("PROPERTY:DELETE")
+    public void restoreUnit(@PathVariable UUID id) { portfolio.restore("unit", id); }
+
+    /**
+     * Lists residents (people with a lease) for linking a sign-in to them.
+     */
+    @GetMapping("/residents") @RequiresPermission("USER:VIEW")
+    public Object residents() { return portfolio.residents(); }
+
+    /**
      * Adds a unit to a property.
      */
     @PostMapping("/properties/{id}/units") @RequiresPermission("PROPERTY:CREATE")
@@ -71,7 +137,7 @@ public class LeasingController {
     /**
      * Lists owners with their properties and fee terms.
      */
-    @GetMapping("/owners") @RequiresPermission("PROPERTY:VIEW")
+    @GetMapping("/owners") @RequiresPermission("OWNER:VIEW")
     public Object owners() { return portfolio.owners(); }
 
     // ---- Listings
@@ -89,6 +155,12 @@ public class LeasingController {
 
     /**
      * Creates a draft listing for a unit.
+     */
+    @DeleteMapping("/listings/{id}") @RequiresPermission("LISTING:DELETE")
+    public void deleteListing(@PathVariable UUID id) { listings.deleteDraft(id); }
+
+    /**
+     * Creates a draft listing for a vacant unit.
      */
     @PostMapping("/listings") @RequiresPermission("LISTING:CREATE")
     public Object createListing(@RequestBody Map<String, Object> b) { return listings.create(b); }

@@ -84,11 +84,11 @@
     "quietHours": { "start": "21:00", "end": "08:00" }
   },
   "branding": {
-    "companyName": "Summit Ridge Property Group",
+    "companyName": "",
     "primaryColor": "#0B2545",
     "accentColor": "#C8963E",
-    "portalDomain": "residents.summitridgepg.com",
-    "emailSender": "noreply@summitridgepg.com"
+    "portalDomain": "",
+    "emailSender": ""
   },
   "payments": {
     "methods": { "ach": true, "card": true },

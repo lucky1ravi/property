@@ -102,6 +102,11 @@ public class WorkflowSeeder implements EventHandler {
         return Map.of("field", field, "op", op, "value", value);
     }
 
+    /** Gives a company the ready-made automation rules, once. Used for new companies and the demo reset. */
+    public void seedRules(UUID org) {
+        if (db.value(Long.class, "select count(*) from workflow.automation_rule where org_id = ?", org) == 0) seed(org);
+    }
+
     private void seed(UUID org) {
         rule(org, "Screen every new application automatically", "Runs the credit, income and background check the moment an application is submitted, so the file is ready to decide.",
                 "ApplicationSubmitted", List.of(), List.of(Map.of("type", "CALL", "service", "LEASING", "path", "/internal/leasing/applications/{aggregateId}/screen")), 20, true);

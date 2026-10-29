@@ -39,12 +39,19 @@ public class AuthFilter extends OncePerRequestFilter {
      * Header carrying the company on service-to-service calls.
      */
     public static final String ORG_HEADER = "X-Org-Id";
+    /**
+     * What a person from a suspended company is told.
+     */
+    public static final String SUSPENDED_MESSAGE = "This company's PropertyOS account is suspended. Please contact your property manager or company administrator.";
 
     private final JwtService jwt;
     private final byte[] internalToken;
     private final ObjectMapper mapper;
+    private final org.springframework.beans.factory.ObjectProvider<SuspendedOrgs> suspended;
 
-    public AuthFilter(JwtService jwt, @Value("${propertyos.internal-token}") String internalToken, ObjectMapper mapper) {
+    public AuthFilter(JwtService jwt, @Value("${propertyos.internal-token}") String internalToken, ObjectMapper mapper,
+                      org.springframework.beans.factory.ObjectProvider<SuspendedOrgs> suspended) {
+        this.suspended = suspended;
         this.jwt = jwt;
         this.internalToken = internalToken.getBytes(StandardCharsets.UTF_8);
         this.mapper = mapper;
@@ -90,6 +97,13 @@ public class AuthFilter extends OncePerRequestFilter {
                 }
                 if (ctx == null) {
                     reject(res, 401, "Sign-in required");
+                    return;
+                }
+                SuspendedOrgs gone = suspended.getIfAvailable();
+                if (gone != null && ctx.orgId() != null && !"PLATFORM".equals(ctx.scope()) && gone.contains(ctx.orgId())) {
+                    res.setStatus(403);
+                    res.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+                    mapper.writeValue(res.getOutputStream(), Map.of("status", 403, "title", "Forbidden", "code", "ORG_SUSPENDED", "detail", SUSPENDED_MESSAGE));
                     return;
                 }
                 UserContextHolder.set(ctx);

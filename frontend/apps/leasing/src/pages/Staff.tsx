@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import {
   PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Tabs, KeyValues, ActionBar, WorkflowTrack, Timeline, Field, Input,
-  Modal, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge, QuickLink, PersonCell, DocumentsPanel, toast,
+  Modal, Select, ConfirmDialog, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge, QuickLink, PersonCell, DocumentsPanel, toast,
 } from '@propertyos/ui';
 import { useBase, APPLICATION_STEPS, LEASE_STEPS, LISTING_STEPS, labelOf } from '../common';
 
@@ -31,8 +31,100 @@ function Overview() {
   );
 }
 
+
+const STATES = 'AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
+const num = (v: string) => (v === '' ? undefined : Number(v));
+
+/** Small "add" dialog: fields in, one POST, refresh the lists. */
+function AddDialog({ open, title, onClose, onSave, saving, disabled, children, onArchive, archiveLabel = 'Archive' }: { open: boolean; title: string; onClose: () => void; onSave: () => void; saving: boolean; disabled: boolean; children: React.ReactNode; onArchive?: () => void; archiveLabel?: string }) {
+  return (<Modal open={open} onClose={onClose} title={title} footer={<>{onArchive && <Button variant="danger" className="mr-auto" onClick={onArchive}>{archiveLabel}</Button>}<Button variant="quiet" onClick={onClose}>Cancel</Button><Button variant="primary" loading={saving} disabled={disabled} onClick={onSave}>Save</Button></>}>
+    <div className="grid gap-3 sm:grid-cols-2">{children}</div></Modal>);
+}
+
+function AddOwner({ open, onClose, existing }: { open: boolean; onClose: () => void; existing?: any }) {
+  const blank = { name: '', contact: '', email: '', phone: '', managementFeePct: '8', approvalLimit: '500' };
+  const [f, setF] = useState<any>(blank);
+  useEffect(() => { if (open) setF(existing ? { name: existing.name ?? '', contact: existing.contact ?? '', email: existing.email ?? '', phone: existing.phone ?? '', managementFeePct: String(existing.management_fee_pct ?? ''), approvalLimit: String(existing.approval_limit ?? '') } : blank); }, [open, existing?.id]);
+  const body = () => ({ ...f, managementFeePct: num(f.managementFeePct), approvalLimit: num(f.approvalLimit) });
+  const save = useAction(() => (existing ? api.put(`/api/leasing/owners/${existing.id}`, body()) : api.post('/api/leasing/owners', body())),
+    { success: existing ? 'Owner updated' : 'Owner added', invalidate: ['/api/leasing/owners', '/api/leasing/properties'], onSuccess: () => { setF(blank); onClose(); } });
+  const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
+  const archive = useAction(() => api.del(`/api/leasing/owners/${existing?.id}`), { success: 'Owner archived', invalidate: ['/api/leasing/owners', '/api/leasing/properties'], onSuccess: () => { setConfirm(false); onClose(); } });
+  const [confirm, setConfirm] = useState(false);
+  const { can } = useSession();
+  return (<><AddDialog open={open} title={existing ? 'Edit owner' : 'Add an owner'} onClose={onClose} onSave={() => save.mutate(undefined as never)} saving={save.isPending} disabled={!f.name.trim()}
+    onArchive={existing && can('OWNER:DELETE') ? () => setConfirm(true) : undefined}>
+    <div className="sm:col-span-2"><Field label="Owner or company name" required><Input value={f.name} onChange={set('name')} /></Field></div>
+    <Field label="Contact person"><Input value={f.contact} onChange={set('contact')} /></Field>
+    <Field label="Phone"><Input value={f.phone} inputMode="tel" onChange={set('phone')} /></Field>
+    <div className="sm:col-span-2"><Field label="Email"><Input type="email" value={f.email} onChange={set('email')} /></Field></div>
+    <Field label="Management fee (%)" hint="Share of collected rent you keep"><Input type="number" min={0} max={100} step="0.1" value={f.managementFeePct} onChange={set('managementFeePct')} /></Field>
+    <Field label="Repair approval limit ($)" hint="Repairs above this need the owner"><Input type="number" min={0} value={f.approvalLimit} onChange={set('approvalLimit')} /></Field>
+  </AddDialog>
+  <ConfirmDialog open={confirm} title={`Archive ${existing?.name ?? 'this owner'}?`} body="The owner is hidden from lists and pickers. Past statements and records are kept. An owner with properties can’t be archived." confirmLabel="Archive" tone="danger" loading={archive.isPending} onClose={() => setConfirm(false)} onConfirm={() => archive.mutate(undefined as never)} /></>);
+}
+
+function AddProperty({ open, onClose, onNeedOwner, existing }: { open: boolean; onClose: () => void; onNeedOwner: () => void; existing?: any }) {
+  const { can: canDo } = useSession();
+  const { data: owners } = useApi<any[]>(canDo('OWNER:VIEW') ? '/api/leasing/owners' : null);
+  const blank = { ownerId: '', name: '', street: '', city: '', state: 'TX', zip: '', type: 'MULTIFAMILY', yearBuilt: '' };
+  const [f, setF] = useState<any>(blank);
+  useEffect(() => { if (open) setF(existing ? { ownerId: existing.owner_id, name: existing.name ?? '', street: existing.street ?? '', city: existing.city ?? '', state: existing.state ?? 'TX', zip: existing.zip ?? '', type: existing.type ?? 'MULTIFAMILY', yearBuilt: existing.year_built ? String(existing.year_built) : '' } : blank); }, [open, existing?.id]);
+  const save = useAction(() => (existing ? api.put(`/api/leasing/properties/${existing.id}`, { name: f.name, street: f.street, city: f.city, state: f.state, zip: f.zip, type: f.type, yearBuilt: num(f.yearBuilt) }) : api.post('/api/leasing/properties', { ...f, yearBuilt: num(f.yearBuilt) })),
+    { success: existing ? 'Property updated' : 'Property added', invalidate: ['/api/leasing/properties', '/api/leasing/owners'], onSuccess: () => { setF(blank); onClose(); } });
+  const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
+  const ready = f.ownerId && f.name.trim() && f.street.trim() && f.city.trim() && f.zip.trim();
+  const archive = useAction(() => api.del(`/api/leasing/properties/${existing?.id}`), { success: 'Property archived', invalidate: ['/api/leasing'], onSuccess: () => { setConfirm(false); onClose(); } });
+  const [confirm, setConfirm] = useState(false);
+  const { can } = useSession();
+  return (<><AddDialog open={open} title={existing ? 'Edit property' : 'Add a property'} onClose={onClose} onSave={() => save.mutate(undefined as never)} saving={save.isPending} disabled={!ready}
+    onArchive={existing && can('PROPERTY:DELETE') ? () => setConfirm(true) : undefined}>
+    <div className="sm:col-span-2"><Field label="Owner" required hint={existing ? 'The owner can’t be changed here.' : owners && owners.length === 0 ? undefined : 'Not in the list? Add the owner first.'}>
+      {existing ? <Input value={owners?.find((o) => o.id === f.ownerId)?.name ?? ''} disabled readOnly /> : owners && owners.length === 0
+        ? (canDo('OWNER:CREATE') ? <Button variant="secondary" onClick={() => { onClose(); onNeedOwner(); }}>Add the first owner</Button> : <span className="text-sm text-graphite-600">There are no owners yet. Ask someone who can add owners.</span>)
+        : <Select value={f.ownerId} onChange={set('ownerId')}><option value="">Choose an owner</option>{(owners ?? []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</Select>}</Field></div>
+    <div className="sm:col-span-2"><Field label="Property name" required><Input value={f.name} onChange={set('name')} /></Field></div>
+    <div className="sm:col-span-2"><Field label="Street address" required><Input value={f.street} onChange={set('street')} /></Field></div>
+    <Field label="City" required><Input value={f.city} onChange={set('city')} /></Field>
+    <Field label="State" required><Select value={f.state} onChange={set('state')}>{STATES.map((x) => <option key={x}>{x}</option>)}</Select></Field>
+    <Field label="ZIP code" required><Input value={f.zip} maxLength={10} onChange={set('zip')} /></Field>
+    <Field label="Type"><Select value={f.type} onChange={set('type')}><option value="MULTIFAMILY">Multifamily</option><option value="SINGLE_FAMILY">Single family</option><option value="CONDO">Condo</option><option value="TOWNHOME">Townhome</option><option value="COMMERCIAL">Commercial</option></Select></Field>
+    <Field label="Year built"><Input type="number" value={f.yearBuilt} onChange={set('yearBuilt')} /></Field>
+  </AddDialog>
+  <ConfirmDialog open={confirm} title={`Archive ${existing?.name ?? 'this property'}?`} body="The property and its vacant units are hidden. Leases, invoices and history are kept. It can’t be archived while a unit is occupied or has an open listing." confirmLabel="Archive" tone="danger" loading={archive.isPending} onClose={() => setConfirm(false)} onConfirm={() => archive.mutate(undefined as never)} /></>);
+}
+
+function AddUnit({ open, onClose, propertyId, existing }: { open: boolean; onClose: () => void; propertyId?: string; existing?: any }) {
+  const { data: props } = useApi<any[]>('/api/leasing/properties');
+  const blank = { propertyId: propertyId ?? '', number: '', beds: '1', baths: '1', sqft: '700', marketRent: '' };
+  const [f, setF] = useState<any>(blank);
+  useEffect(() => { if (open) setF(existing ? { propertyId: existing.property_id, number: existing.number ?? '', beds: String(existing.beds ?? ''), baths: String(existing.baths ?? ''), sqft: String(existing.sqft ?? ''), marketRent: String(existing.market_rent ?? '') } : blank); }, [open, existing?.id]);
+  const pid = f.propertyId || propertyId || '';
+  const save = useAction(() => (existing ? api.put(`/api/leasing/units/${existing.id}`, { number: f.number, beds: num(f.beds), baths: f.baths, sqft: num(f.sqft), marketRent: f.marketRent })
+    : api.post(`/api/leasing/properties/${pid}/units`, { number: f.number, beds: num(f.beds), baths: f.baths, sqft: num(f.sqft), marketRent: f.marketRent })),
+    { success: existing ? 'Unit updated' : 'Unit added', invalidate: ['/api/leasing/units', '/api/leasing/properties'], onSuccess: () => { setF(blank); onClose(); } });
+  const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
+  const archive = useAction(() => api.del(`/api/leasing/units/${existing?.id}`), { success: 'Unit archived', invalidate: ['/api/leasing'], onSuccess: () => { setConfirm(false); onClose(); } });
+  const [confirm, setConfirm] = useState(false);
+  const { can } = useSession();
+  return (<><AddDialog open={open} title={existing ? 'Edit unit' : 'Add a unit'} onClose={onClose} onSave={() => save.mutate(undefined as never)} saving={save.isPending} disabled={!pid || !f.number.trim() || !(Number(f.marketRent) > 0)}
+    onArchive={existing && can('PROPERTY:DELETE') ? () => setConfirm(true) : undefined}>
+    <div className="sm:col-span-2"><Field label="Property" required>
+      <Select value={pid} disabled={!!existing} onChange={set('propertyId')}><option value="">Choose a property</option>{(props ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field></div>
+    <Field label="Unit number" required><Input value={f.number} onChange={set('number')} /></Field>
+    <Field label="Market rent ($ per month)" required><Input type="number" min={0} value={f.marketRent} onChange={set('marketRent')} /></Field>
+    <Field label="Bedrooms"><Input type="number" min={0} value={f.beds} onChange={set('beds')} /></Field>
+    <Field label="Bathrooms"><Input type="number" min={0} step="0.5" value={f.baths} onChange={set('baths')} /></Field>
+    <Field label="Square feet"><Input type="number" min={0} value={f.sqft} onChange={set('sqft')} /></Field>
+  </AddDialog>
+  <ConfirmDialog open={confirm} title={`Archive unit ${existing?.number ?? ''}?`} body="The unit is hidden from lists. History is kept. It can’t be archived while occupied or listed." confirmLabel="Archive" tone="danger" loading={archive.isPending} onClose={() => setConfirm(false)} onConfirm={() => archive.mutate(undefined as never)} /></>);
+}
+
 function Properties({ embedded }: { embedded?: boolean }) {
   const { data, isLoading } = useApi<any[]>('/api/leasing/properties');
+  const { can } = useSession();
+  const [adding, setAdding] = useState<'property' | 'owner' | 'unit' | null>(null);
+  const [editing, setEditing] = useState<any>(null);
   const cols: Column<any>[] = [
     { key: 'name', header: 'Property', render: (p) => (<div><QuickLink kind="property" id={p.id}>{p.name}</QuickLink><div className="text-xs text-graphite-500">{p.street}, {p.city}, {p.state}</div></div>) },
     { key: 'owner_name', header: 'Owner', hideOnMobile: true, render: (p) => <QuickLink kind="owner" id={p.owner_id} className="font-medium">{p.owner_name}</QuickLink> },
@@ -41,12 +133,20 @@ function Properties({ embedded }: { embedded?: boolean }) {
     { key: 'rent_roll', header: 'Rent roll', align: 'right', value: (p) => Number(p.rent_roll), render: (p) => fmt.usd(p.rent_roll) },
     { key: 'live_listings', header: 'Live listings', align: 'right', hideOnMobile: true },
   ];
-  const t = <Panel title="Properties" padded={false}><DataTable rows={data} columns={cols} rowKey={(p) => p.id} loading={isLoading} exportName="properties" empty={{ title: 'No properties yet' }} /></Panel>;
+  const add = can('PROPERTY:CREATE');
+  const t = (<Panel title="Properties" padded={false} actions={add && <><Button size="sm" variant="secondary" onClick={() => setAdding('unit')} disabled={!data?.length}>Add unit</Button><Button size="sm" variant="primary" onClick={() => setAdding('property')}>Add property</Button></>}>
+    <DataTable rows={data} columns={cols} rowKey={(p) => p.id} loading={isLoading} exportName="properties" onRowClick={(p) => add && setEditing(p)}
+      empty={{ title: 'No properties yet', body: add ? 'Add the owner, then the property, then its units.' : undefined, action: add ? <Button variant="primary" onClick={() => setAdding('property')}>Add your first property</Button> : undefined } as any} />
+    {add && <><AddProperty open={adding === 'property'} onClose={() => setAdding(null)} onNeedOwner={() => setAdding('owner')} />{can('OWNER:CREATE') && <AddOwner open={adding === 'owner'} onClose={() => setAdding(null)} />}<AddUnit open={adding === 'unit'} onClose={() => setAdding(null)} />
+      <AddProperty open={!!editing} existing={editing} onClose={() => setEditing(null)} onNeedOwner={() => undefined} /></>}</Panel>);
   return embedded ? t : <><PageHeader title="Properties" /><SubNav />{t}</>;
 }
 
 function Units() {
   const { data, isLoading } = useApi<any[]>('/api/leasing/units');
+  const { can } = useSession();
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const cols: Column<any>[] = [
     { key: 'property_name', header: 'Property', render: (u) => <QuickLink kind="property" id={u.property_id}>{u.property_name}</QuickLink> },
     { key: 'number', header: 'Unit', render: (u) => <QuickLink kind="unit" id={u.id}>{u.number}</QuickLink> },
@@ -59,11 +159,17 @@ function Units() {
     { key: 'vacant_since', header: 'Vacant since', hideOnMobile: true, render: (u) => (u.vacant_since ? fmt.date(u.vacant_since) : '—') },
   ];
   return (<><PageHeader title="Units" description="Every door in your portfolio, with rent and vacancy." /><SubNav />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(u) => u.id} loading={isLoading} exportName="units" empty={{ title: 'No units yet' }} /></Panel></>);
+    <Panel padded={false} actions={can('PROPERTY:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add unit</Button>}>
+      <DataTable rows={data} columns={cols} rowKey={(u) => u.id} loading={isLoading} exportName="units" onRowClick={(u) => can('PROPERTY:EDIT') && setEditing(u)} empty={{ title: 'No units yet', body: can('PROPERTY:CREATE') ? 'Add a property first, then its units.' : undefined } as any} />
+      {can('PROPERTY:CREATE') && <AddUnit open={adding} onClose={() => setAdding(false)} />}
+      {can('PROPERTY:EDIT') && <AddUnit open={!!editing} existing={editing} onClose={() => setEditing(null)} />}</Panel></>);
 }
 
 function Owners() {
   const { data, isLoading } = useApi<any[]>('/api/leasing/owners');
+  const { can } = useSession();
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const cols: Column<any>[] = [
     { key: 'name', header: 'Owner', render: (o) => <QuickLink kind="owner" id={o.id}>{o.name}</QuickLink> },
     { key: 'contact', header: 'Contact', render: (o) => (o.contact ? <PersonCell name={o.contact} sub={o.email} /> : '—') },
@@ -74,11 +180,32 @@ function Owners() {
     { key: 'approval_limit', header: 'Approval limit', align: 'right', hideOnMobile: true, value: (o) => Number(o.approval_limit), render: (o) => fmt.usd(o.approval_limit) },
   ];
   return (<><PageHeader title="Owners" description="Property owners, their contacts and management terms." /><SubNav />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(o) => o.id} loading={isLoading} exportName="owners" empty={{ title: 'No owners yet' }} /></Panel></>);
+    <Panel padded={false} actions={can('OWNER:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add owner</Button>}>
+      <DataTable rows={data} columns={cols} rowKey={(o) => o.id} loading={isLoading} exportName="owners" onRowClick={(o) => can('OWNER:EDIT') && setEditing(o)} empty={{ title: 'No owners yet', body: can('OWNER:CREATE') ? 'Add the people or companies whose properties you manage.' : undefined } as any} />
+      {can('OWNER:CREATE') && <AddOwner open={adding} onClose={() => setAdding(false)} />}
+      {can('OWNER:EDIT') && <AddOwner open={!!editing} existing={editing} onClose={() => setEditing(null)} />}</Panel></>);
+}
+
+function NewListing({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
+  const { data: units } = useApi<any[]>('/api/leasing/units?status=VACANT');
+  const { data: listed } = useApi<any[]>('/api/leasing/listings');
+  const [unitId, setUnitId] = useState(''); const [rent, setRent] = useState('');
+  const taken = new Set((listed ?? []).filter((l) => l.status !== 'LEASED').map((l) => l.unit_id));
+  const free = (units ?? []).filter((u) => u.status === 'VACANT' && !taken.has(u.id));
+  const save = useAction(() => api.post<{ id: string }>('/api/leasing/listings', { unitId, rent: rent ? Number(rent) : undefined }),
+    { success: 'Draft listing created', invalidate: ['/api/leasing/listings'], onSuccess: (r: any) => { setUnitId(''); setRent(''); onClose(); onCreated(r.id); } });
+  return (<AddDialog open={open} title="New listing" onClose={onClose} onSave={() => save.mutate(undefined as never)} saving={save.isPending} disabled={!unitId}>
+    <div className="sm:col-span-2"><Field label="Vacant unit" required hint={free.length === 0 ? 'No vacant unit without a listing. Add a unit first.' : 'Rent, details and photos are filled in from the unit.'}>
+      <Select value={unitId} onChange={(e) => { setUnitId(e.target.value); setRent(''); }}><option value="">Choose a unit</option>
+        {free.map((u) => <option key={u.id} value={u.id}>{u.property_name} · Unit {u.number} · {fmt.usd(u.market_rent)}</option>)}</Select></Field></div>
+    <Field label="Asking rent ($)" hint="Leave empty to use the unit’s market rent"><Input type="number" min={0} value={rent} onChange={(e) => setRent(e.target.value)} /></Field>
+  </AddDialog>);
 }
 
 function Listings() {
   const nav = useNavigate(); const base = useBase();
+  const { can } = useSession();
+  const [adding, setAdding] = useState(false);
   const { data, isLoading } = useApi<any[]>('/api/leasing/listings');
   const cols: Column<any>[] = [
     { key: 'title', header: 'Listing', render: (l) => (<div><div className="font-semibold">{l.title}</div><div className="text-xs text-graphite-500">Available {fmt.shortDate(l.available_date)}</div></div>) },
@@ -88,23 +215,29 @@ function Listings() {
     { key: 'enquiries', header: 'Enquiries', align: 'right', hideOnMobile: true },
   ];
   return (<><PageHeader title="Listings" description="Draft with AI help, review, then publish to the public site." /><SubNav />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(l) => l.id} loading={isLoading} onRowClick={(l) => nav(`${base}/listings/${l.id}`)} exportName="listings" /></Panel></>);
+    <Panel padded={false} actions={can('LISTING:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>New listing</Button>}>
+      <DataTable rows={data} columns={cols} rowKey={(l) => l.id} loading={isLoading} onRowClick={(l) => nav(`${base}/listings/${l.id}`)} exportName="listings"
+        empty={{ title: 'No listings yet', body: can('LISTING:CREATE') ? 'Create a listing from a vacant unit, review it, then publish it.' : undefined }} />
+      {can('LISTING:CREATE') && <NewListing open={adding} onClose={() => setAdding(false)} onCreated={(id) => nav(`${base}/listings/${id}`)} />}</Panel></>);
 }
 
 function ListingDetail() {
-  const { id } = useParams(); const base = useBase();
+  const { id } = useParams(); const base = useBase(); const nav = useNavigate();
   const { data: l, isLoading } = useApi<any>(`/api/leasing/listings/${id}`);
   const [rent, setRent] = useState('');
   const refresh = ['/api/leasing/listings'];
   const assist = useAction(() => api.post<any>(`/api/leasing/listings/${id}/ai-assist`, {}), { success: 'AI draft applied', invalidate: refresh });
   const act = useAction((v: { a: string; reason?: string }) => api.post(`/api/leasing/listings/${id}/actions/${v.a}`, { reason: v.reason }), { success: 'Listing updated', invalidate: refresh });
   const save = useAction(() => api.put(`/api/leasing/listings/${id}`, { rent: Number(rent) }), { success: 'Rent updated', invalidate: refresh, onSuccess: () => setRent('') });
+  const [delAsk, setDelAsk] = useState(false);
+  const remove = useAction(() => api.del(`/api/leasing/listings/${id}`), { success: 'Draft deleted', invalidate: refresh, onSuccess: () => { setDelAsk(false); nav(`${base}/listings`); } });
+  const { can } = useSession();
   if (isLoading || !l) return <Skeleton className="h-96" />;
   const rs = l.rent_suggestion;
   return (<>
     <PageHeader title={l.title} back={<Link to={`${base}/listings`} className="text-sm font-semibold text-federal-900">All listings</Link>}
       meta={<><StatusPill status={l.status} /><span><QuickLink kind="property" id={l.property_id}>{l.property_name}</QuickLink> · Unit {l.unit_number}</span></>}
-      actions={<><Button icon={<Sparkles size={14} />} loading={assist.isPending} onClick={() => assist.mutate(undefined)}>Draft with AI</Button><ActionBar actions={l.actions} loading={act.isPending} primary={['PUBLISH', 'APPROVE']} onAction={(a, reason) => act.mutate({ a, reason })} /></>} />
+      actions={<>{l.status === 'DRAFT' && can('LISTING:DELETE') && <Button variant="quiet" onClick={() => setDelAsk(true)}>Delete draft</Button>}<Button icon={<Sparkles size={14} />} loading={assist.isPending} onClick={() => assist.mutate(undefined)}>Draft with AI</Button><ActionBar actions={l.actions} loading={act.isPending} primary={['PUBLISH', 'APPROVE']} onAction={(a, reason) => act.mutate({ a, reason })} /></>} />
     <div className="mb-6"><WorkflowTrack steps={LISTING_STEPS} current={l.status} /></div>
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6">
@@ -119,6 +252,7 @@ function ListingDetail() {
         <Panel title="Change rent"><Field label="New monthly rent (USD)"><Input type="number" value={rent} onChange={(e) => setRent(e.target.value)} /></Field><Button className="mt-3" variant="primary" disabled={!rent} loading={save.isPending} onClick={() => save.mutate(undefined)}>Save rent</Button></Panel>
       </div>
     </div>
+    <ConfirmDialog open={delAsk} title="Delete this draft?" body="The draft is removed for good. A listing that was published is never deleted: pause it instead." confirmLabel="Delete draft" tone="danger" loading={remove.isPending} onClose={() => setDelAsk(false)} onConfirm={() => remove.mutate(undefined as never)} />
   </>);
 }
 

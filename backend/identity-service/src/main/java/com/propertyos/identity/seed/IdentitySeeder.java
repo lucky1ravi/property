@@ -64,6 +64,25 @@ public class IdentitySeeder implements EventHandler {
                 for (Map<String, Object> o : store.orgs()) {
                     UUID orgId = (UUID) o.get("id");
                     if (orgId.equals(DemoData.PLATFORM.id())) continue;
+                    if (!store.featureSynced(orgId, "owner-view:v1")) {
+                        // Anyone who could see properties could see owners before owners had their own permission; keep that for custom roles too.
+                        store.grantOwnerViewToPropertyViewers(orgId);
+                        store.markFeatureSynced(orgId, "owner-view:v1");
+                    }
+                    if (!store.featureSynced(orgId, "branding:v1")) {
+                        // Companies created before the branding defaults were made generic keep what they were showing.
+                        ObjectNode over = overridesOf(orgId);
+                        if (!over.has("branding")) {
+                            ObjectNode b = over.putObject("branding");
+                            b.put("companyName", String.valueOf(o.get("name")));
+                            if (orgId.equals(DemoData.SUMMIT.id())) {
+                                b.put("portalDomain", "residents.summitridgepg.com");
+                                b.put("emailSender", "noreply@summitridgepg.com");
+                            }
+                            store.saveConfig(orgId, over.toString(), "branding", "Branding kept as shown before defaults became generic", "System");
+                        }
+                        store.markFeatureSynced(orgId, "branding:v1");
+                    }
                     for (String feature : DefaultRoles.SYNCED_FEATURES) {
                         if (store.featureSynced(orgId, feature)) continue;
                         for (Map<String, Object> r : store.systemRoles(orgId)) {
@@ -84,6 +103,14 @@ public class IdentitySeeder implements EventHandler {
             });
             return null;
         });
+    }
+
+    private ObjectNode overridesOf(UUID orgId) {
+        try {
+            return (ObjectNode) mapper.readTree(String.valueOf(store.config(orgId).map(c -> c.get("config")).orElse("{}")));
+        } catch (Exception e) {
+            return mapper.createObjectNode();
+        }
     }
 
     /** Roles, users and configuration for one organisation (organisation row must exist). */
@@ -123,6 +150,12 @@ public class IdentitySeeder implements EventHandler {
             if (!u.propertyIds().isEmpty()) store.setUserProperties(u.id(), orgId, u.propertyIds());
         }
         ObjectNode overrides = mapper.createObjectNode();
+        if (orgId.equals(DemoData.SUMMIT.id())) {
+            ObjectNode b = overrides.putObject("branding");
+            b.put("companyName", "Summit Ridge Property Group");
+            b.put("portalDomain", "residents.summitridgepg.com");
+            b.put("emailSender", "noreply@summitridgepg.com");
+        }
         if (orgId.equals(DemoData.HARBOR.id())) {
             ObjectNode b = overrides.putObject("branding");
             b.put("companyName", "Harborview Residential");

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,12 +79,40 @@ class IdentityScenarioIT {
 
         assertEquals(400, identity.post(admin, "/api/identity/users", Map.of("email", "not-an-email", "name", "Bad")).status());
         assertEquals(400, identity.post(admin, "/api/identity/users", Map.of("name", "No email")).status());
-        assertEquals(400, identity.post(admin, "/api/identity/users", Map.of("email", email, "name", "Short", "password", "short")).status());
         Reply created = Flow.ok(identity.post(admin, "/api/identity/users",
                 Flow.map("email", email, "name", "New Person", "title", "Analyst", "phone", "555-0100",
-                        "password", "a-long-enough-password", "roleIds", List.of(roleId), "propertyIds", List.of())), "create user");
+                        "password", "ignored-supplied-password", "roleIds", List.of(roleId), "propertyIds", List.of())), "create user");
         String id = created.body().path("id").asText();
-        soft.seen(identity.post(null, "/api/identity/public/login", Map.of("email", email, "password", "a-long-enough-password")), "new user signs in");
+        String temp = created.body().path("temporaryPassword").asText();
+        assertTrue(temp.length() >= 12, "the creator is shown a temporary password");
+        assertEquals(401, identity.post(null, "/api/identity/public/login", Map.of("email", email, "password", "ignored-supplied-password")).status(), "a supplied password is not used");
+        Reply first = identity.post(null, "/api/identity/public/login", Map.of("email", email, "password", temp));
+        assertEquals(403, first.status());
+        assertEquals("PASSWORD_CHANGE_REQUIRED", first.body().path("code").asText());
+        String own = "Own-" + UUID.randomUUID().toString().substring(0, 6) + "-password";
+        String theirs = Flow.ok(identity.post(null, "/api/identity/public/change-password", Map.of("email", email, "currentPassword", temp, "newPassword", own)), "first sign-in").body().path("token").asText();
+
+        // They keep their own profile, but never their email.
+        JsonNode profile = Flow.ok(identity.put(theirs, "/api/identity/me/profile", Flow.map("name", "Pat Lee", "title", "Senior analyst", "phone", "555-0123",
+                "photo", "data:image/png;base64,iVBORw0KGgo=")), "update profile").body();
+        assertTrue(profile.path("ok").asBoolean());
+        JsonNode me = Flow.ok(identity.get(theirs, "/api/identity/me"), "me").body();
+        assertEquals("Pat Lee", me.path("name").asText());
+        assertEquals("Senior analyst", me.path("title").asText());
+        assertTrue(me.path("photo").asText().startsWith("data:image/png"));
+        assertEquals(email, me.path("email").asText(), "email is unchanged");
+        assertEquals(400, identity.put(theirs, "/api/identity/me/profile", Map.of("name", " ")).status());
+        assertEquals(400, identity.put(theirs, "/api/identity/me/profile", Map.of("name", "Pat", "photo", "http://evil.test/x.png")).status());
+        Flow.ok(identity.put(theirs, "/api/identity/me/profile", Flow.map("name", "Pat Lee", "photo", null)), "remove photo");
+        assertTrue(Flow.ok(identity.get(theirs, "/api/identity/me"), "me").body().path("photo").asText("").isEmpty());
+
+        // An administrator can issue a new temporary password; the old one stops working and the person must choose again.
+        assertEquals(403, identity.post(theirs, "/api/identity/users/" + id + "/reset-password", Map.of()).status());
+        JsonNode reset = Flow.ok(identity.post(admin, "/api/identity/users/" + id + "/reset-password", Map.of()), "reset password").body();
+        String again = reset.path("temporaryPassword").asText();
+        assertEquals(401, identity.post(null, "/api/identity/public/login", Map.of("email", email, "password", own)).status());
+        assertEquals("PASSWORD_CHANGE_REQUIRED", identity.post(null, "/api/identity/public/login", Map.of("email", email, "password", again)).body().path("code").asText());
+        assertEquals(404, identity.post(admin, "/api/identity/users/" + UUID.randomUUID() + "/reset-password", Map.of()).status());
         Flow.ok(identity.get(admin, "/api/identity/users"), "list users");
         Flow.ok(identity.put(admin, "/api/identity/users/" + id, Flow.map("name", "Renamed", "title", "Lead", "phone", "555-0101",
                 "status", "ACTIVE", "roleIds", List.of(roleId), "propertyIds", List.of())), "update user");
@@ -208,6 +237,29 @@ class IdentityScenarioIT {
         Flow.ok(identity.post(null, "/api/identity/public/login", Map.of("email", adminEmail, "password", chosen)), "sign in with the new password");
         assertEquals(401, identity.post(null, "/api/identity/public/login", Map.of("email", adminEmail, "password", temp)).status());
 
+        // A new company is shown under its own name, never another company's branding.
+        String newToken = changed.body().path("token").asText();
+        JsonNode me = Flow.ok(identity.get(newToken, "/api/identity/me"), "new company session").body();
+        assertEquals("Test Realty " + suffix, me.path("branding").path("companyName").asText());
+        assertTrue(me.path("branding").path("portalDomain").asText().isEmpty(), "no inherited portal domain");
+        assertFalse(me.path("branding").path("emailSender").asText().contains("summit"), "no inherited email sender");
+
+        // The operator sets a product-wide default; it reaches the company, and goes back when reset.
+        String defaults = "/api/identity/platform/defaults";
+        JsonNode view = Flow.ok(identity.get(platform, defaults), "product defaults").body();
+        assertFalse(view.path("values").has("branding"), "branding is per company");
+        assertEquals(403, identity.get(Flow.env().token("ORG_ADMIN", "Harborview"), defaults).status());
+        assertEquals(400, identity.put(platform, defaults + "/branding", Map.of("companyName", "x")).status());
+        JsonNode sla = view.path("values").path("sla").deepCopy();
+        String firstKey = sla.fieldNames().next();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) sla).put(firstKey, 7777);
+        Flow.ok(identity.put(platform, defaults + "/sla", sla), "set a product default");
+        JsonNode cfg = Flow.ok(identity.get(newToken, "/api/identity/config"), "company config").body();
+        assertEquals(7777, cfg.path("sla").path(firstKey).asInt());
+        Flow.ok(identity.delete(platform, defaults + "/sla"), "reset the product default");
+        JsonNode back = Flow.ok(identity.get(newToken, "/api/identity/config"), "company config after reset").body();
+        assertNotEquals(7777, back.path("sla").path(firstKey).asInt());
+
         JsonNode details = Flow.ok(identity.get(platform, "/api/identity/platform/orgs/" + orgId), "company details").body();
         assertEquals(adminEmail, details.path("primaryContact").path("email").asText());
         assertEquals("Test Admin", details.path("primaryContact").path("name").asText());
@@ -227,7 +279,7 @@ class IdentityScenarioIT {
 
         Flow.ok(identity.put(platform, "/api/identity/platform/orgs/" + orgId, Map.of("plan", "ENTERPRISE", "status", "ACTIVE")), "change plan");
         assertEquals(400, identity.put(platform, "/api/identity/platform/orgs/" + orgId, Map.of("plan", "GALACTIC")).status());
-        Flow.ok(identity.put(platform, "/api/identity/platform/orgs/" + orgId, Map.of("status", "SUSPENDED")), "suspend");
+        Flow.ok(identity.put(platform, "/api/identity/platform/orgs/" + orgId, Map.of("status", "SUSPENDED", "reason", "Unpaid invoice")), "suspend");
         Flow.ok(identity.put(platform, "/api/identity/platform/orgs/" + orgId, Map.of("status", "ACTIVE")), "reactivate");
 
         String admin = Flow.token("ORG_ADMIN");

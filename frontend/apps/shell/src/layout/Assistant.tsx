@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Send, X, ShieldCheck, Database, Download } from 'lucide-react';
-import { api, AiMark, RichText, Button, Spinner, toastError, errorText, type Persona } from '@propertyos/ui';
+import { api, AiMark, RichText, Button, Spinner, toastError, type Persona } from '@propertyos/ui';
 
 interface Pending { id: string; tool: string; summary: string }
 interface Msg {
@@ -53,7 +53,7 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
       }]);
       setMore(r.suggestions ?? []);
     } catch (e) {
-      setMsgs((cur) => [...cur, { role: 'assistant', content: errorText(e) }]);
+      setMsgs((cur) => [...cur, { role: 'assistant', content: e instanceof Error ? e.message : 'The assistant is unavailable right now. Try again in a moment.' }]);
     } finally {
       setBusy(false);
     }

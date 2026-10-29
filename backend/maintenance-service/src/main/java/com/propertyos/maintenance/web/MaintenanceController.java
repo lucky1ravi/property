@@ -58,6 +58,18 @@ public class MaintenanceController {
     public Object vendors() { return svc.vendors(); }
 
     /**
+     * Adds a vendor.
+     */
+    @PostMapping("/vendors") @RequiresPermission("VENDOR:CREATE")
+    public Object createVendor(@RequestBody Map<String, Object> b) { return svc.createVendor(b); }
+
+    /**
+     * Changes a vendor's details or switches them off.
+     */
+    @PutMapping("/vendors/{id}") @RequiresPermission("VENDOR:EDIT")
+    public void updateVendor(@PathVariable UUID id, @RequestBody Map<String, Object> b) { svc.updateVendor(id, b); }
+
+    /**
      * Returns open, emergency and SLA figures for the dashboard.
      */
     @GetMapping("/stats") @RequiresPermission("WORK_ORDER:VIEW")

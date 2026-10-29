@@ -58,7 +58,7 @@ function CompanyDetails({ org, onClose }: { org: any; onClose: () => void }) {
           <section><h3 className="text-sm font-extrabold text-graphite-950">Company</h3>
             <dl className="mt-1 divide-y divide-limestone-200">
               {row('Legal name', d.legal_name)}{row('State', d.state)}{row('Plan', d.plan)}
-              {row('Status', d.status === 'ACTIVE' ? 'Active' : 'Suspended')}{row('Created', fmt.date(d.created_at))}
+              {row('Status', d.status === 'ACTIVE' ? 'Active' : `Suspended${d.status_reason ? ` — ${d.status_reason}` : ''}`)}{d.status !== 'ACTIVE' && d.status_changed_at && row('Suspended on', `${fmt.date(d.status_changed_at)} by ${d.status_changed_by ?? 'PropertyOS'}`)}{row('Created', fmt.date(d.created_at))}
               {row('Roles', d.roleCount)}
             </dl></section>
           <section><h3 className="text-sm font-extrabold text-graphite-950">Primary contact</h3>
@@ -94,7 +94,8 @@ export function Platform() {
   const [features, setFeatures] = useState<any | null>(null);
   const [details, setDetails] = useState<any | null>(null);
   const [suspend, setSuspend] = useState<any | null>(null);
-  const setOrg = useAction((v: { id: string; plan?: string; status?: string }) => api.put(`/api/identity/platform/orgs/${v.id}`, { plan: v.plan, status: v.status }), { success: 'Company updated', invalidate: ['/api/identity/platform'], onSuccess: () => setSuspend(null) });
+  const [why, setWhy] = useState('');
+  const setOrg = useAction((v: { id: string; plan?: string; status?: string; reason?: string }) => api.put(`/api/identity/platform/orgs/${v.id}`, { plan: v.plan, status: v.status, reason: v.reason }), { success: 'Company updated', invalidate: ['/api/identity/platform'], onSuccess: () => { setSuspend(null); setWhy(''); } });
   const cols: Column<any>[] = [{ key: 'name', header: 'Organisation' }, { key: 'state', header: 'State' }, { key: 'plan', header: 'Plan', render: (r) => <Select value={r.plan} onChange={(e) => setOrg.mutate({ id: r.id, plan: e.target.value })} aria-label={`Plan for ${r.name}`}>{planOptions}</Select> }, { key: 'status', header: 'Status', render: (r) => <Badge tone={r.status === 'ACTIVE' ? 'good' : 'crit'}>{r.status === 'ACTIVE' ? 'Active' : 'Suspended'}</Badge> }, { key: 'user_count', header: 'Users', align: 'right' }, { key: 'created_at', header: 'Created', render: (r) => fmt.date(r.created_at) },
     { key: 'manage', header: '', render: (r) => <span className="flex gap-2"><Button variant="secondary" onClick={() => setDetails(r)}>Details</Button><Button variant="secondary" onClick={() => setFeatures(r)}>Features</Button><Button variant="quiet" onClick={() => r.status === 'ACTIVE' ? setSuspend(r) : setOrg.mutate({ id: r.id, status: 'ACTIVE' })}>{r.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}</Button></span> }];
   return (<><PageHeader title="Platform" description="Every company on PropertyOS. Data stays isolated per company." actions={<Button variant="primary" onClick={() => setOpen(true)}>Onboard company</Button>} />
@@ -110,8 +111,11 @@ export function Platform() {
     </Modal>
     {details && <CompanyDetails org={details} onClose={() => setDetails(null)} />}
     {features && <CompanyFeatures org={features} onClose={() => setFeatures(null)} />}
-    <ConfirmDialog open={!!suspend} title={`Suspend ${suspend?.name ?? ''}?`} confirmLabel="Suspend company" tone="danger" loading={setOrg.isPending} onClose={() => setSuspend(null)} onConfirm={() => suspend && setOrg.mutate({ id: suspend.id, status: 'SUSPENDED' })}
-      body="Nobody in this company will be able to sign in until you reactivate it. Their data is kept." />
+    <Modal open={!!suspend} onClose={() => { setSuspend(null); setWhy(''); }} title={`Suspend ${suspend?.name ?? ''}?`}
+      footer={<><Button variant="quiet" onClick={() => { setSuspend(null); setWhy(''); }}>Cancel</Button><Button variant="danger" loading={setOrg.isPending} disabled={!why.trim()} onClick={() => suspend && setOrg.mutate({ id: suspend.id, status: 'SUSPENDED', reason: why })}>Suspend company</Button></>}>
+      <p className="text-sm text-graphite-700">Everyone in this company, including owners, residents and vendors, is signed out within seconds and can’t sign in again. Their public listings are hidden and scheduled reminders stop. Nothing is deleted, and you can reactivate at any time.</p>
+      <div className="mt-3"><Field label="Reason" required hint="Kept in the audit log and shown on the company’s details."><Input value={why} maxLength={300} onChange={(e) => setWhy(e.target.value)} placeholder="For example: unpaid invoice, security review, requested by the customer" /></Field></div>
+    </Modal>
     <Modal open={open} onClose={() => setOpen(false)} title="Onboard a company" footer={<><Button variant="quiet" onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" loading={create.isPending} disabled={!f.name || !f.adminEmail || !f.adminName} onClick={() => create.mutate(undefined)}>Create company</Button></>}>
       <div className="space-y-3"><Field label="Company name" required><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <div className="grid grid-cols-2 gap-3"><Field label="State"><Select value={f.state} onChange={(e) => setF({ ...f, state: e.target.value })}>{US_STATE_OPTIONS.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}</Select></Field><Field label="Plan"><Select value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })}>{planOptions}</Select></Field></div>

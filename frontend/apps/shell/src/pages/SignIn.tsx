@@ -109,7 +109,7 @@ export function SignIn() {
             <div className="border-b border-limestone-200 px-6 pb-4 pt-5">
               <h2 className="text-xl font-extrabold tracking-[-0.01em] text-graphite-950">Sign in</h2>
               <p className="mt-1 text-sm text-graphite-600">
-                {params.get('expired') ? 'Your session ended. Sign in again to continue.' : 'Sign in with your email and password.'}
+                {params.get('suspended') ? 'This company’s PropertyOS account is suspended. Please contact your property manager or company administrator.' : params.get('expired') ? 'Your session ended. Sign in again to continue.' : 'Sign in with your email and password.'}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-1 rounded bg-limestone-100 p-1 text-sm font-semibold">
                 <button onClick={() => setMode('password')} className={`rounded py-1.5 ${mode === 'password' ? 'bg-white text-federal-900 shadow-sm' : 'text-graphite-500'}`}>Password</button>

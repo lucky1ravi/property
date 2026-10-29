@@ -9,6 +9,9 @@ export interface Session {
   userId: string;
   name: string;
   email: string;
+  title?: string;
+  phone?: string;
+  photo?: string | null;
   roles: string[];
   permissions: string[];
   scope: 'PLATFORM' | 'ORG' | 'PROPERTY' | 'OWNER' | 'TENANT' | 'VENDOR';

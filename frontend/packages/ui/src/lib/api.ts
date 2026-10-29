@@ -106,6 +106,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
   const text = await res.text();
   const data = text ? safeJson(text) : null;
+  if (res.status === 403 && data?.code === 'ORG_SUSPENDED' && !path.includes('/public/')) {
+    setToken(null); // the company was suspended while this person was signed in
+    if (!location.pathname.startsWith('/signin')) location.assign('/signin?suspended=1');
+  }
   if (!res.ok) {
     throw new ApiError(res.status, friendlyMessage(res.status, data && (data.detail || data.title)), data?.code);
   }

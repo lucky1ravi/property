@@ -433,7 +433,7 @@ public class MaintenanceService {
     @Transactional
     public Map<String, Object> addRecurring(Map<String, Object> b) {
         UUID propertyId = Req.requiredUuid(b, "propertyId");
-        Map<String, Object> ref = leaseSample(propertyId);
+        Map<String, Object> ref = propertyFacts(propertyId);
         UUID id = UUID.randomUUID();
         db.update("insert into maintenance.recurring_task (id, org_id, property_id, owner_id, property_name, title, category, every_months, next_due) values (?,?,?,?,?,?,?,?,?)",
                 id, UserContextHolder.orgId(), propertyId, ref.get("owner_id"), ref.get("property_name"), Req.required(b, "title"),
@@ -469,16 +469,63 @@ public class MaintenanceService {
         }
     }
 
-    private Map<String, Object> leaseSample(UUID propertyId) {
-        JsonNode leases = client.get(ServiceClient.Service.LEASING, "/internal/leasing/active-leases");
-        for (JsonNode n : leases) if (n.path("property_id").asText().equals(propertyId.toString())) return jsonMap(n);
-        throw ApiException.notFound("Property");
+    /** Owner and name of a property, from the leasing service. Works for a property that has no lease yet. */
+    private Map<String, Object> propertyFacts(UUID propertyId) {
+        try {
+            JsonNode n = client.get(ServiceClient.Service.LEASING, "/internal/leasing/property/" + propertyId);
+            Map<String, Object> m = new HashMap<>();
+            m.put("owner_id", UUID.fromString(n.path("owner_id").asText()));
+            m.put("property_name", n.path("name").asText(null));
+            return m;
+        } catch (RestClientException e) {
+            throw ApiException.notFound("Property");
+        }
     }
+
 
     private Map<String, Object> jsonMap(JsonNode n) {
         Map<String, Object> m = new HashMap<>();
         for (String k : List.of("unit_id", "property_id", "owner_id", "tenant_id")) if (n.hasNonNull(k)) m.put(k, UUID.fromString(n.path(k).asText()));
         for (String k : List.of("unit_label", "property_name", "tenant_name")) m.put(k, n.path(k).asText(null));
         return m;
+    }
+
+    /**
+     * Adds a vendor to the company's directory.
+     *
+     * @param b name and at least one trade (required); contact, phone, email, cities, insuranceExpires (optional)
+     */
+    @Transactional
+    public Map<String, Object> createVendor(Map<String, Object> b) {
+        List<String> trades = Req.strings(b, "trades");
+        if (trades.isEmpty()) throw ApiException.badRequest("Choose at least one trade");
+        UUID id = UUID.randomUUID();
+        db.update("""
+                insert into maintenance.vendor (id, org_id, name, contact, phone, email, trades, cities, insurance_expires)
+                values (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?)""",
+                id, UserContextHolder.orgId(), Req.required(b, "name"), Req.str(b, "contact"), Req.str(b, "phone"), Req.email(b, "email"),
+                db.json(trades), db.json(Req.strings(b, "cities")), Req.date(b, "insuranceExpires"));
+        audit.record("Vendor", id, "CREATED", null, "ACTIVE", Map.of("name", Req.required(b, "name")));
+        return Map.of("id", id);
+    }
+
+    /** Changes a vendor's details or switches them off. Only the fields sent are changed. */
+    @Transactional
+    public void updateVendor(UUID id, Map<String, Object> b) {
+        String active = Req.str(b, "active"), email = Req.str(b, "email");
+        if ("false".equalsIgnoreCase(active)) {
+            Long open = db.value(Long.class, "select count(*) from maintenance.work_order where vendor_id = ? and status in ('ASSIGNED','SCHEDULED','IN_PROGRESS')", id);
+            if (open != null && open > 0) throw ApiException.conflict("This vendor has " + open + (open == 1 ? " open job" : " open jobs") + ". Reassign or finish them before archiving.");
+        }
+        if (email != null && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address");
+        if (db.update("""
+                update maintenance.vendor set name = coalesce(?, name), contact = coalesce(?, contact), phone = coalesce(?, phone), email = coalesce(?, email),
+                       trades = coalesce(?::jsonb, trades), cities = coalesce(?::jsonb, cities), insurance_expires = coalesce(?, insurance_expires),
+                       active = coalesce(?, active) where id = ?""",
+                Req.str(b, "name"), Req.str(b, "contact"), Req.str(b, "phone"), email,
+                b.containsKey("trades") ? db.json(Req.strings(b, "trades")) : null, b.containsKey("cities") ? db.json(Req.strings(b, "cities")) : null,
+                Req.date(b, "insuranceExpires"), active == null ? null : Boolean.valueOf(active), id) == 0)
+            throw ApiException.notFound("Vendor");
+        audit.record("Vendor", id, active == null ? "UPDATED" : Boolean.parseBoolean(active) ? "RESTORED" : "ARCHIVED", null, null, Map.of("fields", b.keySet().toString()));
     }
 }

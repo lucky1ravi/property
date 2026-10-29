@@ -99,15 +99,15 @@ const LABELS: Record<string, [string, string?]> = {
   companyName: ['Company name'], primaryColor: ['Primary colour'], accentColor: ['Accent colour'], portalDomain: ['Resident portal domain'], emailSender: ['Email sender address'],
 };
 const STATES: Record<string, string> = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
-const human = (k: string) => {
+export const human = (k: string) => {
   if (STATES[k]) return `${STATES[k]} (${k})`;
   if (k === 'DEFAULT') return 'All other states';
   if (LABELS[k]) return LABELS[k][0];
   const words = k.includes('_') || k === k.toUpperCase() ? k.toLowerCase().split('_').join(' ') : k.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
   return words.replace(/^./, (c) => c.toUpperCase());
 };
-const hintFor = (k: string) => LABELS[k]?.[1];
-const SECTIONS: [string, string, string][] = [
+export const hintFor = (k: string) => LABELS[k]?.[1];
+export const SECTIONS: [string, string, string][] = [
   ['features', 'Features', 'Switch whole modules on or off for your company.'],
   ['fees', 'Fees', 'Late fees, application fees and management fees.'],
   ['invoicing', 'Invoicing', 'When rent is invoiced, reminders and payment allocation.'],
@@ -152,7 +152,7 @@ function ColourField({ label, hint, value, onChange }: { label: string; hint?: s
   );
 }
 
-function Node({ label, hint, value, onChange, depth = 0 }: { label: string; hint?: string; value: any; onChange: (v: any) => void; depth?: number }) {
+export function Node({ label, hint, value, onChange, depth = 0 }: { label: string; hint?: string; value: any; onChange: (v: any) => void; depth?: number }) {
   if (typeof value === 'boolean') return (
     <div className="flex items-start justify-between gap-4 rounded-md border border-limestone-200 bg-white px-4 py-3">
       <span className="min-w-0"><span className="block text-sm font-semibold text-graphite-900">{label}</span>{hint && <span className="mt-0.5 block text-xs text-graphite-500">{hint}</span>}</span>

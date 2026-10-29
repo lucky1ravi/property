@@ -54,8 +54,12 @@ public class IdentityController {
         Map<String, Object> org = transactional(() -> store.org(ctx.orgId()).orElse(Map.of()));
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("userId", ctx.userId());
-        m.put("name", ctx.name());
+        Map<String, Object> me = transactional(() -> store.user(ctx.userId()).orElse(Map.of()));
+        m.put("name", me.getOrDefault("name", ctx.name()));
         m.put("email", ctx.email());
+        m.put("title", me.get("title"));
+        m.put("phone", me.get("phone"));
+        m.put("photo", me.get("photo"));
         m.put("roles", ctx.roles());
         m.put("permissions", new TreeSet<>(ctx.permissions()));
         m.put("scope", ctx.scope());
@@ -68,6 +72,12 @@ public class IdentityController {
         m.put("features", cfg.get("features"));
         m.put("branding", cfg.get("branding"));
         return m;
+    }
+
+    /** The signed-in user changes their own name, title, phone or photo. Email can't be changed. */
+    @PutMapping("/me/profile")
+    public Map<String, Object> updateProfile(@RequestBody Map<String, Object> body) {
+        return access.updateProfile(body);
     }
 
     /** Re-issues a token with the latest roles and permissions (after an admin change). */
@@ -93,6 +103,15 @@ public class IdentityController {
     @RequiresPermission("USER:CREATE")
     public Map<String, Object> createUser(@RequestBody Map<String, Object> body) {
         return access.createUser(body);
+    }
+
+    /**
+     * Gives a user a new temporary password, shown once, which they must change at next sign-in.
+     */
+    @PostMapping("/users/{id}/reset-password")
+    @RequiresPermission("USER:EDIT")
+    public Map<String, Object> resetPassword(@PathVariable UUID id) {
+        return access.resetPassword(id);
     }
 
     /**

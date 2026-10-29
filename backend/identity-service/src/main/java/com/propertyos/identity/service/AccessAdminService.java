@@ -71,16 +71,55 @@ public class AccessAdminService {
         UUID id = UUID.randomUUID();
         store.insertUser(id, orgId, email, req(body, "name"), str(body, "title"), str(body, "phone"),
                 str(body, "partyType"), uuid(body.get("partyId")), str(body, "title"));
-        String pw = str(body, "password");
-        if (pw != null && !pw.isBlank()) {
-            if (pw.length() < 10) throw ApiException.badRequest("Password must be at least 10 characters");
-            store.setPassword(id, AuthService.hashPassword(pw));
-        }
+        // Nobody picks another person's password: a one-time temporary one is shown to the creator, and replaced at first sign-in.
+        String temporaryPassword = AuthService.temporaryPassword();
+        store.setTemporaryPassword(id, AuthService.hashPassword(temporaryPassword));
         store.setUserRoles(id, orgId, uuids(body.get("roleIds")));
         store.setUserProperties(id, orgId, uuids(body.get("propertyIds")));
         audit.record("User", id, "USER_CREATED", null, "ACTIVE", Map.of("email", email, "roles", String.valueOf(body.get("roleIds"))));
         events.publish("UserCreated", "User", id, Map.of("email", email));
-        return Map.of("id", id);
+        return Map.of("id", id, "temporaryPassword", temporaryPassword);
+    }
+
+    /**
+     * Replaces a user's password with a new one-time temporary password they must change at next sign-in.
+     *
+     * @return the temporary password, shown once
+     * @throws ApiException (404) for an unknown user, (400) for your own account
+     */
+    @Transactional
+    public Map<String, Object> resetPassword(UUID id) {
+        if (id.equals(UserContextHolder.require().userId())) throw ApiException.badRequest("Change your own password from the sign-in page");
+        store.user(id).orElseThrow(() -> ApiException.notFound("User"));
+        String temporaryPassword = AuthService.temporaryPassword();
+        store.setTemporaryPassword(id, AuthService.hashPassword(temporaryPassword));
+        audit.record("User", id, "USER_PASSWORD_RESET", null, null, Map.of());
+        return Map.of("temporaryPassword", temporaryPassword);
+    }
+
+    /**
+     * Changes the signed-in user's own name, title, phone and photo. Email is never changed here.
+     *
+     * @param body name, title, phone, photo (an image data URL, or null to remove it)
+     */
+    @Transactional
+    public Map<String, Object> updateProfile(Map<String, Object> body) {
+        UUID id = UserContextHolder.require().userId();
+        String name = str(body, "name");
+        if (name == null || name.isBlank()) throw ApiException.badRequest("Name is required");
+        if (name.length() > 160) throw ApiException.badRequest("Name is too long");
+        String title = str(body, "title"), phone = str(body, "phone");
+        if (title != null && title.length() > 160) throw ApiException.badRequest("Job title is too long");
+        if (phone != null && phone.length() > 40) throw ApiException.badRequest("Phone is too long");
+        String photo = str(body, "photo");
+        boolean hasPhoto = photo != null && !photo.isBlank();
+        if (hasPhoto) {
+            if (!photo.matches("^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")) throw ApiException.badRequest("Photo must be a JPG, PNG or WebP image");
+            if (photo.length() > 150_000) throw ApiException.badRequest("Photo is too large. Choose a smaller picture.");
+        }
+        store.updateProfile(id, name.trim(), title == null ? null : title.trim(), phone == null ? null : phone.trim(), hasPhoto ? photo : null);
+        audit.record("User", id, "PROFILE_UPDATED", null, null, Map.of("photo", hasPhoto ? "set" : "removed"));
+        return Map.of("ok", true);
     }
 
     /**

@@ -28,6 +28,18 @@ public class PublicService {
         this.leads = leads;
     }
 
+    private com.propertyos.common.security.SuspendedOrgs suspended;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSuspended(com.propertyos.common.security.SuspendedOrgs suspended) {
+        this.suspended = suspended;
+    }
+
+    /** Companies PropertyOS has suspended, as a comma-separated list: their homes are not shown or open to applications. */
+    String suspendedCsv() {
+        return suspended == null ? "" : suspended.asCsv();
+    }
+
     private <T> T asSystem(java.util.function.Supplier<T> work) {
         return UserContextHolder.runAsSystem(null, () -> tx.execute(st -> work.get()));
     }
@@ -49,8 +61,9 @@ public class PublicService {
                        p.name as property_name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.amenities,
                        u.beds, u.baths, u.sqft
                 from leasing.listing l join leasing.property p on p.id = l.property_id join leasing.unit u on u.id = l.unit_id
-                where l.status = 'LIVE'""");
+                where l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))""");
         List<Object> args = new ArrayList<>();
+        args.add(suspendedCsv());
         if (city != null && !city.isBlank()) {
             sql.append(" and lower(p.city) like ?");
             args.add("%" + city.toLowerCase() + "%");
@@ -85,7 +98,7 @@ public class PublicService {
                 select l.id, l.title, l.description, l.rent, l.deposit, l.available_date, l.photos, l.highlights,
                        p.name as property_name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.amenities, u.beds, u.baths, u.sqft
                 from leasing.listing l join leasing.property p on p.id = l.property_id join leasing.unit u on u.id = l.unit_id
-                where l.id = ? and l.status = 'LIVE'""", id);
+                where l.id = ? and l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))""", id, suspendedCsv());
     }
 
     /**
@@ -112,7 +125,7 @@ public class PublicService {
     Map<String, Object> doApply(UUID listingId, Map<String, Object> b) {
         Map<String, Object> li = db.one("Listing", """
                 select l.*, u.number, p.name as pname from leasing.listing l join leasing.unit u on u.id = l.unit_id
-                join leasing.property p on p.id = l.property_id where l.id = ? and l.status = 'LIVE'""", listingId);
+                join leasing.property p on p.id = l.property_id where l.id = ? and l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))""", listingId, suspendedCsv());
         String first = Req.required(b, "firstName");
         String last = Req.required(b, "lastName");
         String email = Req.email(b, "email");

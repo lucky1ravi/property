@@ -69,7 +69,7 @@ public class AuthService {
             Map<String, Object> u = store.user(userId).orElseThrow(() -> ApiException.unauthorized("Unknown user"));
             if (!"ACTIVE".equals(u.get("status"))) throw ApiException.forbidden("This account is disabled");
             store.org((UUID) u.get("org_id")).ifPresent(o -> {
-                if (!"ACTIVE".equals(o.get("status"))) throw ApiException.forbidden("Your company's PropertyOS account is suspended. Contact PropertyOS support.");
+                if (!"ACTIVE".equals(o.get("status"))) throw ApiException.forbidden(com.propertyos.common.security.AuthFilter.SUSPENDED_MESSAGE);
             });
             List<Map<String, Object>> roles = store.userRoles(userId);
             String scope = roles.stream().map(r -> (String) r.get("scope"))

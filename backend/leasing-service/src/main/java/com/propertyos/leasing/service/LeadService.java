@@ -18,6 +18,17 @@ import java.util.*;
 /** Prospect enquiries (with instant AI reply and scoring) and showings. */
 @Service
 public class LeadService {
+    private com.propertyos.common.security.SuspendedOrgs suspended;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSuspended(com.propertyos.common.security.SuspendedOrgs suspended) {
+        this.suspended = suspended;
+    }
+
+    private String suspendedCsv() {
+        return suspended == null ? "" : suspended.asCsv();
+    }
+
     private final Db db;
     private final StateMachine sm;
     private final WorkflowEngine wf;
@@ -46,7 +57,7 @@ public class LeadService {
     /** Records an enquiry, scores it and drafts a reply. Used by the public site (system context) and brokers. */
     @Transactional
     public Map<String, Object> enquire(UUID listingId, Map<String, Object> b, String source) {
-        Map<String, Object> li = db.one("Listing", "select * from leasing.listing where id = ? and status = 'LIVE'", listingId);
+        Map<String, Object> li = db.one("Listing", "select * from leasing.listing l where l.id = ? and l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))", listingId, suspendedCsv());
         String name = Req.required(b, "name");
         String email = Req.email(b, "email");
         String msg = Optional.ofNullable(Req.str(b, "message")).orElse("");
@@ -106,7 +117,7 @@ public class LeadService {
      */
     @Transactional
     public Map<String, Object> book(UUID listingId, Map<String, Object> b, boolean publicRequest) {
-        Map<String, Object> li = db.one("Listing", "select * from leasing.listing where id = ? and status = 'LIVE'", listingId);
+        Map<String, Object> li = db.one("Listing", "select * from leasing.listing l where l.id = ? and l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))", listingId, suspendedCsv());
         OffsetDateTime at = OffsetDateTime.parse(Req.required(b, "scheduledAt"));
         if (at.isBefore(OffsetDateTime.now())) throw ApiException.badRequest("Pick a time in the future.");
         Long clash = db.value(Long.class, "select count(*) from leasing.showing where listing_id = ? and status in ('REQUESTED','CONFIRMED') and scheduled_at = ?", listingId, at);

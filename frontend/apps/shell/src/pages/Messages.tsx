@@ -98,7 +98,7 @@ export function Messages() {
                 <span className="flex items-baseline justify-between gap-2"><span className={`truncate text-sm ${Number(c.unread) ? 'font-bold' : 'font-semibold'} text-graphite-900`}>{c.subject}</span><span className="shrink-0 text-2xs text-graphite-500">{ago(c.last_message_at)}</span></span>
                 <span className="block truncate text-xs text-graphite-500">{c.with_names}</span>
                 <span className="block truncate text-xs text-graphite-600">{c.last_sender ? `${c.last_sender}: ` : ''}{c.last_body}</span>
-                <span className="mt-1 flex items-center gap-1.5">{c.context_type !== 'GENERAL' && <Badge>{CONTEXT_LABEL[c.context_type]}</Badge>}{c.status === 'RESOLVED' && <Badge tone="ok">Resolved</Badge>}{Number(c.unread) > 0 && <span className="rounded-full bg-brick-600 px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}</span>
+                <span className="mt-1 flex items-center gap-1.5">{c.context_type !== 'GENERAL' && <Badge>{CONTEXT_LABEL[c.context_type]}</Badge>}{c.status === 'RESOLVED' && <Badge tone="good">Resolved</Badge>}{Number(c.unread) > 0 && <span className="rounded-full bg-brick-600 px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}</span>
               </span></button></li>))}</ul>}
       </section>
       <section className={`flex min-h-[60vh] flex-col rounded-md border border-limestone-200 bg-white ${sel ? '' : 'hidden md:flex'}`} aria-label="Conversation">

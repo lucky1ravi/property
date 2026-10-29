@@ -17,6 +17,13 @@ import java.util.*;
 /** Vendor insurance (certificate of insurance) expiry: vendors without current cover can no longer be dispatched, so staff and the vendor are warned early. */
 @Service
 public class VendorAlerts {
+    private com.propertyos.common.security.SuspendedOrgs suspended;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSuspended(com.propertyos.common.security.SuspendedOrgs suspended) {
+        this.suspended = suspended;
+    }
+
     private final Db db;
     private final ConfigClient config;
     private final Notifier notifier;
@@ -70,7 +77,9 @@ public class VendorAlerts {
     public void daily() {
         List<UUID> orgs = UserContextHolder.runAsSystem(null, () -> new TransactionTemplate(tm).execute(st ->
                 db.list("select distinct org_id from maintenance.vendor").stream().map(r -> (UUID) r.get("org_id")).toList()));
-        for (UUID org : orgs == null ? List.<UUID>of() : orgs)
+        for (UUID org : orgs == null ? List.<UUID>of() : orgs) {
+            if (suspended != null && suspended.contains(org)) continue; // a suspended company's reminders are paused
             UserContextHolder.runAsSystem(org, () -> new TransactionTemplate(tm).execute(st -> run()));
+        }
     }
 }

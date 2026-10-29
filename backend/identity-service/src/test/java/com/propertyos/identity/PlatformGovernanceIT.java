@@ -67,7 +67,7 @@ class PlatformGovernanceIT extends IdentityIntegrationTest {
         Company company = onboard();
         String platform = api.login(PLATFORM_ADMIN, DEMO_PASSWORD);
 
-        assertThat(api.put(platform, "/api/identity/platform/orgs/" + company.orgId(), Map.of("status", "SUSPENDED")).status()).isEqualTo(200);
+        assertThat(api.put(platform, "/api/identity/platform/orgs/" + company.orgId(), Map.of("status", "SUSPENDED", "reason", "Unpaid invoice")).status()).isEqualTo(200);
         Reply denied = api.post(null, "/api/identity/public/login", Map.of("email", company.adminEmail(), "password", "Chosen-password-2026"));
         assertThat(denied.status()).isEqualTo(403);
 

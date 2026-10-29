@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { UserCircle, Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast, QuickViewHost } from '@propertyos/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -45,9 +45,9 @@ export function AppLayout() {
       </div>
       {slim && <button onClick={toggleCollapsed} aria-label="Expand menu" title="Expand menu" className="mx-auto mb-2 rounded p-1.5 text-federal-300 hover:bg-federal-800 hover:text-white"><PanelLeftOpen className="h-[18px] w-[18px]" /></button>}
       {!slim && <div className="mx-3 mb-3 rounded bg-federal-950/50 px-3 py-2.5">
-        <div className="truncate text-sm font-bold text-white">{session.branding?.companyName ?? session.organization.name}</div>
+        <div className="truncate text-sm font-bold text-white">{persona === 'platform' ? session.organization.name : (session.branding?.companyName || session.organization.name)}</div>
         <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-federal-300">
-          {session.organization.plan && <><span>{session.organization.plan} plan</span><span aria-hidden>·</span></>}<span>{PERSONA_LABEL[persona]}</span>
+          {persona !== 'platform' && session.organization.plan && <><span>{session.organization.plan} plan</span><span aria-hidden>·</span></>}<span>{PERSONA_LABEL[persona]}</span>
         </div>
       </div>}
       <div className={clsx('scrollbar-thin flex-1 overflow-y-auto pb-4', slim ? 'px-2' : 'px-3')}>
@@ -80,7 +80,7 @@ export function AppLayout() {
           <button className="rounded p-2 text-graphite-600 hover:bg-limestone-100 lg:hidden" aria-label="Open navigation" onClick={() => setMobileNav(true)}><Menu className="h-5 w-5" /></button>
           <div className="min-w-0 flex-1 truncate text-sm text-graphite-500">{session.organization.name}</div>
           <Notifications />
-          <UserMenu name={session.name} email={session.email} subtitle={session.roles.join(', ')} />
+          <UserMenu name={session.name} email={session.email} photo={session.photo} subtitle={session.roles.join(', ')} />
         </header>
         <main className="scrollbar-thin flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1360px] px-4 py-6 lg:px-8 lg:py-8">
@@ -94,9 +94,9 @@ export function AppLayout() {
       {aiEnabled && !assistant && (
         <button onClick={() => setAssistant(true)} aria-label="Ask PropertyOS"
           style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))', right: 'max(1rem, env(safe-area-inset-right))' }}
-          title="Ask PropertyOS"
-          className="group fixed z-30 inline-flex h-11 w-11 items-center justify-center rounded-full bg-federal-800 text-white shadow-[0_6px_18px_rgba(20,50,120,0.4)] ring-2 ring-white transition hover:bg-federal-900 hover:shadow-[0_8px_22px_rgba(20,50,120,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600">
-          <MessageSquareText className="h-5 w-5" aria-hidden />
+          className="group fixed z-30 inline-flex items-center gap-2 rounded-full bg-federal-800 p-4 text-sm font-bold text-white sm:px-5 sm:py-3.5 shadow-[0_10px_30px_rgba(20,50,120,0.45)] ring-2 ring-white transition hover:bg-federal-900 hover:shadow-[0_14px_36px_rgba(20,50,120,0.55)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600">
+          <span className="absolute inset-0 -z-10 rounded-full bg-federal-600/50 motion-safe:animate-ping" aria-hidden />
+          <MessageSquareText className="h-6 w-6 sm:h-5 sm:w-5" /> <span className="hidden sm:inline">Ask PropertyOS</span>
         </button>
       )}
       {aiEnabled && <ErrorBoundary label="assistant" compact><Assistant open={assistant} onClose={() => setAssistant(false)} persona={persona} /></ErrorBoundary>}
@@ -242,7 +242,7 @@ function NavEntry({ item, slim, pathname }: { item: NavItem; slim: boolean; path
   );
 }
 
-function UserMenu({ name, email, subtitle }: { name: string; email?: string; subtitle: string }) {
+function UserMenu({ name, email, photo, subtitle }: { name: string; email?: string; photo?: string | null; subtitle: string }) {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -256,7 +256,7 @@ function UserMenu({ name, email, subtitle }: { name: string; email?: string; sub
   return (
     <div className="relative">
       <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-limestone-100" aria-expanded={open}>
-        <Avatar name={name} size={34} seed={email} ring />
+        <Avatar name={name} size={34} seed={email} src={photo} ring />
         <span className="hidden text-left md:block">
           <span className="block text-sm font-semibold leading-tight text-graphite-900">{name}</span>
           <span className="block max-w-[160px] truncate text-2xs text-graphite-500">{subtitle}</span>
@@ -267,6 +267,7 @@ function UserMenu({ name, email, subtitle }: { name: string; email?: string; sub
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute right-0 z-40 mt-2 w-56 rounded-md border border-limestone-200 bg-white py-1 shadow-lift">
+            <button onClick={() => { setOpen(false); nav('/app/profile'); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><UserCircle className="h-4 w-4" /> My profile</button>
             <button onClick={() => { setOpen(false); nav('/app/preferences'); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><Bell className="h-4 w-4" /> Notification preferences</button>
             <button onClick={refresh} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><RefreshCw className="h-4 w-4" /> Refresh permissions</button>
             <button onClick={() => { setToken(null); qc.clear(); nav('/signin'); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><LogOut className="h-4 w-4" /> Sign out</button>
