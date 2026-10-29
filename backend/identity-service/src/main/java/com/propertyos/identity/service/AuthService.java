@@ -160,7 +160,66 @@ public class AuthService {
             else ok = demoMode && MessageDigest.isEqual(password.getBytes(StandardCharsets.UTF_8), demoPassword.getBytes(StandardCharsets.UTF_8));
         }
         if (!ok) throw ApiException.unauthorized("Incorrect email or password.");
+        if (Boolean.TRUE.equals(user.get("must_change_password")))
+            throw new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, PASSWORD_CHANGE_REQUIRED, "You're signing in with a temporary password. Choose your own to continue.");
         return issue((UUID) user.get("id"), "PASSWORD");
+    }
+
+    /** Error code the sign-in page looks for, to show the "choose a password" step. */
+    public static final String PASSWORD_CHANGE_REQUIRED = "PASSWORD_CHANGE_REQUIRED";
+
+    /**
+     * Replaces a password (most often a temporary one) after checking the current one, then signs the user in.
+     * The new password needs at least 10 characters and must differ from the current one.
+     *
+     * @param email           the user's email
+     * @param currentPassword the password they were given or use now
+     * @param newPassword     the password they choose
+     * @return the sign-in token
+     * @throws ApiException (401) when the email or current password is wrong, (400) when the new password is not acceptable
+     */
+    public Map<String, Object> changePassword(String email, String currentPassword, String newPassword) {
+        String normalized = email == null ? "" : email.trim().toLowerCase();
+        Map<String, Object> user = UserContextHolder.runAsSystem(null, () -> tx.execute(s -> store.userByEmail(normalized))).orElse(null);
+        boolean ok = false;
+        if (user != null && currentPassword != null && !currentPassword.isEmpty()) {
+            Object stored = user.get("password_hash");
+            if (stored != null) ok = verifyPassword(currentPassword, stored.toString());
+            else ok = demoMode && MessageDigest.isEqual(currentPassword.getBytes(StandardCharsets.UTF_8), demoPassword.getBytes(StandardCharsets.UTF_8));
+        }
+        if (!ok) throw ApiException.unauthorized("Incorrect email or password.");
+        if (newPassword == null || newPassword.length() < 10) throw ApiException.badRequest("Your new password must be at least 10 characters.");
+        if (newPassword.equals(currentPassword)) throw ApiException.badRequest("Choose a password that is different from the temporary one.");
+        if (newPassword.equals(demoPassword)) throw ApiException.badRequest("That password is publicly known. Choose another.");
+        UUID id = (UUID) user.get("id");
+        UserContextHolder.runAsSystem(null, () -> {
+            tx.executeWithoutResult(s -> store.setPassword(id, hashPassword(newPassword)));
+            return null;
+        });
+        UserContext ctx = buildContext(id);
+        UserContextHolder.runAs(ctx, () -> tx.executeWithoutResult(s -> audit.record("User", id, "PASSWORD_CHANGED", null, null, Map.of())));
+        return issue(id, "PASSWORD_CHANGED");
+    }
+
+    private static final String PASSWORD_ALPHABET_LOWER = "abcdefghjkmnpqrstuvwxyz";
+    private static final String PASSWORD_ALPHABET_UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private static final String PASSWORD_ALPHABET_DIGITS = "23456789";
+    private static final String PASSWORD_ALPHABET_SYMBOLS = "-_.!#";
+
+    /**
+     * Makes a random temporary password of 14 characters: letters and digits that are easy to read aloud (no 0/O, 1/l/I),
+     * with at least one of each kind and one symbol.
+     */
+    public static String temporaryPassword() {
+        SecureRandom random = new SecureRandom();
+        String all = PASSWORD_ALPHABET_LOWER + PASSWORD_ALPHABET_UPPER + PASSWORD_ALPHABET_DIGITS + PASSWORD_ALPHABET_SYMBOLS;
+        List<Character> chars = new ArrayList<>();
+        for (String set : List.of(PASSWORD_ALPHABET_LOWER, PASSWORD_ALPHABET_UPPER, PASSWORD_ALPHABET_DIGITS, PASSWORD_ALPHABET_SYMBOLS)) chars.add(set.charAt(random.nextInt(set.length())));
+        while (chars.size() < 14) chars.add(all.charAt(random.nextInt(all.length())));
+        Collections.shuffle(chars, random);
+        StringBuilder sb = new StringBuilder();
+        chars.forEach(sb::append);
+        return sb.toString();
     }
 
     /**

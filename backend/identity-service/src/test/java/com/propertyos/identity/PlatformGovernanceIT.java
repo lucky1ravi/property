@@ -20,7 +20,7 @@ class PlatformGovernanceIT extends IdentityIntegrationTest {
         Reply r = api.post(platform, "/api/identity/platform/orgs",
                 Map.of("name", "Gov Co " + UUID.randomUUID().toString().substring(0, 6), "state", "CA", "plan", "GROWTH", "adminName", "Gov Admin", "adminEmail", email));
         assertThat(r.status()).as("onboarding: %s", r.body()).isEqualTo(200);
-        return new Company(UUID.fromString(r.body().path("orgId").asText()), api.login(email, DEMO_PASSWORD), email);
+        return new Company(UUID.fromString(r.body().path("orgId").asText()), api.firstSignIn(email, r.body().path("temporaryPassword").asText(), "Chosen-password-2026"), email);
     }
 
     @Test
@@ -68,11 +68,11 @@ class PlatformGovernanceIT extends IdentityIntegrationTest {
         String platform = api.login(PLATFORM_ADMIN, DEMO_PASSWORD);
 
         assertThat(api.put(platform, "/api/identity/platform/orgs/" + company.orgId(), Map.of("status", "SUSPENDED")).status()).isEqualTo(200);
-        Reply denied = api.post(null, "/api/identity/public/login", Map.of("email", company.adminEmail(), "password", DEMO_PASSWORD));
+        Reply denied = api.post(null, "/api/identity/public/login", Map.of("email", company.adminEmail(), "password", "Chosen-password-2026"));
         assertThat(denied.status()).isEqualTo(403);
 
         assertThat(api.put(platform, "/api/identity/platform/orgs/" + company.orgId(), Map.of("status", "ACTIVE")).status()).isEqualTo(200);
-        assertThat(api.login(company.adminEmail(), DEMO_PASSWORD)).isNotBlank();
+        assertThat(api.login(company.adminEmail(), "Chosen-password-2026")).isNotBlank();
     }
 
     @Test

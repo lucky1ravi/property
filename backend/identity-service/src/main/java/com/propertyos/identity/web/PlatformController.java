@@ -1,5 +1,6 @@
 package com.propertyos.identity.web;
 
+import com.propertyos.identity.service.AuthService;
 import com.propertyos.common.audit.AuditService;
 import com.propertyos.common.rls.Tx;
 import com.propertyos.common.security.RequiresPermission;
@@ -18,19 +19,17 @@ import java.util.*;
 @RequestMapping("/api/identity/platform")
 @RequiresPermission("PLATFORM:VIEW")
 public class PlatformController {
-    /**
-     * Plans a company can be on.
-     */
-    private static final Set<String> PLANS = Set.of("STARTER", "GROWTH", "ENTERPRISE");
     private final IdentityStore store;
     private final IdentitySeeder seeder;
     private final AuditService audit;
     private final JdbcTemplate jdbc;
     private final Tx tx;
     private final com.propertyos.identity.service.ConfigService config;
+    private final com.propertyos.identity.service.PlanService plans;
 
-    public PlatformController(IdentityStore store, IdentitySeeder seeder, AuditService audit, JdbcTemplate jdbc, Tx tx, com.propertyos.identity.service.ConfigService config) {
+    public PlatformController(IdentityStore store, IdentitySeeder seeder, AuditService audit, JdbcTemplate jdbc, Tx tx, com.propertyos.identity.service.ConfigService config, com.propertyos.identity.service.PlanService plans) {
         this.config = config;
+        this.plans = plans;
         this.store = store;
         this.seeder = seeder;
         this.audit = audit;
@@ -68,24 +67,56 @@ public class PlatformController {
     @PostMapping("/orgs")
     @RequiresPermission("PLATFORM:CONFIGURE")
     public Map<String, Object> onboard(@RequestBody Map<String, String> body) {
-        String name = body.get("name"), state = body.get("state"), plan = body.getOrDefault("plan", "GROWTH");
+        String name = body.get("name"), state = body.get("state"), plan = body.get("plan");
         String adminName = body.get("adminName"), adminEmail = body.get("adminEmail");
         if (name == null || state == null || adminName == null || adminEmail == null)
             throw ApiException.badRequest("name, state, adminName and adminEmail are required");
-        if (!PLANS.contains(plan)) throw ApiException.badRequest("Plan must be one of " + PLANS);
+        if (plan == null || plan.isBlank()) plan = tx.read(plans::defaultPlan);
+        String chosenPlan = plan;
+        if (!tx.read(() -> plans.exists(chosenPlan))) throw ApiException.badRequest("That plan doesn't exist. Pick one from the plans list.");
         UUID orgId = UUID.randomUUID();
         UUID adminId = UUID.randomUUID();
+        String temporaryPassword = AuthService.temporaryPassword();
         tx.run(() -> {
             if (store.userByEmail(adminEmail).isPresent()) throw ApiException.conflict("A user with this email already exists");
-            store.insertOrg(orgId, name, body.getOrDefault("legalName", name), state.toUpperCase(), plan);
+            store.insertOrg(orgId, name, body.getOrDefault("legalName", name), state.toUpperCase(), chosenPlan);
             seeder.seedOrg(orgId);
             store.insertUser(adminId, orgId, adminEmail, adminName, "Administrator", null, null, null, "Company owner / admin");
             UUID adminRole = com.propertyos.common.demo.DemoData.id("role:" + orgId + ":ORG_ADMIN");
             store.setUserRoles(adminId, orgId, List.of(adminRole));
+            store.setTemporaryPassword(adminId, AuthService.hashPassword(temporaryPassword));
             audit.record("Organization", orgId, "ORG_ONBOARDED", null, "ACTIVE",
-                    Map.of("name", name, "plan", plan, "by", UserContextHolder.require().name()));
+                    Map.of("name", name, "plan", chosenPlan, "by", UserContextHolder.require().name()));
         });
-        return Map.of("orgId", orgId, "adminUserId", adminId, "defaultRoles", DefaultRoles.TEMPLATES.size());
+        // Shown once to the platform operator, who passes it to the new administrator. Only its hash is stored.
+        return Map.of("orgId", orgId, "adminUserId", adminId, "defaultRoles", DefaultRoles.TEMPLATES.size(), "temporaryPassword", temporaryPassword);
+    }
+
+    /**
+     * Platform administrators: one company's profile. Covers the plan and status, the primary contact (its earliest
+     * organisation administrator), all administrators, headcount and sign-in activity, and the features switched on.
+     * Only account information is returned, never the company's business data.
+     */
+    @GetMapping("/orgs/{id}")
+    public Map<String, Object> orgDetails(@PathVariable UUID id) {
+        return tx.read(() -> {
+            Map<String, Object> org = store.org(id).orElseThrow(() -> ApiException.notFound("Company not found."));
+            Map<String, Object> m = new LinkedHashMap<>(org);
+            List<Map<String, Object>> admins = jdbc.queryForList(
+                    "select u.id, u.name, u.email, u.title, u.phone, u.status, u.mfa_enabled, u.last_login_at, u.created_at, u.must_change_password " +
+                    "from identity.app_user u join identity.user_role ur on ur.user_id = u.id join identity.role r on r.id = ur.role_id " +
+                    "where u.org_id = ? and r.role_key = 'ORG_ADMIN' order by u.created_at", id);
+            m.put("administrators", admins);
+            m.put("primaryContact", admins.isEmpty() ? null : admins.get(0));
+            m.put("userStats", jdbc.queryForMap(
+                    "select count(*) as total, count(*) filter (where status = 'ACTIVE') as active, " +
+                    "count(*) filter (where last_login_at > now() - interval '7 days') as active_7d, " +
+                    "count(*) filter (where must_change_password) as awaiting_first_sign_in, max(last_login_at) as last_sign_in " +
+                    "from identity.app_user where org_id = ?", id));
+            m.put("roleCount", jdbc.queryForObject("select count(*) from identity.role where org_id = ?", Long.class, id));
+            m.put("enabledFeatures", config.featureMatrix(id).stream().filter(f -> Boolean.TRUE.equals(f.get("enabled"))).map(f -> f.get("feature")).toList());
+            return m;
+        });
     }
 
     /**
@@ -112,7 +143,7 @@ public class PlatformController {
     @RequiresPermission("PLATFORM:CONFIGURE")
     public void updateOrg(@PathVariable UUID id, @RequestBody Map<String, String> body) {
         String plan = body.get("plan");
-        if (plan != null && !PLANS.contains(plan)) throw ApiException.badRequest("Plan must be one of " + PLANS);
+        if (plan != null && !tx.read(() -> plans.exists(plan))) throw ApiException.badRequest("That plan doesn't exist.");
         tx.run(() -> {
             store.updateOrg(id, plan, body.get("status"));
             audit.record("Organization", id, "ORG_UPDATED", null, body.get("status"), Map.of("plan", String.valueOf(plan)));

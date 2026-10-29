@@ -92,6 +92,7 @@ Everything is an environment variable; no secrets live in the repository. The fu
 | [API](docs/API.md) | Conventions, errors, pagination, how Swagger is generated |
 | [CONFIGURATION](docs/CONFIGURATION.md) | Every environment variable and per-company setting |
 | [PERFORMANCE](performance/README.md) | Gatling load, stress, spike and soak tests, with service levels and a baseline |
+| [CI-CD](docs/CI-CD.md) | Push to develop and only the changed services and apps are tested, built and deployed |
 | [AWS-DEPLOY](docs/AWS-DEPLOY.md) | ECS Fargate deployment in Mumbai: Terraform, GitHub Actions pipeline, cost, rollback |
 | [TESTING](docs/TESTING.md) | Test strategy and how to run each layer |
 | [DEPLOY](docs/DEPLOY.md) | Railway and Vercel |

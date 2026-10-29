@@ -1,3 +1,8 @@
+# MANUAL FALLBACK. Day to day, push to the develop branch and GitHub Actions deploys only what changed (docs/CI-CD.md).
+# Use this script for the very first deploy, or when GitHub Actions is not available. Note that once the pipeline has
+# deployed a service, that service runs a per-commit image tag, so this script's :latest image will not replace it
+# unless you start the services from the newest task definition (`terraform apply` creates one pointing at :latest).
+#
 # Builds the backend image, pushes it, and restarts every service on it, in the right order.
 # Run from infra/aws after `terraform apply`:   powershell -ExecutionPolicy Bypass -File .\redeploy.ps1
 # Services start from the newest task definition of their family, so settings changed in Terraform are picked up.

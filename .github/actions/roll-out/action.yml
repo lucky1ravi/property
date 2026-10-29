@@ -1,0 +1,35 @@
+name: Roll out one service
+description: Points one ECS service at the image built for this commit, waits until it is healthy, then records it as deployed.
+inputs:
+  service:
+    description: ECS service and image prefix, for example identity-service
+    required: true
+  role:
+    description: IAM role to assume
+    required: true
+  region:
+    required: true
+  cluster:
+    required: true
+  repository:
+    description: ECR repository name
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.role }}
+        aws-region: ${{ inputs.region }}
+    - id: ecr
+      uses: aws-actions/amazon-ecr-login@v2
+    - name: Roll out
+      shell: bash
+      run: |
+        bash infra/aws/deploy-service.sh "${{ inputs.cluster }}" "${{ inputs.service }}" \
+          "${{ steps.ecr.outputs.registry }}/${{ inputs.repository }}:${{ inputs.service }}-${GITHUB_SHA}"
+    - name: Record what is deployed
+      shell: bash
+      run: |
+        git tag -f "deployed/${{ inputs.service }}" "$GITHUB_SHA"
+        git push -f origin "refs/tags/deployed/${{ inputs.service }}"

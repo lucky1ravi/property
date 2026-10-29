@@ -1,18 +1,44 @@
 name: CI
 
+# Checks every pull request. Only the parts that changed are built and tested; the final job is the one to require in branch protection.
 on:
-  push:
-    branches: [develop, main]
   pull_request:
     branches: [develop, main]
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      backend_any: ${{ steps.c.outputs.backend_any }}
+      frontend: ${{ steps.c.outputs.frontend }}
+      frontend_any: ${{ steps.c.outputs.frontend_any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: c
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bash .github/scripts/changes.sh ref "origin/${{ github.base_ref }}"
+          else
+            bash .github/scripts/changes.sh all
+          fi
+
   backend:
-    name: Backend (build, unit and integration tests)
+    name: Backend (build, unit, integration and system tests, 90% coverage gate)
+    needs: changes
+    if: needs.changes.outputs.backend_any == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -55,7 +81,9 @@ jobs:
           path: backend/**/target/*-reports/
 
   frontend:
-    name: Frontend (tests and build)
+    name: Frontend (tests and build of the apps that changed)
+    needs: changes
+    if: needs.changes.outputs.frontend_any == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +98,24 @@ jobs:
       - name: Unit tests
         working-directory: frontend
         run: npm test
-      - name: Build
+      - name: Build the apps that changed
         working-directory: frontend
-        run: npm run build
+        env:
+          APPS: ${{ needs.changes.outputs.frontend }}
+        run: |
+          for app in $(echo "$APPS" | jq -r '.[]'); do
+            echo "::group::build $app"
+            npm run build -w "@propertyos/$app"
+            echo "::endgroup::"
+          done
+
+  # One result for branch protection: green when each job that had work passed (a skipped job is fine).
+  ci-ok:
+    name: CI result
+    if: always()
+    needs: [changes, backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo '${{ toJSON(needs) }}' | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo '${{ toJSON(needs) }}' | jq -e 'to_entries | any(.value.result == "failure" or .value.result == "cancelled")' >/dev/null; then exit 1; fi

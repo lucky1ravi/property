@@ -29,11 +29,13 @@ public class ConfigService {
 
     private final IdentityStore store;
     private final ConfigClient configClient;
+    private final PlanService planService;
     private final ObjectMapper mapper;
     private final AuditService audit;
     private final EventPublisher events;
 
-    public ConfigService(IdentityStore store, ConfigClient configClient, ObjectMapper mapper, AuditService audit, EventPublisher events) {
+    public ConfigService(IdentityStore store, ConfigClient configClient, PlanService planService, ObjectMapper mapper, AuditService audit, EventPublisher events) {
+        this.planService = planService;
         this.store = store;
         this.configClient = configClient;
         this.mapper = mapper;
@@ -55,8 +57,10 @@ public class ConfigService {
     @Transactional(readOnly = true)
     public ObjectNode effective(UUID orgId) {
         ObjectNode result = configClient.defaults().deepCopy();
+        result.set("plans", planService.asConfig());
         ObjectNode over = overrides(orgId);
         merge(result, over);
+        result.set("plans", planService.asConfig()); // plans are the operator's, never a company's to override
         String plan = store.org(orgId).map(o -> (String) o.get("plan")).orElse("ENTERPRISE");
         applyPlan(result, plan, store.org(orgId).map(o -> read(String.valueOf(o.get("entitlements")))).orElse(mapper.createObjectNode()));
         result.put("plan", plan);
@@ -86,6 +90,7 @@ public class ConfigService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> featureMatrix(UUID orgId) {
         ObjectNode defaults = configClient.defaults().deepCopy();
+        defaults.set("plans", planService.asConfig());
         String plan = store.org(orgId).map(o -> (String) o.get("plan")).orElseThrow(() -> ApiException.notFound("Company"));
         JsonNode ent = read(String.valueOf(store.org(orgId).get().get("entitlements")));
         JsonNode planFeatures = defaults.at("/plans/" + plan + "/features");

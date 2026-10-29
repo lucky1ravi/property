@@ -55,6 +55,14 @@ public class AuthController {
         return auth.login(body.get("email"), body.get("password"));
     }
 
+    /**
+     * Replaces a temporary (or current) password and signs in. Body: email, currentPassword, newPassword.
+     */
+    @PostMapping("/change-password")
+    public Map<String, Object> changePassword(@RequestBody Map<String, String> body) {
+        return auth.changePassword(body.get("email"), body.get("currentPassword"), body.get("newPassword"));
+    }
+
     /** Tells the sign-in page whether to show demo hints. */
     @GetMapping("/options")
     public Map<String, Object> options() {

@@ -9,6 +9,15 @@ import { AppLayout } from './layout/AppLayout';
 import { RemoteModule } from './layout/RemoteModule';
 import { Toaster } from './layout/Toaster';
 import { Logo } from './layout/Logo';
+import { SiteLayout } from './site/SiteLayout';
+import { Home } from './site/Home';
+import { Products } from './site/Products';
+import { Features } from './site/Features';
+import { Plans } from './site/Plans';
+import { WhyUs } from './site/WhyUs';
+import { Security } from './site/Security';
+import { Contact } from './site/Contact';
+import { Solutions } from './site/Solutions';
 
 const qc = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } } });
 
@@ -22,10 +31,6 @@ const remotes = {
   admin: () => import('admin/App'),
   insights: () => import('insights/App'),
 };
-
-function Landing() {
-  return getToken() ? <Navigate to="/app" replace /> : <SignIn />;
-}
 
 function PublicLayout() {
   return (
@@ -59,8 +64,17 @@ export function App() {
     <QueryClientProvider client={qc}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/signin" element={<SignIn />} />
+          <Route element={<SiteLayout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/solutions" element={<Solutions />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/plans" element={<Plans />} />
+            <Route path="/why-us" element={<WhyUs />} />
+            <Route path="/security" element={<Security />} />
+            <Route path="/contact" element={<Contact />} />
+          </Route>
+          <Route path="/signin" element={getToken() ? <Navigate to="/app" replace /> : <SignIn />} />
           <Route path="/homes/*" element={<PublicLayout />} />
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<RemoteModule name="insights" loader={remotes.insights} props={{ view: 'home' }} />} />

@@ -7,14 +7,24 @@ resource "aws_ecr_repository" "backend" {
   }
 }
 
+# Every service has its own images, tagged <service>-<commit>. Keep the latest few of EACH, so a busy service
+# can never push another service's running image out of the repository.
 resource "aws_ecr_lifecycle_policy" "backend" {
   repository = aws_ecr_repository.backend.name
   policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Keep the 15 most recent images"
-      selection    = { tagStatus = "any", countType = "imageCountMoreThan", countNumber = 15 }
-      action       = { type = "expire" }
-    }]
+    rules = concat(
+      [for i, name in sort(keys(local.services)) : {
+        rulePriority = i + 1
+        description  = "Keep the 8 most recent ${name} images"
+        selection    = { tagStatus = "tagged", tagPrefixList = ["${name}-"], countType = "imageCountMoreThan", countNumber = 8 }
+        action       = { type = "expire" }
+      }],
+      [{
+        rulePriority = 100
+        description  = "Remove untagged images after a week"
+        selection    = { tagStatus = "untagged", countType = "sinceImagePushed", countUnit = "days", countNumber = 7 }
+        action       = { type = "expire" }
+      }]
+    )
   })
 }

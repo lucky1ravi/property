@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  Home, Gauge, Building2, KeyRound, Receipt, Wrench, BarChart3, Workflow, Settings2, Users, ScrollText, Globe2, FileSignature, CalendarCheck, HandCoins, Sparkles,
+  Home, Gauge, Building2, KeyRound, Receipt, Wrench, BarChart3, Workflow, Settings2, Users, ScrollText, Globe2, LayoutTemplate, Layers3, FileSignature, CalendarCheck, HandCoins, Sparkles,
   MessagesSquare, CalendarClock, Landmark, DoorOpen, UserRound, ClipboardList, Truck, Repeat, Inbox, CreditCard, Banknote, FileText, ListChecks, Briefcase, LayoutDashboard, Megaphone, FolderOpen, Camera,
 } from 'lucide-react';
 import type { Session, Persona } from '@propertyos/ui';
@@ -118,6 +118,8 @@ export const NAV: NavGroup[] = [
         ],
       },
       { to: '/app/admin/platform', label: 'Platform', icon: Globe2, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/plans', label: 'Plans', icon: Layers3, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/website', label: 'Website', icon: LayoutTemplate, perm: 'PLATFORM:VIEW', personas: ['platform'] },
     ],
   },
 ];

@@ -190,6 +190,33 @@ class IdentityScenarioIT {
         assertEquals(409, identity.post(platform, "/api/identity/platform/orgs", Flow.map("name", "Dup " + suffix, "state", "TX",
                 "adminName", "Test Admin", "adminEmail", "admin." + suffix + "@example.test")).status());
 
+        // The new administrator gets a one-time temporary password and must replace it before getting a token.
+        String adminEmail = "admin." + suffix + "@example.test";
+        String temp = onboarded.body().path("temporaryPassword").asText();
+        assertTrue(temp.length() >= 12, "a temporary password is returned once");
+        Reply blocked = identity.post(null, "/api/identity/public/login", Map.of("email", adminEmail, "password", temp));
+        assertEquals(403, blocked.status());
+        assertEquals("PASSWORD_CHANGE_REQUIRED", blocked.body().path("code").asText());
+        assertFalse(blocked.body().has("token"), "no token before the password is changed");
+        String chosen = "Chosen-" + suffix + "-pw";
+        String change = "/api/identity/public/change-password";
+        assertEquals(401, identity.post(null, change, Map.of("email", adminEmail, "currentPassword", "wrong-one", "newPassword", chosen)).status());
+        assertEquals(400, identity.post(null, change, Map.of("email", adminEmail, "currentPassword", temp, "newPassword", "short")).status());
+        assertEquals(400, identity.post(null, change, Map.of("email", adminEmail, "currentPassword", temp, "newPassword", temp)).status());
+        Reply changed = Flow.ok(identity.post(null, change, Map.of("email", adminEmail, "currentPassword", temp, "newPassword", chosen)), "change password");
+        assertFalse(changed.body().isEmpty());
+        Flow.ok(identity.post(null, "/api/identity/public/login", Map.of("email", adminEmail, "password", chosen)), "sign in with the new password");
+        assertEquals(401, identity.post(null, "/api/identity/public/login", Map.of("email", adminEmail, "password", temp)).status());
+
+        JsonNode details = Flow.ok(identity.get(platform, "/api/identity/platform/orgs/" + orgId), "company details").body();
+        assertEquals(adminEmail, details.path("primaryContact").path("email").asText());
+        assertEquals("Test Admin", details.path("primaryContact").path("name").asText());
+        assertEquals(1, details.path("administrators").size());
+        assertEquals(1, details.path("userStats").path("total").asInt());
+        assertTrue(details.path("roleCount").asInt() > 0);
+        assertEquals(404, identity.get(platform, "/api/identity/platform/orgs/" + UUID.randomUUID()).status());
+        assertEquals(403, identity.get(Flow.env().token("ORG_ADMIN", "Harborview"), "/api/identity/platform/orgs/" + orgId).status());
+
         JsonNode matrix = Flow.ok(identity.get(platform, "/api/identity/platform/orgs/" + orgId + "/features"), "feature matrix").body();
         String feature = matrix.get(0).path("feature").asText();
         Flow.ok(identity.put(platform, "/api/identity/platform/orgs/" + orgId + "/features", Map.of(feature, false)), "turn feature off");
@@ -241,5 +268,103 @@ class IdentityScenarioIT {
         Reply foreign = identity.post(harborview, "/api/identity/users",
                 Map.of("email", "isolation-" + UUID.randomUUID() + "@harborviewres.com", "name", "Isolation Check", "roleIds", List.of(summitRole)));
         assertEquals(400, foreign.status(), "assigning another company's role must be refused: " + foreign.body());
+    }
+
+    /**
+     * The public website reads plans and features from the platform, the contact form stores enquiries only the operator
+     * can see, and the operator can change how plans are presented without touching what a plan includes.
+     */
+    @Test
+    void publicWebsiteIsDynamicAndEnquiriesStayWithTheOperator() {
+        String platform = Flow.token("PLATFORM_ADMIN");
+        String companyAdmin = Flow.env().token("ORG_ADMIN", "Harborview");
+        String site = "/api/identity/public/site";
+
+        JsonNode open = Flow.ok(identity.get(null, site), "public site").body();
+        assertEquals(3, open.path("plans").size());
+        assertTrue(open.path("features").size() >= 10);
+        JsonNode growth = null;
+        for (JsonNode p : open.path("plans")) {
+            if ("GROWTH".equals(p.path("key").asText())) growth = p;
+            if ("ENTERPRISE".equals(p.path("key").asText())) assertTrue(p.path("allFeatures").asBoolean(), "Enterprise includes every feature");
+        }
+        assertTrue(growth != null && growth.path("highlight").asBoolean() && growth.path("pricePerUnit").asDouble() > 0);
+
+        // Contact form: validation, a real enquiry, and the bot trap.
+        String contact = "/api/identity/public/contact";
+        assertEquals(400, identity.post(null, contact, Map.of("name", "A", "email", "x", "message", "short")).status());
+        assertEquals(400, identity.post(null, contact, Map.of("name", "Pat Lee", "email", "pat@example.test", "message", "Hello there, I would like a demo.", "topic", "NOPE")).status());
+        String marker = "Enquiry " + UUID.randomUUID();
+        Flow.ok(identity.post(null, contact, Flow.map("name", "Pat Lee", "email", "Pat@Example.test", "company", marker, "units", "250",
+                "topic", "pricing", "message", "We manage 250 doors and would like pricing.")), "contact form");
+        assertEquals(200, identity.post(null, contact, Flow.map("name", "Bot", "email", "bot@example.test", "company", "Bot " + marker,
+                "message", "Buy cheap watches now please", "website", "http://spam.test")).status());
+
+        JsonNode inbox = Flow.ok(identity.get(platform, "/api/identity/platform/site/contact-requests"), "enquiries").body();
+        String id = null;
+        for (JsonNode r : inbox) {
+            assertFalse(r.path("company").asText().startsWith("Bot "), "a bot submission must not be stored");
+            if (marker.equals(r.path("company").asText())) {
+                id = r.path("id").asText();
+                assertEquals("pat@example.test", r.path("email").asText());
+                assertEquals("PRICING", r.path("topic").asText());
+                assertEquals("NEW", r.path("status").asText());
+            }
+        }
+        assertTrue(id != null, "the enquiry reaches the operator");
+        assertEquals(403, identity.get(companyAdmin, "/api/identity/platform/site/contact-requests").status());
+        assertEquals(401, identity.get(null, "/api/identity/platform/site/contact-requests").status());
+        assertEquals(400, identity.put(platform, "/api/identity/platform/site/contact-requests/" + id, Map.of("status", "WHATEVER")).status());
+        Flow.ok(identity.put(platform, "/api/identity/platform/site/contact-requests/" + id, Map.of("status", "contacted")), "mark contacted");
+        assertEquals(1, Flow.ok(identity.get(platform, "/api/identity/platform/site/contact-requests?status=CONTACTED"), "filter").body().findValues("company").stream()
+                .filter(c -> marker.equals(c.asText())).count());
+
+        // The operator manages plans; the public pages follow, and a company admin cannot.
+        String plans = "/api/identity/platform/plans";
+        assertEquals(403, identity.put(companyAdmin, plans + "/STARTER", Map.of("tagline", "Hacked")).status());
+        assertEquals(403, identity.post(companyAdmin, plans, Map.of("key", "X1", "name", "X")).status());
+        assertEquals(403, identity.get(companyAdmin, plans).status());
+        assertEquals(400, identity.put(platform, plans + "/STARTER", Map.of("pricePerUnit", "cheap")).status());
+        assertEquals(404, identity.put(platform, plans + "/NOPE", Map.of("tagline", "x")).status());
+        assertEquals(400, identity.put(platform, plans + "/STARTER", Map.of("features", List.of("NOT_A_FEATURE"))).status());
+
+        String key = "TEST" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        assertEquals(400, identity.post(platform, plans, Flow.map("key", "bad key!", "name", "Bad")).status());
+        Flow.ok(identity.post(platform, plans, Flow.map("key", key, "name", "Custom " + key, "tagline", "Made for the test", "pricePerUnit", "3.50",
+                "minimumMonthly", "200", "features", List.of("LEASING", "PAYMENTS"), "highlight", true)), "create plan");
+        assertEquals(409, identity.post(platform, plans, Flow.map("key", key, "name", "Again")).status());
+        JsonNode created = null;
+        int popular = 0;
+        for (JsonNode p : Flow.ok(identity.get(null, site), "site with new plan").body().path("plans")) {
+            if (p.path("highlight").asBoolean()) popular++;
+            if (key.equals(p.path("key").asText())) created = p;
+        }
+        assertTrue(created != null && created.path("pricePerUnit").asDouble() == 3.5 && created.path("features").size() == 2, "a new plan appears on the website");
+        assertEquals(1, popular, "only one plan is marked most popular");
+
+        // A company on the plan gets exactly the plan's features, and changing the plan changes the company.
+        String org = Flow.ok(identity.post(platform, "/api/identity/platform/orgs", Flow.map("name", "Plan Co " + marker, "state", "TX", "plan", key,
+                "adminName", "Plan Admin", "adminEmail", "plan." + marker.replace(" ", "") + "@example.test")), "onboard onto the new plan").body().path("orgId").asText();
+        assertEquals(409, identity.delete(platform, plans + "/" + key).status(), "a plan with companies can't be deleted");
+        JsonNode matrix = Flow.ok(identity.get(platform, "/api/identity/platform/orgs/" + org + "/features"), "feature matrix").body();
+        for (JsonNode f : matrix) assertEquals(List.of("LEASING", "PAYMENTS").contains(f.path("feature").asText()), f.path("enabled").asBoolean(), f.path("feature").asText());
+        Flow.ok(identity.put(platform, plans + "/" + key, Flow.map("features", List.of("LEASING", "PAYMENTS", "MAINTENANCE"), "name", "Renamed " + key)), "add a feature to the plan");
+        for (JsonNode f : Flow.ok(identity.get(platform, "/api/identity/platform/orgs/" + org + "/features"), "matrix again").body())
+            if ("MAINTENANCE".equals(f.path("feature").asText())) assertTrue(f.path("enabled").asBoolean(), "the plan's new feature reaches its companies");
+        Flow.ok(identity.put(platform, plans + "/" + key, Flow.map("features", List.of("*"))), "all features");
+        Flow.ok(identity.put(platform, "/api/identity/platform/orgs/" + org, Map.of("plan", "STARTER")), "move the company to Starter");
+        assertEquals(400, identity.put(platform, "/api/identity/platform/orgs/" + org, Map.of("plan", "NO_SUCH_PLAN")).status());
+        Flow.ok(identity.delete(platform, plans + "/" + key), "delete the empty plan");
+        for (JsonNode p : Flow.ok(identity.get(null, site), "site after delete").body().path("plans")) assertFalse(key.equals(p.path("key").asText()));
+        Flow.ok(identity.put(platform, plans + "/GROWTH", Map.of("highlight", true)), "restore highlight");
+        assertEquals(200, identity.get(platform, plans).status());
+
+        String feature = "/api/identity/platform/site/features/ESIGN";
+        Flow.ok(identity.put(platform, feature, Map.of("visible", false)), "hide a feature");
+        for (JsonNode f : Flow.ok(identity.get(null, site), "site without feature").body().path("features")) assertFalse("ESIGN".equals(f.path("key").asText()));
+        for (JsonNode p : Flow.ok(identity.get(null, site), "plans without feature").body().path("plans")) for (JsonNode f : p.path("features")) assertFalse("ESIGN".equals(f.asText()));
+        Flow.ok(identity.put(platform, feature, Map.of("visible", true)), "show it again");
+        assertEquals(400, identity.put(platform, feature, Map.of("title", "")).status());
+        assertEquals(200, identity.get(platform, "/api/identity/platform/site/features").status());
     }
 }

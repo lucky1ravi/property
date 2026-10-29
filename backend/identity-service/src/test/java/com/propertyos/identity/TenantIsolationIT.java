@@ -21,7 +21,7 @@ class TenantIsolationIT extends IdentityIntegrationTest {
         Reply created = api.post(platform, "/api/identity/platform/orgs",
                 Map.of("name", name, "state", "TX", "plan", "GROWTH", "adminName", name + " Admin", "adminEmail", adminEmail));
         assertThat(created.status()).as("onboarding: %s", created.body()).isEqualTo(200);
-        return api.login(adminEmail, DEMO_PASSWORD);
+        return api.firstSignIn(adminEmail, created.body().path("temporaryPassword").asText(), "Chosen-password-2026");
     }
 
     private static boolean contains(JsonNode array, String field, String value) {

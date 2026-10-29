@@ -1,83 +1,184 @@
 name: Deploy to AWS
 
-# Manual: builds the image, rolls the ECS services one by one, publishes the frontend, then smoke-tests the result.
-# Needs the repository variables printed by `terraform output github_variables` (see docs/AWS-DEPLOY.md).
+# Continuous delivery. Every push to develop deploys ONLY what changed since it was last deployed:
+#   - each changed backend service is tested, packaged into its own small image, and rolled out on its own
+#     (identity first, then the other services, the gateway last);
+#   - each changed frontend app is built and uploaded on its own, and only its files are invalidated in CloudFront.
+# A change to shared code (platform-common, the shared UI package) rebuilds everything that depends on it.
+# "Last deployed" is the git tag deployed/<unit>, moved after every successful rollout.
+# Needs the repository variables printed by `terraform output github_variables` (see docs/CI-CD.md).
 on:
+  push:
+    branches: [develop]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/deploy.yml'
+      - '.github/scripts/**'
   workflow_dispatch:
     inputs:
-      backend:
-        description: Build and deploy the backend services
-        type: boolean
-        default: true
-      frontend:
-        description: Build and publish the frontend
-        type: boolean
-        default: true
-      smoke:
-        description: Run the Gatling smoke test against the deployed app
+      everything:
+        description: Rebuild and deploy every service and app, even if unchanged
         type: boolean
         default: false
 
+# One deployment at a time. A newer push waits, and works out what changed since the last SUCCESSFUL deployment,
+# so nothing is skipped when runs queue up.
 concurrency:
   group: deploy-aws
   cancel-in-progress: false
 
 permissions:
-  id-token: write # OIDC to AWS
-  contents: read
+  id-token: write # OIDC to AWS, no stored keys
+  contents: write # moves the deployed/<unit> tags
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
 
 jobs:
-  backend:
-    name: Backend (build, push, roll out)
-    if: ${{ inputs.backend }}
+  changes:
+    name: What changed since the last deploy
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.c.outputs.backend }}
+      identity: ${{ steps.c.outputs.identity }}
+      workers: ${{ steps.c.outputs.workers }}
+      gateway: ${{ steps.c.outputs.gateway }}
+      frontend: ${{ steps.c.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the deployed/* tags and the history between them
+      - id: c
+        run: |
+          if [ "${{ inputs.everything }}" = "true" ]; then mode=all; else mode=deployed; fi
+          bash .github/scripts/changes.sh "$mode"
+      - name: Summary
+        run: |
+          {
+            echo "### Deploying"
+            echo "- Backend: \`${{ steps.c.outputs.backend }}\`"
+            echo "- Frontend: \`${{ steps.c.outputs.frontend }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------- backend: test, package and publish each changed service in parallel ----------
+  build:
+    name: Build ${{ matrix.service }}
+    needs: changes
+    if: needs.changes.outputs.backend != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.backend) }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      IT_JDBC_URL: jdbc:postgresql://localhost:5432/postgres
+      IT_DB_USER: postgres
+      IT_DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Test and package this service (and the shared code it uses)
+        working-directory: backend
+        run: mvn -B -ntp -pl "${{ matrix.service }}" -am verify
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
-      - name: Build and push image
-        id: image
-        working-directory: backend
+      - name: Build and push the image
         run: |
-          uri="${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}"
-          docker build -t "$uri:${GITHUB_SHA}" -t "$uri:latest" .
-          docker push "$uri:${GITHUB_SHA}"
-          docker push "$uri:latest"
-          echo "uri=$uri:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-      - name: Roll out (identity first, gateway last)
-        env:
-          CLUSTER: ${{ vars.ECS_CLUSTER }}
-          IMAGE: ${{ steps.image.outputs.uri }}
-        run: |
-          # Identity creates the shared schema, so it goes first; workers can go together; the gateway last.
-          infra/aws/deploy-service.sh "$CLUSTER" identity-service "$IMAGE"
-          pids=()
-          for s in leasing-service billing-service maintenance-service workflow-service ai-service document-service; do
-            infra/aws/deploy-service.sh "$CLUSTER" "$s" "$IMAGE" & pids+=($!)
-          done
-          fail=0; for p in "${pids[@]}"; do wait "$p" || fail=1; done
-          [ "$fail" = 0 ] || { echo "a worker rollout failed"; exit 1; }
-          infra/aws/deploy-service.sh "$CLUSTER" api-gateway "$IMAGE"
-      - name: Smoke check through CloudFront
-        run: |
-          for i in $(seq 1 12); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.APP_URL }}/api/identity/public/demo-users" || true)
-            [ "$code" = 200 ] && { echo "API answered 200"; exit 0; }
-            echo "attempt $i: HTTP $code"; sleep 10
-          done
-          echo "API did not answer 200 in time"; exit 1
+          ctx=$(mktemp -d)
+          cp "backend/${{ matrix.service }}/target/app.jar" "$ctx/app.jar"
+          cp backend/docker-entrypoint.sh "$ctx/"
+          image="${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ matrix.service }}-${GITHUB_SHA}"
+          docker build -f backend/Dockerfile.service --build-arg SERVICE="${{ matrix.service }}" -t "$image" "$ctx"
+          docker push "$image"
+      - name: Keep test reports when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.service }}
+          path: backend/**/target/*-reports/
 
+  # ---------- backend: roll out in dependency order ----------
+  deploy-identity:
+    name: Roll out identity-service
+    needs: [changes, build]
+    if: needs.changes.outputs.identity == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/roll-out
+        with:
+          service: identity-service
+          role: ${{ vars.AWS_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          repository: ${{ vars.ECR_REPOSITORY }}
+
+  deploy-workers:
+    name: Roll out ${{ matrix.service }}
+    needs: [changes, build, deploy-identity]
+    if: >-
+      always() && needs.changes.outputs.workers != '[]' && needs.build.result == 'success' &&
+      (needs.deploy-identity.result == 'success' || needs.deploy-identity.result == 'skipped')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.workers) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/roll-out
+        with:
+          service: ${{ matrix.service }}
+          role: ${{ vars.AWS_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          repository: ${{ vars.ECR_REPOSITORY }}
+
+  deploy-gateway:
+    name: Roll out api-gateway
+    needs: [changes, build, deploy-identity, deploy-workers]
+    if: >-
+      always() && needs.changes.outputs.gateway == 'true' && needs.build.result == 'success' &&
+      (needs.deploy-identity.result == 'success' || needs.deploy-identity.result == 'skipped') &&
+      (needs.deploy-workers.result == 'success' || needs.deploy-workers.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/roll-out
+        with:
+          service: api-gateway
+          role: ${{ vars.AWS_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          repository: ${{ vars.ECR_REPOSITORY }}
+
+  # ---------- frontend: build and publish only the apps that changed ----------
   frontend:
-    name: Frontend (build, upload, invalidate)
-    if: ${{ inputs.frontend && !cancelled() && (needs.backend.result == 'success' || needs.backend.result == 'skipped') }}
-    needs: backend
+    name: Frontend (${{ needs.changes.outputs.frontend }})
+    needs: [changes, build, deploy-identity, deploy-workers, deploy-gateway]
+    if: >-
+      always() && needs.changes.outputs.frontend != '[]' &&
+      !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,47 +187,73 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Build
+      - name: Install and test
         working-directory: frontend
-        env:
-          VITE_API_URL: ${{ vars.APP_URL }}
         run: |
           npm ci
           npm test
-          npm run build
+      - name: Build the apps that changed
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ vars.APP_URL }}
+          APPS: ${{ needs.changes.outputs.frontend }}
+        run: |
+          for app in $(echo "$APPS" | jq -r '.[]'); do
+            echo "::group::build $app"
+            npm run build -w "@propertyos/$app"
+            echo "::endgroup::"
+          done
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - name: Upload with cache headers
-        working-directory: frontend/dist
+      - name: Upload each changed app
+        env:
+          APPS: ${{ needs.changes.outputs.frontend }}
+          BUCKET: s3://${{ vars.FRONTEND_BUCKET }}
         run: |
-          bucket="s3://${{ vars.FRONTEND_BUCKET }}"
-          # Hashed assets never change: cache for a year. Everything else (index.html, remoteEntry.js) stays fresh.
-          aws s3 sync . "$bucket" --delete --exclude "*/assets/*" --exclude "assets/*" \
-            --cache-control "public, max-age=300"
-          aws s3 sync . "$bucket" --exclude "*" --include "assets/*" --include "*/assets/*" \
-            --cache-control "public, max-age=31536000, immutable"
-      - name: Invalidate CloudFront
-        run: aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
+          paths=()
+          for app in $(echo "$APPS" | jq -r '.[]'); do
+            if [ "$app" = shell ]; then
+              dir=frontend/apps/shell/dist; dest="$BUCKET"; extra=(--exclude "remotes/*"); paths+=("/index.html" "/favicon*")
+            else
+              dir="frontend/apps/$app/dist"; dest="$BUCKET/remotes/$app"; extra=(); paths+=("/remotes/$app/*")
+            fi
+            # Hashed files never change, so they are cached for a year. index.html and remoteEntry.js keep their
+            # names between releases, so browsers must re-check them.
+            aws s3 sync "$dir" "$dest" --delete "${extra[@]}" --exclude "assets/*" --cache-control "no-cache"
+            aws s3 sync "$dir/assets" "$dest/assets" --exclude "remoteEntry*.js" --cache-control "public, max-age=31536000, immutable"
+            if [ -f "$dir/assets/remoteEntry.js" ]; then
+              aws s3 cp "$dir/assets/remoteEntry.js" "$dest/assets/remoteEntry.js" --cache-control "no-cache" --content-type "application/javascript"
+            fi
+          done
+          echo "paths=${paths[*]}" >> "$GITHUB_ENV"
+      - name: Refresh CloudFront for those files only
+        run: |
+          set -f # the paths contain * and must reach CloudFront as written
+          aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths $paths
+      - name: Record what is deployed
+        env:
+          APPS: ${{ needs.changes.outputs.frontend }}
+        run: |
+          for app in $(echo "$APPS" | jq -r '.[]'); do
+            git tag -f "deployed/$app" "$GITHUB_SHA"
+            git push -f origin "refs/tags/deployed/$app"
+          done
 
   smoke:
-    name: Performance smoke test
-    if: ${{ inputs.smoke && !cancelled() && needs.frontend.result != 'failure' && needs.backend.result != 'failure' }}
-    needs: [backend, frontend]
+    name: Smoke check through CloudFront
+    needs: [changes, deploy-identity, deploy-workers, deploy-gateway, frontend]
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') &&
+      (needs.changes.outputs.backend != '[]' || needs.changes.outputs.frontend != '[]')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-      - name: Gatling smoke
-        working-directory: performance
-        run: mvn -B gatling:test -DbaseUrl="${{ vars.APP_URL }}" -Dorg=Summit -Dusers=3 -DrampSeconds=10 -DholdSeconds=20
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: gatling-report
-          path: performance/target/gatling
+      - run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.APP_URL }}/api/identity/public/options" || true)
+            app=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.APP_URL }}/" || true)
+            [ "$code" = 200 ] && [ "$app" = 200 ] && { echo "API and website answered 200"; exit 0; }
+            echo "attempt $i: API $code, website $app"; sleep 10
+          done
+          echo "The site did not answer 200 in time"; exit 1

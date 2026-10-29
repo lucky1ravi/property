@@ -74,6 +74,21 @@ public final class ApiClient {
         return r.body().path("token").asText();
     }
 
+    /**
+     * Completes a first sign-in: swaps the temporary password for a new one and returns the access token.
+     *
+     * @param email             the new user's email
+     * @param temporaryPassword the one-time password given at onboarding
+     * @param newPassword       the password to set (at least 10 characters)
+     * @return the access token
+     */
+    public String firstSignIn(String email, String temporaryPassword, String newPassword) {
+        Reply r = post(null, "/api/identity/public/change-password",
+                Map.of("email", email, "currentPassword", temporaryPassword, "newPassword", newPassword));
+        if (r.status() != 200) throw new AssertionError("Password change failed for " + email + ": " + r.status() + " " + r.body());
+        return r.body().path("token").asText();
+    }
+
     /** Uploads one file as multipart form data. */
     public Reply upload(String token, String path, String fileName, byte[] content, Map<String, String> fields) {
         MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();

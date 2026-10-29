@@ -105,7 +105,14 @@ public class IdentityStore {
      * Stores a password hash.
      */
     public void setPassword(UUID id, String hash) {
-        jdbc.update("update identity.app_user set password_hash = ?, updated_at = now() where id = ?", hash, id);
+        jdbc.update("update identity.app_user set password_hash = ?, must_change_password = false, updated_at = now() where id = ?", hash, id);
+    }
+
+    /**
+     * Stores a temporary password hash. The user must choose their own password before signing in.
+     */
+    public void setTemporaryPassword(UUID id, String hash) {
+        jdbc.update("update identity.app_user set password_hash = ?, must_change_password = true, updated_at = now() where id = ?", hash, id);
     }
 
     /**

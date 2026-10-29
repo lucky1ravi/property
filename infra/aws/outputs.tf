@@ -30,7 +30,7 @@ output "github_deploy_role_arn" {
 }
 
 output "github_variables" {
-  description = "Paste-ready commands that configure the deploy workflow."
+  description = "Paste-ready commands that configure the deploy workflow (see docs/CI-CD.md)."
   value       = <<-EOT
     gh variable set AWS_ROLE_ARN --body ${aws_iam_role.github_deploy.arn}
     gh variable set AWS_REGION --body ${var.region}

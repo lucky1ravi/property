@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, KeyRound, Mail, ShieldCheck } from 'lucide-react';
-import { api, setToken, Button, Input, Field, Avatar, Spinner, Select, toastError, errorText } from '@propertyos/ui';
+import { ArrowDown, KeyRound, ShieldCheck } from 'lucide-react';
+import { api, ApiError, setToken, Button, Input, Field, Avatar, Spinner, Select, toastError, errorText } from '@propertyos/ui';
 import { Streetscape } from './Streetscape';
 import { Logo } from '../layout/Logo';
 
@@ -21,12 +21,15 @@ export function SignIn() {
 
   const demo = useQuery({ queryKey: ['demo-users'], queryFn: () => api.get<{ enabled: boolean; users: DemoUser[] }>('/api/identity/public/demo-users') });
   const [busy, setBusy] = useState<string | null>(null);
-  const [mode, setMode] = useState<'password' | 'persona' | 'email'>('password');
+  const [mode, setMode] = useState<'password' | 'persona'>('password');
   const options = useQuery({ queryKey: ['signin-options'], queryFn: () => api.get<{ demo: boolean; demoPassword?: string }>('/api/identity/public/options'), retry: false });
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const apiDown = options.isError && demo.isError;
 
+  const [mustChange, setMustChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const signInWithPassword = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setFormError(null);
@@ -35,13 +38,25 @@ export function SignIn() {
       const r = await api.post<{ token: string }>('/api/identity/public/login', { email: email.trim(), password });
       finish(r.token);
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'PASSWORD_CHANGE_REQUIRED') setMustChange(true);
+      else setFormError(errorText(err));
+      setBusy(null);
+    }
+  };
+  const choosePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    if (newPassword !== confirmPassword) { setFormError('The two passwords don’t match.'); return; }
+    setBusy('change');
+    try {
+      const r = await api.post<{ token: string }>('/api/identity/public/change-password', { email: email.trim(), currentPassword: password, newPassword });
+      finish(r.token);
+    } catch (err) {
       setFormError(errorText(err));
       setBusy(null);
     }
   };
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [codeSent, setCodeSent] = useState<{ demoCode?: string } | null>(null);
 
   const finish = (token: string) => {
     setToken(token);
@@ -55,28 +70,6 @@ export function SignIn() {
       finish(r.token);
     } catch (e) {
       toastError(e, 'Sign-in failed');
-      setBusy(null);
-    }
-  };
-
-  const requestCode = async () => {
-    setBusy('email');
-    try {
-      setCodeSent(await api.post('/api/identity/public/otp/request', { email }));
-    } catch (e) {
-      toastError(e);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const verify = async () => {
-    setBusy('verify');
-    try {
-      const r = await api.post<{ token: string }>('/api/identity/public/otp/verify', { email, code });
-      finish(r.token);
-    } catch (e) {
-      toastError(e, 'Couldn’t verify that code');
       setBusy(null);
     }
   };
@@ -116,12 +109,11 @@ export function SignIn() {
             <div className="border-b border-limestone-200 px-6 pb-4 pt-5">
               <h2 className="text-xl font-extrabold tracking-[-0.01em] text-graphite-950">Sign in</h2>
               <p className="mt-1 text-sm text-graphite-600">
-                {params.get('expired') ? 'Your session ended. Sign in again to continue.' : 'Sign in with your email and password, or pick a demo persona.'}
+                {params.get('expired') ? 'Your session ended. Sign in again to continue.' : 'Sign in with your email and password.'}
               </p>
-              <div className="mt-4 grid grid-cols-3 gap-1 rounded bg-limestone-100 p-1 text-sm font-semibold">
+              <div className="mt-4 grid grid-cols-2 gap-1 rounded bg-limestone-100 p-1 text-sm font-semibold">
                 <button onClick={() => setMode('password')} className={`rounded py-1.5 ${mode === 'password' ? 'bg-white text-federal-900 shadow-sm' : 'text-graphite-500'}`}>Password</button>
                 <button onClick={() => setMode('persona')} className={`rounded py-1.5 ${mode === 'persona' ? 'bg-white text-federal-900 shadow-sm' : 'text-graphite-500'}`}>Demo personas</button>
-                <button onClick={() => setMode('email')} className={`rounded py-1.5 ${mode === 'email' ? 'bg-white text-federal-900 shadow-sm' : 'text-graphite-500'}`}>Email code</button>
               </div>
             </div>
 
@@ -130,7 +122,19 @@ export function SignIn() {
                 We can’t connect to PropertyOS right now. Check your internet connection, wait a minute, and reload the page. If it keeps happening, contact your administrator.
               </div>
             )}
-            {mode === 'password' ? (
+            {mode === 'password' && mustChange ? (
+              <form onSubmit={choosePassword} className="space-y-4 px-6 py-5">
+                <p className="text-sm text-graphite-700">You signed in with a temporary password. Choose your own to continue.</p>
+                <Field label="New password" hint="At least 10 characters.">
+                  <Input type="password" autoComplete="new-password" required minLength={10} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                </Field>
+                <Field label="Confirm new password">
+                  <Input type="password" autoComplete="new-password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                </Field>
+                {formError && <p role="alert" className="text-sm font-semibold text-crit-700">{formError}</p>}
+                <Button type="submit" variant="primary" className="w-full" icon={<KeyRound className="h-4 w-4" />} loading={busy === 'change'} disabled={newPassword.length < 10 || !confirmPassword}>Save password and sign in</Button>
+              </form>
+            ) : mode === 'password' ? (
               <form onSubmit={signInWithPassword} className="space-y-4 px-6 py-5">
                 <Field label="Work email">
                   <Input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
@@ -171,26 +175,7 @@ export function SignIn() {
                   </li>
                 ))}
               </ul>
-            ) : (
-              <div className="space-y-4 px-6 py-5">
-                <Field label="Work email">
-                  <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
-                </Field>
-                {!codeSent ? (
-                  <Button variant="primary" className="w-full" icon={<Mail className="h-4 w-4" />} loading={busy === 'email'} disabled={!email.includes('@')} onClick={requestCode}>
-                    Email me a sign-in code
-                  </Button>
-                ) : (
-                  <>
-                    <Field label="6-digit code" hint={codeSent.demoCode ? `Demo mode: your code is ${codeSent.demoCode}` : 'Check your inbox. The code expires in 10 minutes.'}>
-                      <Input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
-                    </Field>
-                    <Button variant="primary" className="w-full" loading={busy === 'verify'} disabled={code.length !== 6} onClick={verify}>Verify and sign in</Button>
-                  </>
-                )}
-                <p className="text-xs text-graphite-500">Try sarah.mitchell@summitridgepg.com. Google sign-in and MFA are configured per organisation in production.</p>
-              </div>
-            )}
+            ) : null}
             <div className="flex items-center gap-2 border-t border-limestone-200 px-6 py-3 text-xs text-graphite-500">
               <ShieldCheck className="h-4 w-4 text-federal-700" /> Every role sees only its own data, enforced in the database.
             </div>
@@ -233,7 +218,7 @@ function HowItWorks() {
         </div>
         <footer className="mt-20 flex flex-wrap items-center justify-between gap-4 border-t border-limestone-300 pt-6 text-sm text-graphite-500">
           <Logo />
-          <span>Built for US residential property management. Demo data only.</span>
+          <span>Built for US residential property management.</span>
         </footer>
       </div>
     </section>

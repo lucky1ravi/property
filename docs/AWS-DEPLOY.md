@@ -194,3 +194,7 @@ Use `db_instance_class = "db.t4g.small"` if you will run the load tests live.
 | 502 or 503 from `/api/...` | The gateway has no healthy task, or a downstream circuit breaker is open (the response carries `Retry-After: 10`). |
 | Blank page after sign-in | Frontend built without `VITE_API_URL`; rebuild with the CloudFront address and re-upload. |
 | Need a shell in a task | `aws ecs execute-command --cluster propertyos-demo --task <id> --container <service> --interactive --command sh` |
+
+## Continuous delivery
+
+After the first deployment, let GitHub Actions deploy changes: see [CI-CD.md](CI-CD.md).

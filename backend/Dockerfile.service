@@ -1,0 +1,18 @@
+# Runtime image for ONE service, built from a jar the pipeline already compiled and tested.
+# Compiling happens once, on the build runner with a warm Maven cache; this file only packages the result,
+# so building an image takes seconds instead of recompiling every service.
+#
+#   docker build -f Dockerfile.service --build-arg SERVICE=identity-service <folder containing app.jar and docker-entrypoint.sh>
+FROM eclipse-temurin:21-jre
+ARG SERVICE
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && useradd -r -u 10001 propertyos
+WORKDIR /app
+COPY app.jar /app/${SERVICE}.jar
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+USER propertyos
+ENV SERVICE=${SERVICE} \
+    JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k"
+EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=3s --start-period=90s --retries=3 CMD curl -fs http://localhost:${PORT:-8080}/actuator/health/readiness || exit 1
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
