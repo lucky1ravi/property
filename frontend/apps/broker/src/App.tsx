@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Send, ShieldCheck } from 'lucide-react';
 import {
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, Input, StatusPill, Badge, AiInsight, AiMark, EmptyState, Skeleton,
-  useApi, useAction, api, fmt, DataTable, type Column,, RichText } from '@propertyos/ui';
+  useApi, useAction, api, fmt, DataTable, type Column, RichText } from '@propertyos/ui';
 
 const go = (p: string) => (p.startsWith('/app') ? p : '/app' + p);
 const KIND_LABEL: Record<string, string> = {

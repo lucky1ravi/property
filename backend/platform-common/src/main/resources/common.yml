@@ -9,6 +9,7 @@ propertyos:
     maintenance: ${MAINTENANCE_URL:http://localhost:8084}
     workflow: ${WORKFLOW_URL:http://localhost:8085}
     ai: ${AI_URL:http://localhost:8086}
+    documents: ${DOCUMENTS_URL:http://localhost:8087}
   demo:
     enabled: ${DEMO_MODE:true}
 

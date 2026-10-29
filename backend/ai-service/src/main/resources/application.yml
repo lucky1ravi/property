@@ -3,6 +3,10 @@ spring:
     name: ai-service
   config:
     import: classpath:common.yml
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
   flyway:
     schemas: ai
     default-schema: ai

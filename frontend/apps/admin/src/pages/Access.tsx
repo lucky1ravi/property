@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
-  PageHeader, Panel, Button, StatusPill, DataTable, type Column, Tabs, Modal, Field, Input, Select, Textarea, Badge, Skeleton, EmptyState, ConfirmDialog,
+  PageHeader, Panel, Button, StatusPill, DataTable, PersonCell, type Column, Tabs, Modal, Field, Input, Select, Textarea, Badge, Skeleton, EmptyState, ConfirmDialog,
   useApi, useAction, api, fmt, useSession,
 } from '@propertyos/ui';
 
@@ -34,7 +34,7 @@ function Users({ roles }: { roles: any[] }) {
   const { data, isLoading } = useApi<any[]>('/api/identity/users');
   const [u, setU] = useState<any>(null);
   const cols: Column<any>[] = [
-    { key: 'name', header: 'Name', render: (r) => (<div><div className="font-semibold">{r.name}</div><div className="text-xs text-graphite-500">{r.email}</div></div>) },
+    { key: 'name', header: 'Name', render: (r) => (<PersonCell name={r.name} sub={r.email} size={36} seed={r.email} />) },
     { key: 'roles', header: 'Roles', value: (r) => (r.roles ?? []).map((x: any) => x.name).join(', '), render: (r) => <div className="flex flex-wrap gap-1">{(r.roles ?? []).map((x: any) => <Badge key={x.id}>{x.name}</Badge>)}</div> },
     { key: 'persona', header: 'Type', hideOnMobile: true },
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status} /> },

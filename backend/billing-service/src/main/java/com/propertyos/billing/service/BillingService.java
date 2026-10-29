@@ -72,7 +72,13 @@ public class BillingService {
         BigDecimal limit = UserContextHolder.require().limit("INVOICE");
         if (limit != null && amount.compareTo(limit) > 0)
             throw ApiException.forbidden("Amount exceeds your charge approval limit of " + limit + ".");
-        UUID id = insertInvoice(lease, Optional.ofNullable(Req.str(b, "kind")).orElse("OTHER"), Req.required(b, "description"), null, amount,
+        String chargeKind = Optional.ofNullable(Req.str(b, "kind")).orElse("OTHER");
+        if ("LATE_FEE".equals(chargeKind)) {
+            BigDecimal cap = lateFeeCap(String.valueOf(lease.get("state")), (BigDecimal) lease.getOrDefault("rent", BigDecimal.ZERO));
+            if (cap != null && amount.compareTo(cap) > 0)
+                throw ApiException.badRequest("A late fee in " + lease.get("state") + " can't be more than $" + cap + " under your state rules.");
+        }
+        UUID id = insertInvoice(lease, chargeKind, Req.required(b, "description"), null, amount,
                 Optional.ofNullable(Req.date(b, "dueDate")).orElse(LocalDate.now().plusDays(10)));
         notifier.toParty(tenantId, "New charge on your account", Req.required(b, "description") + ": $" + amount, "/payments");
         return Map.of("id", id);
@@ -90,18 +96,90 @@ public class BillingService {
         return invoice(id);
     }
 
-    UUID insertInvoice(Map<String, Object> lease, String kind, String description, String period, BigDecimal amount, LocalDate due) {
+    UUID insertInvoice(Map<String, Object> lease, String kind, String description, String period, BigDecimal subtotal, LocalDate due) {
         UUID id = UUID.randomUUID();
+        String state = lease.get("state") == null ? null : String.valueOf(lease.get("state"));
+        BigDecimal rate = taxRate(kind, state);
+        BigDecimal tax = subtotal.multiply(rate).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal amount = subtotal.add(tax);
+        String number = config.text("payments/invoice/numberPrefix", "INV").replaceAll("[^A-Za-z0-9]", "") + "-" + LocalDate.now().getYear() + "-"
+                + String.format("%06d", db.value(Long.class, "select nextval('billing.invoice_seq')"));
         db.update("""
-                insert into billing.invoice (id, org_id, property_id, owner_id, tenant_id, lease_id, tenant_name, unit_label, kind, description, period, amount, due_date, created_by)
-                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                insert into billing.invoice (id, org_id, property_id, owner_id, tenant_id, lease_id, tenant_name, unit_label, kind, description, period, amount, due_date, created_by,
+                                             invoice_number, subtotal, tax_rate, tax_amount, state)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 id, lease.get("org_id"), lease.get("property_id"), lease.get("owner_id"), lease.get("tenant_id"), lease.get("id"),
                 lease.get("tenant_name"), lease.get("property_name") + " · " + lease.get("unit_label"), kind, description, period, amount, due,
-                UserContextHolder.get() == null ? "System" : UserContextHolder.get().name());
+                UserContextHolder.get() == null ? "System" : UserContextHolder.get().name(), number, subtotal, rate, tax, state);
         Map<String, Object> inv = Map.of("org_id", lease.get("org_id"), "property_id", lease.get("property_id"), "owner_id", lease.get("owner_id"), "tenant_id", lease.get("tenant_id"));
-        ledger(inv, "CHARGE", amount, description, "INVOICE", id);
-        audit.record("Invoice", id, "CREATED", null, "OPEN", Map.of("amount", amount, "kind", kind));
+        ledger(inv, "CHARGE", amount, description + (tax.signum() > 0 ? " (incl. $" + tax + " tax)" : ""), "INVOICE", id);
+        audit.record("Invoice", id, "CREATED", null, "OPEN", Map.of("amount", amount, "kind", kind, "tax", tax, "number", number));
         return id;
+    }
+
+    // ---------- Tax, fee caps and convenience fees (all driven by the "payments" and "stateRules" configuration) ----------
+    /** Sales or rental tax rate for this kind of charge in this state. Deposits and returned-payment fees are never taxed. */
+    BigDecimal taxRate(String kind, String state) {
+        if (!config.flag("payments/tax/enabled", true)) return BigDecimal.ZERO;
+        String flag = switch (kind) {
+            case "RENT" -> "taxRent";
+            case "LATE_FEE" -> "taxLateFees";
+            case "UTILITY" -> "taxUtilities";
+            case "APPLICATION" -> "taxApplicationFees";
+            case "OTHER", "FEE" -> "taxOther";
+            default -> null;
+        };
+        if (flag == null || !config.flag("payments/tax/" + flag, false)) return BigDecimal.ZERO;
+        JsonNode r = state == null ? null : config.at("payments/tax/rates/" + state);
+        BigDecimal pct = r == null || r.isMissingNode() || r.isNull() ? config.number("payments/tax/defaultRatePercent", "0") : new BigDecimal(r.asText());
+        return pct.max(BigDecimal.ZERO).min(new BigDecimal("30"));
+    }
+
+    /** Highest late fee allowed in the state (lower of the percentage and flat caps), or null when the state sets no cap. */
+    BigDecimal lateFeeCap(String state, BigDecimal rent) {
+        if (!config.flag("payments/enforceStateFeeCaps", true)) return null;
+        JsonNode rule = config.stateRule(state);
+        BigDecimal cap = null;
+        JsonNode pct = rule.path("lateFeeCapPercent");
+        if (pct.isNumber()) cap = rent.multiply(pct.decimalValue()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        JsonNode flat = rule.path("lateFeeCapFlat");
+        if (flat.isNumber()) cap = cap == null ? flat.decimalValue() : cap.min(flat.decimalValue());
+        return cap;
+    }
+
+    /** Convenience fee the payer is charged on top of the amount applied to the account. */
+    BigDecimal convenienceFee(BigDecimal amount, String method, String state) {
+        if ("CARD".equals(method)) {
+            BigDecimal pct = config.number("payments/convenienceFees/cardPercent", "0").min(new BigDecimal("3")).max(BigDecimal.ZERO);   // card networks cap surcharges at 3%
+            JsonNode blocked = config.at("payments/convenienceFees/surchargeBlockedStates");
+            if (state != null && blocked.isArray()) for (JsonNode n : blocked) if (state.equalsIgnoreCase(n.asText())) return BigDecimal.ZERO;
+            return amount.multiply(pct).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        }
+        return config.number("payments/convenienceFees/achFlat", "0").max(BigDecimal.ZERO);
+    }
+
+    /** What the payer will be charged, shown before they confirm. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> quote(BigDecimal amount, String method, UUID tenantId) {
+        UUID t = tenantId != null ? tenantId : UserContextHolder.require().partyId();
+        String state = t == null ? null : db.find("select state from billing.invoice where tenant_id = ? and status in ('OPEN','PARTIAL') order by due_date limit 1", t)
+                .map(m -> (String) m.get("state")).orElse(null);
+        String m = method == null ? "ACH" : method.toUpperCase();
+        BigDecimal fee = convenienceFee(amount, m, state);
+        return Map.of("amount", amount, "fee", fee, "total", amount.add(fee), "method", m);
+    }
+
+    /** Settings every signed-in user may read: which methods are accepted, fee rules and the invoice header. */
+    public Map<String, Object> paymentSettings() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("methods", config.at("payments/methods"));
+        out.put("allowPartialPayments", config.flag("payments/allowPartialPayments", true));
+        out.put("autopayEnabled", config.flag("payments/autopayEnabled", true));
+        out.put("convenienceFees", config.at("payments/convenienceFees"));
+        out.put("invoice", config.at("payments/invoice"));
+        out.put("minimumPayment", config.number("payments/minimumPayment", "1"));
+        out.put("maximumPayment", config.number("payments/maximumPayment", "50000"));
+        return out;
     }
 
     void ledger(Map<String, Object> ctx, String type, BigDecimal amount, String memo, String refType, UUID refId) {
@@ -120,7 +198,7 @@ public class BillingService {
      * Takes a payment from the simulated gateway and applies it. With no invoice specified it is allocated oldest-first.
      * Test card/bank numbers ending in 0002 are declined to demonstrate failure handling.
      */
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public Map<String, Object> pay(Map<String, Object> b) {
         UserContext ctx = UserContextHolder.require();
         UUID tenantId = Optional.ofNullable(Req.uuid(b, "tenantId")).orElse(ctx.partyId());
@@ -139,8 +217,18 @@ public class BillingService {
                 ? db.list("select * from billing.invoice where id = ? and tenant_id = ? and status in ('OPEN','PARTIAL')", invoiceId, tenantId)
                 : db.list("select * from billing.invoice where tenant_id = ? and status in ('OPEN','PARTIAL') order by due_date, created_at", tenantId);
         if (open.isEmpty()) throw ApiException.conflict("Nothing is due on this account.");
+        String payState = (String) open.get(0).get("state");
+        if ("MANUAL".equals(source)) {
+            if (!config.flag("payments/methods/" + method.toLowerCase(), true)) throw ApiException.badRequest("Your property manager doesn't accept " + ("CARD".equals(method) ? "card" : "bank (ACH)") + " payments.");
+            BigDecimal min = config.number("payments/minimumPayment", "1"), max = config.number("payments/maximumPayment", "50000");
+            if (amount.compareTo(min) < 0) throw ApiException.badRequest("The minimum payment is $" + min + ".");
+            if (amount.compareTo(max) > 0) throw ApiException.badRequest("The maximum single payment is $" + max + ". Contact your property manager for larger amounts.");
+        }
         BigDecimal totalDue = open.stream().map(i -> ((BigDecimal) i.get("amount")).subtract((BigDecimal) i.get("paid"))).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (amount.compareTo(totalDue) > 0) throw ApiException.badRequest("That's more than the $" + totalDue + " due. Enter an amount up to the balance.");
+        if ("MANUAL".equals(source) && amount.compareTo(totalDue) < 0 && !config.flag("payments/allowPartialPayments", true))
+            throw ApiException.badRequest("Partial payments aren't accepted. Pay the full balance of $" + totalDue + ".");
+        BigDecimal convFee = convenienceFee(amount, method, payState);
         Map<String, Object> first = open.get(0);
         UUID pid = UUID.randomUUID();
         String ref = "PAY-" + pid.toString().substring(0, 8).toUpperCase();
@@ -151,7 +239,7 @@ public class BillingService {
                     insert into billing.payment (id, org_id, property_id, owner_id, tenant_id, tenant_name, amount, method, method_last4, status, reference, failure_reason, source)
                     values (?,?,?,?,?,?,?,?,?,'FAILED',?,?,?)""", pid, first.get("org_id"), first.get("property_id"), first.get("owner_id"), tenantId,
                     first.get("tenant_name"), amount, method, last4, ref, "Insufficient funds", source);
-            BigDecimal nsf = config.number("fees.nsfFee", "35");
+            if ("ACH".equals(method)) chargeReturnedPaymentFee(tenantId, payState, first);
             events.publish("PaymentFailed", "Payment", pid, Map.of("tenantId", tenantId.toString(), "amount", amount.toString(), "reason", "Insufficient funds"));
             notifier.toParty(tenantId, "Payment didn't go through", "Your " + method + " payment of $" + amount + " was declined. Update your payment method.", "/payments");
             throw ApiException.conflict("The payment was declined (insufficient funds). Reference " + ref + ". No charge was made.");
@@ -168,17 +256,35 @@ public class BillingService {
             audit.record("Invoice", (UUID) inv.get("id"), "PAYMENT_APPLIED", (String) inv.get("status"), st, Map.of("amount", apply, "reference", ref));
             if ("DEPOSIT".equals(inv.get("kind")))
                 db.update("update billing.deposit set held = held + ?, status = case when held + ? >= amount then 'HELD' else status end, updated_at = now() where lease_id = ?", apply, apply, inv.get("lease_id"));
-            allocations.add(Map.of("invoiceId", inv.get("id").toString(), "amount", apply, "kind", inv.get("kind").toString()));
+            BigDecimal invTax = inv.get("tax_amount") == null ? BigDecimal.ZERO : (BigDecimal) inv.get("tax_amount");
+            BigDecimal taxShare = invTax.signum() == 0 ? BigDecimal.ZERO : apply.multiply(invTax).divide((BigDecimal) inv.get("amount"), 2, RoundingMode.HALF_UP);
+            allocations.add(Map.of("invoiceId", inv.get("id").toString(), "amount", apply, "kind", inv.get("kind").toString(), "tax", taxShare));
             remaining = remaining.subtract(apply);
         }
         db.update("""
-                insert into billing.payment (id, org_id, property_id, owner_id, tenant_id, tenant_name, amount, method, method_last4, status, reference, allocations, source)
-                values (?,?,?,?,?,?,?,?,?,'SUCCEEDED',?,?::jsonb,?)""", pid, first.get("org_id"), first.get("property_id"), first.get("owner_id"), tenantId,
-                first.get("tenant_name"), amount, method, last4, ref, db.json(allocations), source);
+                insert into billing.payment (id, org_id, property_id, owner_id, tenant_id, tenant_name, amount, method, method_last4, status, reference, allocations, source, fee_amount)
+                values (?,?,?,?,?,?,?,?,?,'SUCCEEDED',?,?::jsonb,?,?)""", pid, first.get("org_id"), first.get("property_id"), first.get("owner_id"), tenantId,
+                first.get("tenant_name"), amount, method, last4, ref, db.json(allocations), source, convFee);
         ledger(pctx, "PAYMENT", amount.negate(), "Payment " + ref, "PAYMENT", pid);
         events.publish("PaymentReceived", "Payment", pid, Map.of("tenantId", tenantId.toString(), "amount", amount.toString(), "reference", ref));
-        notifier.toParty(tenantId, "Payment received", "We received your payment of $" + amount + ". Reference " + ref + ".", "/payments");
-        return Map.of("id", pid, "reference", ref, "status", "SUCCEEDED", "applied", allocations);
+        notifier.toParty(tenantId, "Payment received", "We received your payment of $" + amount + (convFee.signum() > 0 ? " plus a $" + convFee + " processing fee" : "") + ". Reference " + ref + ".", "/payments");
+        return Map.of("id", pid, "reference", ref, "status", "SUCCEEDED", "applied", allocations, "fee", convFee, "totalCharged", amount.add(convFee));
+    }
+
+    /** Returned-payment fee, limited by the state cap when one is set. Failures here never mask the declined payment. */
+    private void chargeReturnedPaymentFee(UUID tenantId, String state, Map<String, Object> inv) {
+        try {
+            if (!config.flag("payments/chargeNsfFee", true)) return;
+            if (db.value(Long.class, "select count(*) from billing.invoice where tenant_id = ? and kind = 'NSF_FEE' and status <> 'VOID' and created_at > now() - interval '1 day'", tenantId) > 0) return;
+            BigDecimal fee = config.number("fees/nsfFee", "35");
+            JsonNode cap = config.stateRule(state == null ? "DEFAULT" : state).path("nsfFeeCap");
+            if (config.flag("payments/enforceStateFeeCaps", true) && cap.isNumber()) fee = fee.min(cap.decimalValue());
+            if (fee.signum() <= 0) return;
+            Map<String, Object> lease = leaseFor(tenantId);
+            insertInvoice(lease, "NSF_FEE", "Returned payment fee", null, fee, LocalDate.now().plusDays(7));
+        } catch (RuntimeException ignored) {
+            // The declined payment is still reported to the payer; the fee can be added by hand.
+        }
     }
 
     @Transactional(readOnly = true)
@@ -203,9 +309,11 @@ public class BillingService {
         String last4 = Req.required(b, "last4");
         if (!last4.matches("\\d{4}")) throw ApiException.badRequest("Enter the last 4 digits of the account or card.");
         boolean autopay = Req.bool(b, "autopay");
+        if (!Req.bool(b, "consent")) throw ApiException.badRequest("Authorise PropertyOS to charge this " + ("ACH".equals(type) ? "bank account" : "card") + " before saving it.");
+        if (autopay && !config.flag("payments/autopayEnabled", true)) throw ApiException.badRequest("Autopay isn't available right now.");
         if (autopay) db.update("update billing.payment_method set autopay = false where tenant_id = ?", t);
         UUID id = UUID.randomUUID();
-        db.update("insert into billing.payment_method (id, org_id, tenant_id, type, last4, label, autopay) values (?,?,?,?,?,?,?)",
+        db.update("insert into billing.payment_method (id, org_id, tenant_id, type, last4, label, autopay, consent_at) values (?,?,?,?,?,?,?, now())",
                 id, UserContextHolder.orgId(), t, type, last4, ("ACH".equals(type) ? "Bank account" : "Card") + " ending " + last4, autopay);
         return Map.of("id", id);
     }
@@ -247,10 +355,13 @@ public class BillingService {
             JsonNode lease = findLease(leasesNode, (UUID) inv.get("lease_id"));
             if (lease == null) continue;
             int grace = lease.path("terms").path("lateFeeGraceDays").asInt(5);
+            if (config.flag("payments/enforceStateFeeCaps", true)) grace = Math.max(grace, config.stateRule(lease.path("state").asText("DEFAULT")).path("lateFeeGraceDays").asInt(0));
             if (!LocalDate.parse(inv.get("due_date").toString()).plusDays(grace).isBefore(today)) continue;
             Long has = db.value(Long.class, "select count(*) from billing.invoice where lease_id = ? and kind = 'LATE_FEE' and period = ? and status <> 'VOID'", inv.get("lease_id"), inv.get("period"));
             if (has > 0) continue;
             BigDecimal fee = new BigDecimal(lease.path("terms").path("lateFee").asText("0"));
+            BigDecimal cap = lateFeeCap(lease.path("state").asText("DEFAULT"), new BigDecimal(lease.path("rent").asText("0")));
+            if (cap != null) fee = fee.min(cap);
             if (fee.signum() <= 0) continue;
             insertInvoice(toMap(lease), "LATE_FEE", "Late fee for " + inv.get("description"), (String) inv.get("period"), fee, today.plusDays(7));
             events.publish("LateFeeCharged", "Invoice", (UUID) inv.get("id"), Map.of("tenantId", inv.get("tenant_id").toString(), "fee", fee.toString()));
@@ -283,6 +394,8 @@ public class BillingService {
         m.put("tenant_name", ln.path("tenant_name").asText());
         m.put("unit_label", ln.path("unit_label").asText());
         m.put("property_name", ln.path("property_name").asText());
+        if (ln.hasNonNull("state")) m.put("state", ln.path("state").asText());
+        if (ln.hasNonNull("rent")) m.put("rent", new BigDecimal(ln.path("rent").asText()));
         return m;
     }
 

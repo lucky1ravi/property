@@ -77,7 +77,7 @@ public class ListingService {
         LocalDate avail = Optional.ofNullable(Req.date(b, "availableDate")).orElse(LocalDate.now().plusDays(14));
         db.update("""
                 insert into leasing.listing (id, org_id, unit_id, property_id, owner_id, title, description, rent, deposit, available_date, photos, highlights, created_by)
-                select ?, org_id, id, property_id, owner_id, ?, ?, ?, ?, ?, coalesce((select jsonb_build_array(photo_url) from leasing.property where id = unit.property_id), '[]'::jsonb), '[]'::jsonb, ?
+                select ?, org_id, id, property_id, owner_id, ?, ?, ?, ?, ?, coalesce((select case when jsonb_array_length(photos) > 0 then photos else jsonb_build_array(photo_url) end from leasing.property where id = unit.property_id), '[]'::jsonb), '[]'::jsonb, ?
                 from leasing.unit where id = ?""",
                 id, title, desc, rent, deposit, avail, UserContextHolder.require().name(), unitId);
         sm.created("Listing", id, "DRAFT", Map.of("unit", u.get("number")));

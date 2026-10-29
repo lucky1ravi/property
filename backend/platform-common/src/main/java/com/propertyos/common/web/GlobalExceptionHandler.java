@@ -45,6 +45,14 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class, org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class, org.springframework.web.multipart.support.MissingServletRequestPartException.class})
+    public ProblemDetail badInput(Exception e) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "The request wasn't in the expected format. Check what you entered and try again.");
+        pd.setProperty("code", "BAD_REQUEST");
+        return pd;
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ProblemDetail noResource(NoResourceFoundException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Not found");

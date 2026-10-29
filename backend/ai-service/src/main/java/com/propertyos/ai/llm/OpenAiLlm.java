@@ -39,6 +39,29 @@ public class OpenAiLlm implements Llm {
     }
 
     @Override
+    public boolean supportsVision() {
+        return !"false".equalsIgnoreCase(System.getenv("OPENAI_VISION"));
+    }
+
+    @Override
+    public String vision(String system, String prompt, byte[] image, String mime) throws Exception {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("model", model);
+        ArrayNode msgs = body.putArray("messages");
+        msgs.addObject().put("role", "system").put("content", system);
+        ArrayNode parts = msgs.addObject().put("role", "user").putArray("content");
+        parts.addObject().put("type", "text").put("text", prompt);
+        parts.addObject().put("type", "image_url").putObject("image_url").put("url", "data:" + mime + ";base64," + java.util.Base64.getEncoder().encodeToString(image));
+        body.putObject("response_format").put("type", "json_object");
+        HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + "/chat/completions"))
+                .timeout(Duration.ofSeconds(60)).header("Authorization", "Bearer " + key).header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
+        HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (res.statusCode() >= 300) throw new IllegalStateException("Vision model returned " + res.statusCode());
+        return mapper.readTree(res.body()).path("choices").path(0).path("message").path("content").asText("");
+    }
+
+    @Override
     public Reply chat(String system, List<Msg> messages, List<ToolSpec> tools, boolean jsonOutput) throws Exception {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);

@@ -1,24 +1,16 @@
 import { useState } from 'react';
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import {
-  MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Drawer, Modal, Field, Input, Select, KeyValues, Timeline,
+  DocumentsPanel,
+  MicroApp, Tabs, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Drawer, Modal, Field, Input, Select, KeyValues, Timeline,
   TrendChart, CompareChart, AiInsight, EmptyState, Skeleton, Toggle, ConfirmDialog, Money,
-  useApi, useAction, api, fmt, useSession, personaOf, QuickLink } from '@propertyos/ui';
+  useApi, useAction, api, fmt, useSession, personaOf, QuickLink, InvoiceDownload } from '@propertyos/ui';
 
 const BASE = '/app/payments';
 const inv = ['/api/billing'];
 
-const SubNav = () => {
-  const { can } = useSession();
-  const items: [string, string, boolean][] = [['', 'Overview', true], ['invoices', 'Invoices', true], ['collections', 'Collections', can('INVOICE:EDIT')], ['payments', 'Payments', can('PAYMENT:VIEW')], ['statements', 'Owner statements', can('OWNER_STATEMENT:VIEW')], ['deposits', 'Deposits', can('PAYMENT:VIEW')]];
-  return (
-    <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-limestone-200">
-      {items.filter((i) => i[2]).map(([k, label]) => (
-        <NavLink key={k} to={`${BASE}/${k}`} end={k === ''} className={({ isActive }) => `-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold ${isActive ? 'border-federal-900 text-federal-900' : 'border-transparent text-graphite-500 hover:text-graphite-800'}`}>{label}</NavLink>
-      ))}
-    </nav>
-  );
-};
+// The section tabs (Payments: Overview, Invoices, Collections...) are drawn once by the shell from the same menu definition as the left menu.
+const SubNav = () => null;
 
 function Overview() {
   const { data: s } = useApi<any>('/api/billing/summary');
@@ -43,14 +35,22 @@ function Overview() {
         <Panel title="Billed and collected" description="By month"><CompareChart data={trend} x="month" bars={[{ key: 'billed', label: 'Billed' }, { key: 'collected', label: 'Collected' }]} /></Panel>
         <Panel title="Receivables by age"><CompareChart data={aging} x="k" bars={[{ key: 'v', label: 'Amount' }]} /></Panel>
       </div>
-      {(c?.length ?? 0) > 0 && <div className="mt-6"><AiInsight title={`${c!.filter((x) => x.risk_level === 'HIGH').length} high-risk accounts`} confidence={0.75}
-        reasons={c!.slice(0, 3).map((x) => `${x.tenant_name}: ${fmt.usd(x.balance)} overdue ${x.oldest_days} days. ${x.recommendation}`)}>Start with the oldest balances and offer a payment plan before late fees compound.</AiInsight></div>}
+      {(c?.length ?? 0) > 0 && (() => {
+        const high = c!.filter((x) => x.risk_level === 'HIGH');
+        const top = c!.slice(0, 3);
+        const conf = Math.max(...top.map((x) => x.risk_score ?? 0)) / 100;
+        const owed = c!.reduce((n, x) => n + Number(x.balance), 0);
+        return <div className="mt-6"><AiInsight title={`${high.length} high-risk ${high.length === 1 ? 'account' : 'accounts'} of ${c!.length} overdue`} confidence={conf || 0.5}
+          reasons={top.map((x) => `${x.tenant_name}: ${fmt.usd(x.balance)} overdue ${x.oldest_days} days, risk score ${x.risk_score}. ${(x.reasons ?? []).join('; ')}. ${x.recommendation}`)}>
+          {fmt.usd(owed)} is overdue across {c!.length} residents. Work the list from the highest risk score down; the score comes from days past due, late fees and failed payments.</AiInsight></div>;
+      })()}
     </>}
   </>);
 }
 
 function InvoiceDrawer({ id, onClose }: { id: string | null; onClose: () => void }) {
-  const { can } = useSession();
+  const { can, session } = useSession();
+  const navigate = useNavigate();
   const { data: i } = useApi<any>(id ? `/api/billing/invoices/${id}` : null);
   const [amount, setAmount] = useState(''); const [voiding, setVoiding] = useState(false);
   const pay = useAction(() => api.post('/api/billing/payments', { tenantId: i.tenant_id, invoiceId: id, amount: Number(amount), method: 'ACH' }), { success: 'Payment recorded', invalidate: inv, onSuccess: () => setAmount('') });
@@ -58,11 +58,15 @@ function InvoiceDrawer({ id, onClose }: { id: string | null; onClose: () => void
   return (
     <Drawer open={!!id} onClose={onClose} title={i?.description ?? 'Invoice'} subtitle={i && `${i.tenant_name} · ${i.unit_label}`}>
       {!i ? <Skeleton className="h-40" /> : <div className="space-y-6">
-        <KeyValues cols={3} items={[{ label: 'Status', value: <StatusPill status={i.status} /> }, { label: 'Amount', value: fmt.usd(i.amount, true) }, { label: 'Paid', value: fmt.usd(i.paid, true) }, { label: 'Balance', value: fmt.usd(i.balance, true) }, { label: 'Due', value: fmt.date(i.due_date) }, { label: 'Type', value: i.kind }]} />
+        <div className="flex justify-end gap-2">{can('CONVERSATION:CREATE') && personaOf(session) !== 'tenant' && <Button size="sm" variant="secondary" onClick={() => navigate(`/app/messages?new=1&ctx=INVOICE&id=${i.id}&label=${encodeURIComponent(`${i.invoice_number ?? ''} ${i.description ?? ''}`.trim())}&subject=${encodeURIComponent(`${i.description ?? 'Invoice'} for ${i.tenant_name}`)}`)}>Message about this</Button>}<InvoiceDownload id={i.id} invoice={i} label="Download PDF" /></div>
+        <KeyValues cols={3} items={[{ label: 'Invoice #', value: i.invoice_number ?? '—' }, { label: 'Status', value: <StatusPill status={i.status} /> },
+          ...(Number(i.tax_amount) > 0 ? [{ label: 'Subtotal', value: fmt.usd(i.subtotal, true) }, { label: `Tax (${Number(i.tax_rate)}%${i.state ? `, ${i.state}` : ''})`, value: fmt.usd(i.tax_amount, true) }] : []),
+          { label: 'Total', value: fmt.usd(i.amount, true) }, { label: 'Paid', value: fmt.usd(i.paid, true) }, { label: 'Balance', value: fmt.usd(i.balance, true) }, { label: 'Due', value: fmt.date(i.due_date) }, { label: 'Type', value: i.kind }]} />
         {can('PAYMENT:CREATE') && ['OPEN', 'PARTIAL'].includes(i.status) && <Panel title="Record a payment" tone="tinted">
           <div className="flex gap-2"><Input type="number" min="0" step="0.01" placeholder={`Up to ${fmt.usd(i.balance, true)}`} value={amount} onChange={(e) => setAmount(e.target.value)} />
             <Button variant="primary" disabled={!amount} loading={pay.isPending} onClick={() => pay.mutate(undefined)}>Record</Button></div></Panel>}
         <Panel title="Payments">{(i.payments ?? []).length ? <ul className="space-y-1 text-sm">{i.payments.map((p: any) => <li key={p.id} className="flex justify-between"><span>{p.reference} · {p.method} {p.method_last4}</span><Money value={p.amount} cents /></li>)}</ul> : <p className="text-sm text-graphite-500">No payments yet.</p>}</Panel>
+        <DocumentsPanel entityType="INVOICE" entityId={i.id} title="Attachments" compact />
         <Panel title="History"><Timeline items={i.timeline} /></Panel>
         {can('INVOICE:EDIT') && ['OPEN', 'PARTIAL'].includes(i.status) && <Button variant="danger" onClick={() => setVoiding(true)}>Void invoice</Button>}
       </div>}
@@ -76,6 +80,7 @@ function Invoices() {
   const { data, isLoading } = useApi<any[]>('/api/billing/invoices');
   const [open, setOpen] = useState<string | null>(null); const [charge, setCharge] = useState(false);
   const cols: Column<any>[] = [
+    { key: 'invoice_number', header: 'Invoice #', hideOnMobile: true },
     { key: 'tenant_name', header: 'Resident', render: (r) => (<div><div className="font-semibold"><QuickLink kind="tenant" id={r.tenant_id} name={r.tenant_name}>{r.tenant_name}</QuickLink></div><div className="text-xs text-graphite-500">{r.unit_label}</div></div>) },
     { key: 'description', header: 'Description', hideOnMobile: true },
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status} /> },
@@ -95,7 +100,7 @@ function ChargeModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   return (<Modal open={open} onClose={onClose} title="New charge" footer={<><Button variant="quiet" onClick={onClose}>Cancel</Button><Button variant="primary" loading={go.isPending} disabled={!f.tenantId || !f.amount || !f.description} onClick={() => go.mutate(undefined)}>Add charge</Button></>}>
     <div className="space-y-3">
       <Field label="Resident" required><Select value={f.tenantId} onChange={set('tenantId')}><option value="">Choose a resident</option>{(leases ?? []).map((l) => <option key={l.id} value={l.tenant_id}>{l.tenant_name} · {l.unit_label}</option>)}</Select></Field>
-      <Field label="Type"><Select value={f.kind} onChange={set('kind')}><option value="FEE">Fee</option><option value="UTILITY">Utility</option><option value="OTHER">Other</option></Select></Field>
+      <Field label="Type"><Select value={f.kind} onChange={set('kind')}><option value="FEE">Fee</option><option value="LATE_FEE">Late fee (state cap applies)</option><option value="UTILITY">Utility</option><option value="OTHER">Other</option></Select></Field>
       <Field label="Description" required><Input value={f.description} onChange={set('description')} /></Field>
       <div className="grid grid-cols-2 gap-3"><Field label="Amount (USD)" required><Input type="number" min="0" step="0.01" value={f.amount} onChange={set('amount')} /></Field><Field label="Due date"><Input type="date" value={f.dueDate} onChange={set('dueDate')} /></Field></div>
     </div></Modal>);
@@ -177,13 +182,15 @@ function Deposits() {
 
 function MyAccount() {
   const { data: m, isLoading } = useApi<any>('/api/billing/my');
-  const [amt, setAmt] = useState(''); const [addM, setAddM] = useState(false); const [nm, setNm] = useState({ type: 'ACH', last4: '', autopay: false });
+  const [amt, setAmt] = useState(''); const [addM, setAddM] = useState(false); const [nm, setNm] = useState({ type: 'ACH', last4: '', autopay: false, consent: false });
   const methods: any[] = m?.methods ?? [];
   const [sel, setSel] = useState('');
   const chosen = methods.find((x) => x.id === (sel || methods[0]?.id));
+  const payAmount = Number(amt || m?.balance || 0);
+  const { data: quote } = useApi<any>(payAmount > 0 && chosen ? `/api/billing/payments/quote?amount=${payAmount}&method=${chosen.type}` : null);
   const pay = useAction(() => api.post<any>('/api/billing/payments', { amount: Number(amt || m.balance), method: chosen?.type ?? 'ACH', last4: chosen?.last4 ?? '6789' }), { success: (r) => `Payment received. Reference ${r.reference}`, invalidate: inv, onSuccess: () => setAmt('') });
   const auto = useAction((v: { id: string; on: boolean }) => api.put(`/api/billing/my/methods/${v.id}/autopay`, { on: v.on }), { success: 'Autopay updated', invalidate: inv });
-  const add = useAction(() => api.post('/api/billing/my/methods', nm), { success: 'Payment method added', invalidate: inv, onSuccess: () => setAddM(false) });
+  const add = useAction(() => api.post('/api/billing/my/methods', nm), { success: 'Payment method added', invalidate: inv, onSuccess: () => { setAddM(false); setNm({ type: 'ACH', last4: '', autopay: false, consent: false }); } });
   if (isLoading || !m) return <Skeleton className="h-96" />;
   const cols: Column<any>[] = [
     { key: 'due_date', header: 'Due', value: (r) => r.due_date, render: (r) => fmt.date(r.due_date) }, { key: 'description', header: 'Charge' },
@@ -205,7 +212,8 @@ function MyAccount() {
           {Number(m.balance) > 0 ? <div className="space-y-3">
             <Field label="Amount (USD)"><Input type="number" step="0.01" value={amt} placeholder={String(m.balance)} onChange={(e) => setAmt(e.target.value)} /></Field>
             <Field label="Pay with"><Select value={chosen?.id ?? ''} onChange={(e) => setSel(e.target.value)}>{methods.length === 0 && <option value="">Add a payment method first</option>}{methods.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</Select></Field>
-            <Button variant="primary" className="w-full" size="lg" loading={pay.isPending} disabled={!methods.length} onClick={() => pay.mutate(undefined)}>Pay {fmt.usd(amt || m.balance, true)}</Button>
+            {quote && Number(quote.fee) > 0 && <div className="rounded border border-limestone-200 bg-white px-3 py-2 text-sm"><div className="flex justify-between"><span>Rent and charges</span><span>{fmt.usd(quote.amount, true)}</span></div><div className="flex justify-between text-graphite-600"><span>Processing fee</span><span>{fmt.usd(quote.fee, true)}</span></div><div className="mt-1 flex justify-between border-t border-limestone-200 pt-1 font-semibold"><span>Total charged</span><span>{fmt.usd(quote.total, true)}</span></div></div>}
+            <Button variant="primary" className="w-full" size="lg" loading={pay.isPending} disabled={!methods.length} onClick={() => pay.mutate(undefined)}>Pay {fmt.usd(quote?.total ?? (amt || m.balance), true)}</Button>
           </div> : <p className="text-sm text-graphite-700">Nothing is due right now.</p>}
         </Panel>
         <Panel title="Payment methods" actions={<Button size="sm" onClick={() => setAddM(true)}>Add</Button>}>
@@ -213,10 +221,75 @@ function MyAccount() {
         </Panel>
       </div>
     </div>
-    <Modal open={addM} onClose={() => setAddM(false)} title="Add a payment method" footer={<><Button variant="quiet" onClick={() => setAddM(false)}>Cancel</Button><Button variant="primary" loading={add.isPending} disabled={nm.last4.length !== 4} onClick={() => add.mutate(undefined)}>Save</Button></>}>
+    <Modal open={addM} onClose={() => setAddM(false)} title="Add a payment method" footer={<><Button variant="quiet" onClick={() => setAddM(false)}>Cancel</Button><Button variant="primary" loading={add.isPending} disabled={nm.last4.length !== 4 || !nm.consent} onClick={() => add.mutate(undefined)}>Save</Button></>}>
       <div className="space-y-3"><Field label="Type"><Select value={nm.type} onChange={(e) => setNm({ ...nm, type: e.target.value })}><option value="ACH">Bank account (ACH)</option><option value="CARD">Debit or credit card</option></Select></Field>
         <Field label="Last 4 digits" hint="Demo gateway: numbers ending 0002 are declined, to show failure handling."><Input maxLength={4} value={nm.last4} onChange={(e) => setNm({ ...nm, last4: e.target.value.replace(/\D/g, '') })} /></Field>
-        <Toggle checked={nm.autopay} onChange={(v) => setNm({ ...nm, autopay: v })} label="Use for autopay" /></div></Modal>
+        <Toggle checked={nm.autopay} onChange={(v) => setNm({ ...nm, autopay: v })} label="Use for autopay" />
+        <label className="flex items-start gap-2 rounded border border-limestone-200 p-3 text-xs text-graphite-700"><input type="checkbox" className="mt-0.5" checked={nm.consent} onChange={(e) => setNm({ ...nm, consent: e.target.checked })} />
+          <span>I authorise my property manager to {nm.type === 'ACH' ? 'debit this bank account electronically (ACH)' : 'charge this card'} for rent and other charges I owe{nm.autopay ? ', automatically on the due date' : ' when I choose to pay'}. I can revoke this at any time in Payment methods.</span></label></div></Modal>
+  </>);
+}
+
+function TaxCompliance() {
+  const { can } = useSession();
+  const [tab, setTab] = useState<'tax' | '1099' | 'rules'>('tax');
+  const year = new Date().getFullYear();
+  const [y, setY] = useState(year);
+  const { data: t } = useApi<any>(`/api/billing/tax/summary?year=${y}`);
+  const { data: f } = useApi<any>(can('TAX_REPORT:VIEW') ? `/api/billing/tax/1099?year=${y}` : null);
+  const { data: cfg } = useApi<any>(can('SETTINGS:VIEW') ? '/api/identity/config' : null);
+  const [w9, setW9] = useState<any>(null);
+  const save = useAction(() => api.put(`/api/billing/tax/owners/${w9.owner_id}/w9`, { legalName: w9.legal_name, tinType: w9.tin_type, tinLast4: w9.tin_last4, w9Received: true }), { success: 'W-9 recorded', invalidate: inv, onSuccess: () => setW9(null) });
+  const taxCols: Column<any>[] = [
+    { key: 'month', header: 'Month' }, { key: 'state', header: 'State' },
+    { key: 'rate', header: 'Rate', align: 'right', render: (r) => `${Number(r.rate ?? 0)}%` },
+    { key: 'taxable_base', header: 'Taxable charges', align: 'right', value: (r) => Number(r.taxable_base ?? 0), render: (r) => fmt.usd(r.taxable_base ?? 0, true) },
+    { key: 'non_taxable', header: 'Non-taxable charges', align: 'right', hideOnMobile: true, value: (r) => Number(r.non_taxable ?? 0), render: (r) => fmt.usd(r.non_taxable ?? 0, true) },
+    { key: 'tax_invoiced', header: 'Tax billed', align: 'right', value: (r) => Number(r.tax_invoiced ?? 0), render: (r) => fmt.usd(r.tax_invoiced ?? 0, true) },
+    { key: 'tax_collected', header: 'Tax collected', align: 'right', value: (r) => Number(r.tax_collected ?? 0), render: (r) => fmt.usd(r.tax_collected ?? 0, true) },
+  ];
+  const ownerCols: Column<any>[] = [
+    { key: 'owner_name', header: 'Owner', render: (r) => <span className="font-semibold">{r.owner_name}</span> },
+    { key: 'gross_collected', header: 'Rents collected', align: 'right', value: (r) => Number(r.gross_collected), render: (r) => fmt.usd(r.gross_collected, true) },
+    { key: 'net_paid', header: 'Net paid out', align: 'right', hideOnMobile: true, value: (r) => Number(r.net_paid), render: (r) => fmt.usd(r.net_paid, true) },
+    { key: 'reportable', header: '1099 needed', value: (r) => (r.reportable ? 'Yes' : 'No'), render: (r) => <Badge tone={r.reportable ? 'warn' : 'neutral'}>{r.reportable ? 'Yes' : 'Below threshold'}</Badge> },
+    { key: 'w9_on_file', header: 'W-9', value: (r) => (r.w9_on_file ? 'On file' : 'Missing'), render: (r) => r.w9_on_file ? <Badge tone="ok">On file{r.tin_last4 ? ` ····${r.tin_last4}` : ''}</Badge> : <Badge tone="crit">Missing</Badge> },
+    { key: 'backup_withholding_due', header: 'Backup withholding', align: 'right', hideOnMobile: true, value: (r) => Number(r.backup_withholding_due), render: (r) => Number(r.backup_withholding_due) > 0 ? fmt.usd(r.backup_withholding_due, true) : '—' },
+    { key: 'owner_id', header: '', sortable: false, render: (r) => can('TAX_REPORT:EDIT') && <Button size="sm" variant="quiet" onClick={() => setW9({ ...r, tin_type: r.tin_type ?? 'SSN' })}>{r.w9_on_file ? 'Update' : 'Record W-9'}</Button> },
+  ];
+  const rules: any[] = cfg?.stateRules ? Object.entries<any>(cfg.stateRules).map(([k, v]) => ({ code: k, ...v })) : [];
+  const lim = (v: any, suffix = '') => (v === null || v === undefined ? 'No cap' : `${v}${suffix}`);
+  const ruleCols: Column<any>[] = [
+    { key: 'name', header: 'State', render: (r) => <span className="font-semibold">{r.name} {r.code !== 'DEFAULT' && <span className="text-graphite-500">({r.code})</span>}</span> },
+    { key: 'lateFeeGraceDays', header: 'Late fee grace', align: 'right', render: (r) => `${r.lateFeeGraceDays} days` },
+    { key: 'lateFeeCapPercent', header: 'Late fee cap', align: 'right', render: (r) => `${lim(r.lateFeeCapPercent, '%')}${r.lateFeeCapFlat != null ? ` / $${r.lateFeeCapFlat}` : ''}` },
+    { key: 'depositCapMonths', header: 'Deposit cap', align: 'right', hideOnMobile: true, render: (r) => r.depositCapMonths == null ? 'No cap' : `${r.depositCapMonths} mo` },
+    { key: 'depositRefundDays', header: 'Deposit refund', align: 'right', hideOnMobile: true, render: (r) => `${r.depositRefundDays} days` },
+    { key: 'noticeDays', header: 'Notice', align: 'right', hideOnMobile: true, render: (r) => `${r.noticeDays} days` },
+    { key: 'nsfFeeCap', header: 'Returned-payment cap', align: 'right', hideOnMobile: true, render: (r) => r.nsfFeeCap == null ? 'No cap' : `$${r.nsfFeeCap}` },
+  ];
+  return (<>
+    <PageHeader title="Tax and compliance" description="Sales tax billed and collected, owner 1099 preparation and the legal limits PropertyOS applies by state."
+      actions={<Select value={y} onChange={(e) => setY(Number(e.target.value))} aria-label="Tax year">{[year, year - 1, year - 2].map((v) => <option key={v} value={v}>{v}</option>)}</Select>} />
+    <Tabs tabs={[{ key: 'tax', label: 'Sales tax' }, { key: '1099', label: 'Owner 1099s', count: f?.missingW9 || undefined }, { key: 'rules', label: 'State rules' }]} value={tab} onChange={setTab} className="mb-6" />
+    {tab === 'tax' && (!t ? <Skeleton className="h-40" /> : <div className="space-y-6">
+      <StatStrip><Stat label="Tax billed" value={fmt.usd(t.taxInvoiced, true)} emphasis /><Stat label="Tax collected" value={fmt.usd(t.taxCollected, true)} /><Stat label="Still to collect" value={fmt.usd(Number(t.taxInvoiced) - Number(t.taxCollected), true)} /></StatStrip>
+      {!t.taxEnabled || Number(t.taxInvoiced) === 0 ? <div className="rounded-md border border-limestone-200 bg-limestone-50 p-4 text-sm text-graphite-700">No tax has been charged in {t.year}. Residential rent isn’t taxed in most states, so every rate starts at 0%. If your company must collect tax in a state, set the rate and the charge types under Administration, Configuration, Payments and tax.</div> : null}
+      <Panel title="Tax by month and state" padded={false}><DataTable rows={t.rows} columns={taxCols} rowKey={(r) => r.month + r.state} exportName={`sales-tax-${y}`} searchable={false} /></Panel></div>)}
+    {tab === '1099' && (!f ? <Skeleton className="h-40" /> : <div className="space-y-6">
+      <StatStrip><Stat label="Owners paid" value={f.owners.length} emphasis /><Stat label="1099-MISC needed" value={f.owners.filter((o: any) => o.reportable).length} sub={`At ${fmt.usd(f.threshold)} or more`} /><Stat label="W-9 missing" value={f.missingW9} sub={f.missingW9 ? `${f.backupWithholdingPercent}% backup withholding applies` : 'All set'} /></StatStrip>
+      <p className="text-sm text-graphite-600">This is a preparation worksheet from published owner statements, not a filed return. Collect each owner’s W-9 before the first payout and confirm figures with your tax professional. Only the last 4 digits of the tax ID are kept here. Forms are due to owners by January 31.</p>
+      <Panel title={`Owner payments in ${f.year}`} padded={false}><DataTable rows={f.owners} columns={ownerCols} rowKey={(r) => r.owner_id} exportName={`owner-1099-${y}`} searchable={false} /></Panel></div>)}
+    {tab === 'rules' && <div className="space-y-4">
+      <p className="text-sm text-graphite-600">Late fees, grace periods, deposits and returned-payment fees are limited to these values when invoices are created. An administrator can change them under Administration, Configuration, State rules. Residential-tenancy law varies by state and city, so have counsel confirm them.</p>
+      <Panel padded={false}>{cfg ? <DataTable rows={rules} columns={ruleCols} rowKey={(r) => r.code} searchable={false} /> : <p className="p-4 text-sm text-graphite-500">You don’t have access to view these settings.</p>}</Panel></div>}
+    <Modal open={!!w9} onClose={() => setW9(null)} title={`W-9 for ${w9?.owner_name ?? ''}`} footer={<><Button variant="quiet" onClick={() => setW9(null)}>Cancel</Button><Button variant="primary" loading={save.isPending} disabled={!w9?.legal_name || String(w9?.tin_last4 ?? '').length !== 4} onClick={() => save.mutate(undefined)}>Save</Button></>}>
+      {w9 && <div className="space-y-3">
+        <Field label="Name as shown on the W-9" required><Input value={w9.legal_name ?? ''} onChange={(e) => setW9({ ...w9, legal_name: e.target.value })} /></Field>
+        <Field label="Tax ID type"><Select value={w9.tin_type} onChange={(e) => setW9({ ...w9, tin_type: e.target.value })}><option value="SSN">Social Security number</option><option value="EIN">Employer ID number</option></Select></Field>
+        <Field label="Last 4 digits of the tax ID" required hint="Keep the signed W-9 in your document system. The full number is not stored here."><Input maxLength={4} value={w9.tin_last4 ?? ''} onChange={(e) => setW9({ ...w9, tin_last4: e.target.value.replace(/\D/g, '') })} /></Field>
+      </div>}
+    </Modal>
   </>);
 }
 
@@ -235,6 +308,7 @@ export default function App() {
         <Route path="payments" element={<Payments />} />
         <Route path="statements" element={<Statements />} />
         <Route path="deposits" element={<Deposits />} />
+        <Route path="tax" element={<TaxCompliance />} />
       </Routes>
     </MicroApp>
   );

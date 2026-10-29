@@ -4,6 +4,26 @@ import { PageHeader, Panel, Button, Field, Input, Toggle, Skeleton, Tabs, Timeli
 const inv = ['/api/identity/config'];
 /** Friendly names for known settings; anything else is humanised from its key. */
 const LABELS: Record<string, [string, string?]> = {
+  LEASE_ABSTRACT: ['Lease summary', 'Pulls key dates, amounts and obligations out of a lease'], ANOMALY_SCAN: ['Billing check', 'Flags duplicate invoices, rent that doesn’t match the lease and doubled expenses'],
+  STATEMENT_NARRATIVE: ['Owner statement summary', 'Writes a plain-English summary for each owner statement'], RESIDENT_OUTLOOK: ['Resident outlook', 'Shows who is most likely to pay late or move out, and why'],
+  PHOTO_TRIAGE: ['Repair photo check', 'Reads a photo of a problem and suggests type, urgency and cost'], FAIR_HOUSING_CHECK: ['Fair housing check', 'Flags wording in ads and messages that could break fair housing rules'],
+  IMAGE_MODERATION: ['Photo safety check', 'AI looks at every uploaded property and profile photo before it is published'],
+  autoApproveConfidence: ['Auto-approve at or above (%)', 'Photos the AI judges safe with at least this confidence are published automatically. Everything below goes to a person for review. Raise it to send more photos to people.'],
+  autoRejectEnabled: ['Reject clearly unsafe photos automatically', 'Off by default so a person always makes the call on flagged photos.'],
+  autoRejectConfidence: ['Auto-reject at or above (%)', 'Used only when automatic rejection is on.'],
+  maxImageMb: ['Largest photo (MB)'], maxPhotosPerProperty: ['Most photos per property'], notifyUploaderOnDecision: ['Tell the uploader when a photo is approved or rejected'],
+  DOCUMENTS: ['Files and documents', 'Document library, uploads from residents, owners, vendors and applicants'],
+  ESIGN: ['E-signatures', 'Send documents for typed-name signing with a certificate of completion'],
+  SMART_FILING: ['Smart filing', 'Suggests the category and type of an uploaded file from its name'],
+  storage: ['File storage'], maxFileMb: ['Largest file (MB)'], allowedExtensions: ['Allowed file types', 'One per line, without the dot. Executable and script types are always blocked.'],
+  blockDuplicates: ['Warn about duplicate files', 'Stops the same file being added twice to the same record.'], trashDays: ['Keep deleted files for (days)', 'Then they are removed for good, unless a retention rule or legal hold applies.'],
+  categories: ['Document categories', 'Retention is in years. Sensitive categories are visible only to roles with access to sensitive documents.'], retentionYears: ['Keep for (years)'], sensitive: ['Sensitive'], types: ['Document types', 'One per line.'],
+  requirements: ['Required documents', 'Documents each record must have. Missing ones are flagged and shown as a checklist.'], APPLICATION: ['Applications'], LEASE: ['Leases'], VENDOR: ['Vendors'], OWNER: ['Owners'],
+  uploads: ['Who can upload what', 'Categories each kind of person may add. Staff can add any category.'], applicantCategories: ['Applicants'], tenantCategories: ['Residents'], ownerCategories: ['Owners'], vendorCategories: ['Vendors'],
+  reviewUploadsFromOthers: ['Staff review files sent by applicants, residents, owners and vendors'],
+  esign: ['E-signature'], expiryDays: ['Signature requests expire after (days)'], requireConsent: ['Require consent to sign electronically'], consentText: ['Consent wording'],
+  documentExpiry: ['Document expiry alerts', 'People are told before an insurance certificate, ID or contract expires'], signatureReminder: ['Signature reminders'], everyDays: ['Remind every (days)'],
+  MESSAGING: ['Messaging', 'Conversations between residents, owners, vendors and staff'],
   LEASING: ['Leasing', 'Listings, enquiries, showings, applications and leases'],
   PAYMENTS: ['Rent and payments', 'Invoices, online payments and collections'],
   MAINTENANCE: ['Maintenance', 'Repair requests, work orders and vendors'],
@@ -49,9 +69,39 @@ const LABELS: Record<string, [string, string?]> = {
   ackHours: ['Acknowledge within (hours)'], resolveHours: ['Resolve within (hours)'], enquiryResponseMinutes: ['Reply to enquiries within (minutes)'],
   EMERGENCY: ['Emergency'], URGENT: ['Urgent'], ROUTINE: ['Routine'],
   offerDaysBeforeEnd: ['Offer renewal this many days before lease end'], maxIncreasePercent: ['Maximum rent increase (%)'],
+  methods: ['Accepted payment methods'], ach: ['Bank transfer (ACH)'], card: ['Debit and credit cards'],
+  autopayEnabled: ['Allow residents to set up autopay'], allowPartialPayments: ['Accept partial payments'],
+  minimumPayment: ['Smallest single payment ($)'], maximumPayment: ['Largest single payment ($)'],
+  chargeNsfFee: ['Charge a returned-payment fee when a bank payment fails'], enforceStateFeeCaps: ['Apply state caps and grace periods to late and returned-payment fees', 'Recommended. Turning this off makes you responsible for staying within each state’s limits.'],
+  convenienceFees: ['Processing fees paid by the resident', 'Added on top of the amount applied to the account. Check your state’s rules before charging.'],
+  achFlat: ['Bank transfer fee ($ per payment)'], cardPercent: ['Card surcharge (% of payment)', 'Card networks cap surcharges at 3%, and PropertyOS enforces that.'],
+  surchargeBlockedStates: ['States where card surcharges are not allowed', 'Two-letter codes, one per line. Verify the current list with your counsel.'],
+  invoice: ['Invoice details', 'Printed on every invoice PDF'], numberPrefix: ['Invoice number prefix'], legalName: ['Legal name on invoices'], remitToAddress: ['Remit-to address'], taxId: ['Tax ID (EIN)'], paymentTerms: ['Payment terms'], footerNote: ['Footer note'],
+  tax: ['Sales and rental tax', 'Most states don’t tax residential rent, so rates start at 0%. Enter the combined state and local rate where tax applies. Confirm with your tax advisor.'],
+  taxRent: ['Charge tax on rent'], taxLateFees: ['Charge tax on late fees'], taxUtilities: ['Charge tax on utility charges'], taxApplicationFees: ['Charge tax on application fees'], taxOther: ['Charge tax on other charges and fees'],
+  defaultRatePercent: ['Rate for states not listed (%)'], rates: ['Tax rate by state (%)', 'Security deposits and returned-payment fees are never taxed.'],
+  reporting: ['Tax reporting'], form1099Threshold: ['1099 reporting threshold per owner ($)', 'IRS threshold for payments made in 2026 and later. Earlier years used $600.'],
+  requireW9BeforePublish: ['Require a W-9 before publishing an owner statement'], backupWithholdingPercent: ['Backup withholding rate (%)'],
+  depositCapMonths: ['Security deposit cap (months of rent)', 'Leave empty for no cap'], lateFeeGraceDays: ['Late fee grace period (days)'], lateFeeCapPercent: ['Late fee cap (% of rent)', 'Leave empty for no cap'],
+  lateFeeCapFlat: ['Late fee cap ($)', 'Leave empty for no cap'], depositRefundDays: ['Deposit refund deadline (days)'], noticeDays: ['Notice period (days)'], nsfFeeCap: ['Returned-payment fee cap ($)', 'Leave empty for no cap'], name: ['State'],
+  CONVERSATION_ASSIST: ['Conversation catch-up', 'Summarises a thread and suggests a reply for staff'],
+  leaseExpiry: ['Lease expiry alerts', 'Residents, owners and the property’s brokers are told before a lease ends'],
+  depositRefund: ['Deposit refund deadline alerts', 'Accountants, managers and brokers are told before the legal return date'],
+  vendorInsurance: ['Vendor insurance expiry alerts', 'The vendor and managers are told before a certificate expires'],
+  taxFiling: ['Sales tax filing alerts'], form1099: ['1099 reporting alerts'], w9Missing: ['Missing W-9 alerts'],
+  daysBefore: ['Alert this many days before', 'One per line. Each is sent once. An overdue alert follows if the date passes.'], filingDay: ['Sales tax return due day of the following month'],
+  who: ['Who can message whom', 'People can only reach others connected through the same properties.'],
+  tenantWithStaff: ['Residents can message staff'], ownerWithStaff: ['Owners can message staff'], vendorWithStaff: ['Vendors can message staff'],
+  tenantWithOwner: ['Residents can message owners directly', 'Off by default. Direct contact bypasses your team.'], ownerWithVendor: ['Owners can message vendors directly'], tenantWithVendor: ['Residents can message vendors directly'],
+  allowStaffToStaff: ['Staff can message each other'], maxMessageLength: ['Longest message (characters)'],
+  aiAssist: ['AI help in conversations'], summaries: ['Offer a catch-up summary'], suggestedReplies: ['Offer a suggested reply to staff'],
+  guardrails: ['Message guardrails'], fairHousingCheck: ['Check staff messages for fair-housing wording', 'Blocks a message that contains a flagged phrase until it is reworded.'], flaggedPhrases: ['Flagged phrases', 'One per line'],
   companyName: ['Company name'], primaryColor: ['Primary colour'], accentColor: ['Accent colour'], portalDomain: ['Resident portal domain'], emailSender: ['Email sender address'],
 };
+const STATES: Record<string, string> = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
 const human = (k: string) => {
+  if (STATES[k]) return `${STATES[k]} (${k})`;
+  if (k === 'DEFAULT') return 'All other states';
   if (LABELS[k]) return LABELS[k][0];
   const words = k.includes('_') || k === k.toUpperCase() ? k.toLowerCase().split('_').join(' ') : k.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
   return words.replace(/^./, (c) => c.toUpperCase());
@@ -68,6 +118,12 @@ const SECTIONS: [string, string, string][] = [
   ['ai', 'AI', 'Turn each AI capability on or off and set its guardrails.'],
   ['notifications', 'Notifications', 'Channels and quiet hours.'],
   ['branding', 'Branding', 'Name and colours shown to residents and owners.'],
+  ['payments', 'Payments and tax', 'Accepted methods, processing fees, invoice details, sales tax by state and 1099 reporting.'],
+  ['moderation', 'Photo review', 'The confidence needed for the AI to publish a photo on its own, and what happens to photos it flags.'],
+  ['documents', 'Files and documents', 'Categories, file types and size, required documents per record, e-signature wording and how long files are kept.'],
+  ['alerts', 'Deadline alerts', 'When to alert people about lease expiry, deposit refunds, insurance, tax and 1099 dates.'],
+  ['chat', 'Messaging', 'Who can message whom, message limits, AI help and fair-housing checks.'],
+  ['stateRules', 'State rules', 'Legal limits by state: deposits, late fees, grace periods and notice. These cap what PropertyOS will charge.'],
 ];
 
 /** Renders any JSON config value as an editable form, so every setting is changeable without a deploy. */
@@ -78,7 +134,7 @@ function Node({ label, hint, value, onChange, depth = 0 }: { label: string; hint
       <Toggle checked={value} onChange={onChange} label={label} />
     </div>
   );
-  if (typeof value === 'number') return <Field label={label} hint={hint}><Input type="number" step="any" value={value} onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))} /></Field>;
+  if (typeof value === 'number') return <Field label={label} hint={hint}><Input type="number" step="any" value={value} onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))} /></Field>;
   if (typeof value === 'string') return <Field label={label} hint={hint}><Input value={value} onChange={(e) => onChange(e.target.value)} /></Field>;
   if (Array.isArray(value)) return <Field label={label} hint="One per line"><Textarea rows={Math.min(Math.max(value.length, 2), 6)} value={value.join('\n')} onChange={(e) => onChange(e.target.value.split('\n').map((x) => x.trim()).filter(Boolean).map((x) => (typeof value[0] === 'number' ? Number(x) : x)))} /></Field>;
   if (value && typeof value === 'object') {
@@ -94,6 +150,7 @@ function Node({ label, hint, value, onChange, depth = 0 }: { label: string; hint
       </div>
     );
   }
+  if (value === null) return <Field label={label} hint={hint ?? 'Leave empty for no limit'}><Input type="number" step="any" placeholder="No limit" value="" onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))} /></Field>;
   return null;
 }
 

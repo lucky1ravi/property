@@ -11,6 +11,9 @@
     "VENDOR_PORTAL": true,
     "RENEWALS": true,
     "RECURRING_MAINTENANCE": true,
+    "MESSAGING": true,
+    "DOCUMENTS": true,
+    "ESIGN": true,
     "SELF_GUIDED_SHOWINGS": false,
     "AI_VOICE_AGENT": false
   },
@@ -56,7 +59,25 @@
     "PAYMENT_RISK": { "enabled": true, "riskThreshold": 60 },
     "MAINTENANCE_TRIAGE": { "enabled": true, "autoDispatchMaxCost": 500, "minConfidence": 0.7 },
     "ASSISTANT": { "enabled": true, "tone": "professional" },
-    "LEASING_AGENT": { "enabled": true }
+    "LEASING_AGENT": { "enabled": true },
+    "CONVERSATION_ASSIST": { "enabled": true },
+    "SMART_FILING": { "enabled": true },
+    "IMAGE_MODERATION": { "enabled": true },
+    "LEASE_ABSTRACT": { "enabled": true },
+    "ANOMALY_SCAN": { "enabled": true },
+    "STATEMENT_NARRATIVE": { "enabled": true },
+    "RESIDENT_OUTLOOK": { "enabled": true },
+    "PHOTO_TRIAGE": { "enabled": true },
+    "FAIR_HOUSING_CHECK": { "enabled": true }
+  },
+  "moderation": {
+    "autoApproveConfidence": 80,
+    "autoRejectEnabled": false,
+    "autoRejectConfidence": 98,
+    "maxImageMb": 8,
+    "maxPhotosPerProperty": 30,
+    "allowedExtensions": ["jpg", "jpeg", "png", "webp", "gif"],
+    "notifyUploaderOnDecision": true
   },
   "notifications": {
     "channels": { "email": true, "sms": true, "inApp": true },
@@ -69,17 +90,103 @@
     "portalDomain": "residents.summitridgepg.com",
     "emailSender": "noreply@summitridgepg.com"
   },
+  "payments": {
+    "methods": { "ach": true, "card": true },
+    "autopayEnabled": true,
+    "allowPartialPayments": true,
+    "minimumPayment": 1,
+    "maximumPayment": 50000,
+    "chargeNsfFee": true,
+    "enforceStateFeeCaps": true,
+    "convenienceFees": { "achFlat": 0, "cardPercent": 0, "surchargeBlockedStates": ["CT", "MA"] },
+    "invoice": { "numberPrefix": "INV", "legalName": "", "remitToAddress": "", "taxId": "", "paymentTerms": "Due on the date shown", "footerNote": "" },
+    "tax": {
+      "enabled": true,
+      "taxRent": false, "taxLateFees": false, "taxUtilities": false, "taxApplicationFees": false, "taxOther": false,
+      "defaultRatePercent": 0,
+      "filingDay": 20,
+      "rates": { "AL": 0, "AK": 0, "AZ": 0, "AR": 0, "CA": 0, "CO": 0, "CT": 0, "DE": 0, "DC": 0, "FL": 0, "GA": 0, "HI": 0, "ID": 0, "IL": 0, "IN": 0, "IA": 0, "KS": 0, "KY": 0, "LA": 0, "ME": 0, "MD": 0, "MA": 0, "MI": 0, "MN": 0, "MS": 0, "MO": 0, "MT": 0, "NE": 0, "NV": 0, "NH": 0, "NJ": 0, "NM": 0, "NY": 0, "NC": 0, "ND": 0, "OH": 0, "OK": 0, "OR": 0, "PA": 0, "RI": 0, "SC": 0, "SD": 0, "TN": 0, "TX": 0, "UT": 0, "VT": 0, "VA": 0, "WA": 0, "WV": 0, "WI": 0, "WY": 0 }
+    },
+    "reporting": { "form1099Threshold": 2000, "requireW9BeforePublish": true, "backupWithholdingPercent": 24 }
+  },
+  "alerts": {
+    "leaseExpiry": { "enabled": true, "daysBefore": [90, 60, 30] },
+    "depositRefund": { "enabled": true, "daysBefore": [7, 3, 1] },
+    "vendorInsurance": { "enabled": true, "daysBefore": [30, 14, 7] },
+    "taxFiling": { "enabled": true, "daysBefore": [30, 14, 7] },
+    "form1099": { "enabled": true, "daysBefore": [60, 30, 14] },
+    "w9Missing": { "enabled": true },
+    "documentExpiry": { "enabled": true, "daysBefore": [30, 14, 7] },
+    "signatureReminder": { "enabled": true, "everyDays": 3 }
+  },
+  "documents": {
+    "storage": {
+      "maxFileMb": 15,
+      "allowedExtensions": ["pdf", "png", "jpg", "jpeg", "heic", "webp", "gif", "doc", "docx", "xls", "xlsx", "csv", "txt"],
+      "blockDuplicates": true,
+      "trashDays": 30
+    },
+    "categories": {
+      "APPLICATION": { "label": "Applicant files", "retentionYears": 3, "sensitive": true, "types": ["Proof of income", "Bank statement", "Offer letter", "Rental history", "Reference letter", "Screening report"] },
+      "IDENTITY": { "label": "Identity documents", "retentionYears": 3, "sensitive": true, "types": ["Photo ID", "Passport", "Other ID"] },
+      "LEASE": { "label": "Leases and addenda", "retentionYears": 7, "sensitive": false, "types": ["Lease agreement", "Lease addendum", "Pet addendum", "Move-in inspection", "Move-out inspection", "Renewal offer"] },
+      "BILL": { "label": "Bills and receipts", "retentionYears": 7, "sensitive": false, "types": ["Vendor invoice", "Utility bill", "Receipt", "Property tax bill", "HOA bill", "Quote"] },
+      "STATEMENT": { "label": "Statements", "retentionYears": 7, "sensitive": false, "types": ["Owner statement", "Bank statement", "Ledger"] },
+      "TAX": { "label": "Tax forms", "retentionYears": 7, "sensitive": true, "types": ["W-9", "1099-MISC", "1099-NEC", "Sales tax return"] },
+      "INSURANCE": { "label": "Insurance", "retentionYears": 5, "sensitive": false, "types": ["Certificate of insurance", "Renters insurance", "Property insurance policy"] },
+      "CONTRACT": { "label": "Agreements and contracts", "retentionYears": 7, "sensitive": false, "types": ["Management agreement", "Vendor agreement", "Service contract", "Listing agreement"] },
+      "WORK_ORDER": { "label": "Work order photos and reports", "retentionYears": 3, "sensitive": false, "types": ["Photo", "Completion report", "Inspection report"] },
+      "PROPERTY": { "label": "Property records", "retentionYears": 10, "sensitive": false, "types": ["Inspection report", "Permit", "Certificate of occupancy", "Floor plan", "Appraisal"] },
+      "NOTICE": { "label": "Notices", "retentionYears": 5, "sensitive": false, "types": ["Notice to vacate", "Entry notice", "Rent increase notice", "Late rent notice", "Adverse action notice"] },
+      "OTHER": { "label": "Other", "retentionYears": 3, "sensitive": false, "types": ["Other"] }
+    },
+    "requirements": {
+      "APPLICATION": ["Photo ID", "Proof of income"],
+      "LEASE": ["Lease agreement", "Renters insurance", "Move-in inspection"],
+      "VENDOR": ["Certificate of insurance", "W-9"],
+      "OWNER": ["W-9", "Management agreement"]
+    },
+    "uploads": {
+      "applicantCategories": ["APPLICATION", "IDENTITY"],
+      "tenantCategories": ["INSURANCE", "LEASE", "WORK_ORDER", "NOTICE", "OTHER"],
+      "ownerCategories": ["TAX", "INSURANCE", "PROPERTY", "CONTRACT", "OTHER"],
+      "vendorCategories": ["INSURANCE", "TAX", "BILL", "WORK_ORDER", "CONTRACT", "OTHER"],
+      "reviewUploadsFromOthers": true
+    },
+    "esign": {
+      "expiryDays": 14,
+      "requireConsent": true,
+      "consentText": "I agree to sign electronically. My typed name is my legal signature and has the same effect as a handwritten one (E-SIGN Act and UETA)."
+    }
+  },
+  "chat": {
+    "who": {
+      "tenantWithStaff": true,
+      "ownerWithStaff": true,
+      "vendorWithStaff": true,
+      "tenantWithOwner": false,
+      "ownerWithVendor": false,
+      "tenantWithVendor": false
+    },
+    "allowStaffToStaff": true,
+    "maxMessageLength": 2000,
+    "aiAssist": { "summaries": true, "suggestedReplies": true },
+    "guardrails": {
+      "fairHousingCheck": true,
+      "flaggedPhrases": ["no kids", "no children", "adults only", "families not welcome", "no section 8", "christians only", "must be a citizen", "no wheelchairs", "no disabled", "male only", "female only", "english only"]
+    }
+  },
   "stateRules": {
-    "DEFAULT": { "name": "Default", "depositCapMonths": 2, "lateFeeGraceDays": 5, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 30 },
-    "CA": { "name": "California", "depositCapMonths": 1, "lateFeeGraceDays": 3, "lateFeeCapPercent": 6, "lateFeeCapFlat": null, "depositRefundDays": 21, "noticeDays": 30 },
-    "TX": { "name": "Texas", "depositCapMonths": null, "lateFeeGraceDays": 2, "lateFeeCapPercent": 12, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 30 },
-    "NY": { "name": "New York", "depositCapMonths": 1, "lateFeeGraceDays": 5, "lateFeeCapPercent": 5, "lateFeeCapFlat": 50, "depositRefundDays": 14, "noticeDays": 30 },
-    "FL": { "name": "Florida", "depositCapMonths": null, "lateFeeGraceDays": 3, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 15, "noticeDays": 30 },
-    "WA": { "name": "Washington", "depositCapMonths": null, "lateFeeGraceDays": 5, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 20 }
+    "DEFAULT": { "name": "Default", "depositCapMonths": 2, "lateFeeGraceDays": 5, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 30, "nsfFeeCap": null },
+    "CA": { "name": "California", "depositCapMonths": 1, "lateFeeGraceDays": 3, "lateFeeCapPercent": 6, "lateFeeCapFlat": null, "depositRefundDays": 21, "noticeDays": 30, "nsfFeeCap": null },
+    "TX": { "name": "Texas", "depositCapMonths": null, "lateFeeGraceDays": 2, "lateFeeCapPercent": 12, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 30, "nsfFeeCap": null },
+    "NY": { "name": "New York", "depositCapMonths": 1, "lateFeeGraceDays": 5, "lateFeeCapPercent": 5, "lateFeeCapFlat": 50, "depositRefundDays": 14, "noticeDays": 30, "nsfFeeCap": null },
+    "FL": { "name": "Florida", "depositCapMonths": null, "lateFeeGraceDays": 3, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 15, "noticeDays": 30, "nsfFeeCap": null },
+    "WA": { "name": "Washington", "depositCapMonths": null, "lateFeeGraceDays": 5, "lateFeeCapPercent": 10, "lateFeeCapFlat": null, "depositRefundDays": 30, "noticeDays": 20, "nsfFeeCap": null }
   },
   "plans": {
-    "STARTER": { "pricePerUnit": 1.25, "minimum": 125, "features": ["LEASING", "PAYMENTS", "MAINTENANCE", "OWNER_PORTAL"] },
-    "GROWTH": { "pricePerUnit": 1.75, "minimum": 300, "features": ["LEASING", "PAYMENTS", "MAINTENANCE", "OWNER_PORTAL", "VENDOR_PORTAL", "AUTOMATIONS", "AI_ASSISTANT", "RENEWALS", "RECURRING_MAINTENANCE"] },
+    "STARTER": { "pricePerUnit": 1.25, "minimum": 125, "features": ["LEASING", "PAYMENTS", "MAINTENANCE", "OWNER_PORTAL", "DOCUMENTS"] },
+    "GROWTH": { "pricePerUnit": 1.75, "minimum": 300, "features": ["LEASING", "PAYMENTS", "MAINTENANCE", "OWNER_PORTAL", "VENDOR_PORTAL", "AUTOMATIONS", "AI_ASSISTANT", "RENEWALS", "RECURRING_MAINTENANCE", "MESSAGING", "DOCUMENTS", "ESIGN"] },
     "ENTERPRISE": { "pricePerUnit": 2.5, "minimum": 1500, "features": ["*"] }
   }
 }

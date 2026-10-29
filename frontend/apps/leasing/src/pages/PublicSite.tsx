@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { BedDouble, Bath, Ruler, MapPin, Search } from 'lucide-react';
-import { Button, Field, Input, Select, Textarea, Skeleton, EmptyState, Panel, useApi, useAction, api, fmt } from '@propertyos/ui';
+import { BedDouble, Bath, Ruler, MapPin, Search, UploadCloud, CheckCircle2, CircleAlert } from 'lucide-react';
+import { Button, Field, Input, Select, Textarea, Skeleton, Carousel, EmptyState, Panel, useApi, useAction, api, fmt, toastError, errorText } from '@propertyos/ui';
 import { useBase } from '../common';
 
 function Hero() {
@@ -78,7 +78,7 @@ function Detail() {
       <Link to={base} className="mb-4 inline-block text-sm font-semibold text-federal-900 hover:underline">All homes</Link>
       <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
         <div>
-          <div className="overflow-hidden rounded-md bg-limestone-200"><img src={l.photos?.[0]} alt={l.title} className="aspect-[16/9] w-full object-cover" /></div>
+          <Carousel images={l.photos ?? []} alt={l.title} />
           <h1 className="mt-5 text-2xl font-extrabold text-graphite-950">{l.title}</h1>
           <p className="mt-1 flex items-center gap-1 text-graphite-600"><MapPin size={14} />{l.street}, {l.city}, {l.state} {l.zip}</p>
           <div className="mt-4 flex gap-6 text-graphite-800"><span>{l.beds} bed</span><span>{l.baths} bath</span><span>{l.sqft} sqft</span></div>
@@ -123,7 +123,11 @@ function Apply() {
     ...f, monthlyIncome: Number(f.monthlyIncome), monthsEmployed: f.monthsEmployed ? Number(f.monthsEmployed) : undefined, currentRent: f.currentRent ? Number(f.currentRent) : undefined, occupants: Number(f.occupants),
   }), { silent: true, onSuccess: setRes });
   if (res) return (
-    <Panel title="Application received"><p className="text-graphite-700">{res.message}</p><Button className="mt-4" onClick={() => nav(base)}>Back to homes</Button></Panel>
+    <div className="space-y-5">
+      <Panel title="Application received"><p className="text-graphite-700">{res.message}</p></Panel>
+      {res.uploadToken && <ApplicantFiles applicationId={res.id} token={res.uploadToken} />}
+      <Button variant="secondary" onClick={() => nav(base)}>Back to homes</Button>
+    </div>
   );
   return (
     <div className="mx-auto max-w-2xl">
@@ -160,10 +164,64 @@ function Apply() {
   );
 }
 
+/** Applicants have no account. They add documents with the private link from their confirmation (or from the leasing team). */
+function ApplicantFiles({ applicationId, token }: { applicationId: string; token: string }) {
+  const url = `/api/documents/public/applications/${applicationId}/files?token=${encodeURIComponent(token)}`;
+  const { data, refetch, error } = useApi<any>(url, { retry: false });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [type, setType] = useState('');
+  const send = async (file?: File | null, docType?: string) => {
+    if (!file) return;
+    setBusy(docType ?? 'file');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      if (docType || type) fd.append('docType', docType || type);
+      await api.upload(url, fd);
+      await refetch();
+    } catch (e) { toastError(e, 'We couldn’t add that file'); }
+    finally { setBusy(null); }
+  };
+  if (error) return <Panel title="Add your documents"><p className="text-sm text-crit-700">{errorText(error)}</p></Panel>;
+  const sent = new Set((data?.files ?? []).filter((f: any) => f.review_status !== 'REJECTED').map((f: any) => f.type));
+  return (
+    <Panel title="Add your documents" description="A photo ID and proof of income speed up the decision. PDF, JPG or PNG, up to 15 MB each.">
+      {!data ? <Skeleton className="h-24" /> : <div className="space-y-4">
+        <ul className="divide-y divide-limestone-200 rounded border border-limestone-200">
+          {(data.checklist ?? []).map((c: any) => (
+            <li key={c.type} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 text-sm">
+              <span className="flex items-center gap-2">{c.state === 'ON_FILE' || c.state === 'IN_REVIEW' ? <CheckCircle2 className="h-4 w-4 text-good-700" /> : <CircleAlert className="h-4 w-4 text-warn-700" />}
+                <strong>{c.type}</strong><span className="text-graphite-500">{c.state === 'ON_FILE' ? 'Received' : c.state === 'IN_REVIEW' ? 'Received, being checked' : c.state === 'REJECTED' ? 'Please send a new file' : 'Needed'}</span></span>
+              {c.state !== 'ON_FILE' && <label className="inline-flex cursor-pointer items-center gap-1.5 rounded border border-limestone-300 bg-white px-3 py-1.5 text-sm font-semibold text-graphite-900 hover:bg-limestone-50">
+                <UploadCloud className="h-4 w-4" />{busy === c.type ? 'Sending…' : 'Choose file'}
+                <input type="file" className="sr-only" accept=".pdf,.png,.jpg,.jpeg,.heic" onChange={(e) => { send(e.target.files?.[0], c.type); e.target.value = ''; }} /></label>}
+            </li>))}
+        </ul>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Something else" className="min-w-[200px] flex-1"><Select value={type} onChange={(e) => setType(e.target.value)}><option value="">Other document</option>{(data.types ?? []).filter((t: string) => !(data.checklist ?? []).some((c: any) => c.type === t)).map((t: string) => <option key={t}>{t}</option>)}</Select></Field>
+          <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded border border-limestone-300 bg-white px-3 text-sm font-semibold text-graphite-900 hover:bg-limestone-50">
+            <UploadCloud className="h-4 w-4" />{busy === 'file' ? 'Sending…' : 'Add a file'}
+            <input type="file" className="sr-only" accept=".pdf,.png,.jpg,.jpeg,.heic" onChange={(e) => { send(e.target.files?.[0]); e.target.value = ''; }} /></label>
+        </div>
+        {(data.files ?? []).length > 0 && <p className="text-xs text-graphite-500">Sent so far: {(data.files as any[]).map((f) => `${f.type}${f.review_status === 'REJECTED' ? ' (needs a new file)' : ''}`).join(', ')}.</p>}
+      </div>}
+    </Panel>
+  );
+}
+
+function ApplicantDocuments() {
+  const { id } = useParams();
+  const [sp] = useSearchParams();
+  const token = sp.get('token');
+  if (!id || !token) return <EmptyState title="This link is incomplete" body="Use the full link from your application confirmation, or ask the leasing team to send it again." />;
+  return <div className="mx-auto max-w-2xl"><h1 className="mb-1 text-2xl font-extrabold text-graphite-950">Your application documents</h1><p className="mb-5 text-graphite-600">Send what the leasing team asked for. You can come back to this page any time while your application is open.</p><ApplicantFiles applicationId={id} token={token} /></div>;
+}
+
 export function PublicSite() {
   return (
     <Routes>
       <Route index element={<Search_ />} />
+      <Route path="applications/:id/documents" element={<ApplicantDocuments />} />
       <Route path=":id" element={<Detail />} />
       <Route path=":id/apply" element={<Apply />} />
     </Routes>

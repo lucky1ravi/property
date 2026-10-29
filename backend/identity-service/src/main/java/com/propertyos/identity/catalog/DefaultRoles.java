@@ -54,33 +54,36 @@ public final class DefaultRoles {
                     grants("DASHBOARD:VIEW", "PROPERTY:VIEW,EDIT", "LISTING:VIEW,CREATE,EDIT,APPROVE", "SHOWING:VIEW,CREATE,EDIT",
                             "APPLICATION:VIEW,EDIT,APPROVE", "LEASE:VIEW,CREATE,EDIT,APPROVE", "INVOICE:VIEW", "PAYMENT:VIEW",
                             "OWNER_STATEMENT:VIEW", "WORK_ORDER:VIEW,CREATE,EDIT,APPROVE<=1000,VERIFY", "VENDOR:VIEW",
-                            "AUTOMATION:VIEW", "WORKFLOW:VIEW", "OPPORTUNITY:VIEW", "REPORT:VIEW", "AI_ASSISTANT:VIEW"),
-                    Map.of("Applicant.ssn", "MASKED", "Owner.bankAccount", "HIDDEN")),
+                            "AUTOMATION:VIEW", "WORKFLOW:VIEW", "OPPORTUNITY:VIEW", "REPORT:VIEW", "AI_ASSISTANT:VIEW", "CONVERSATION:VIEW,CREATE", "ALERT:VIEW",
+                            "DOCUMENT:VIEW,CREATE,EDIT,EXPORT", "ESIGN:VIEW,CREATE,SIGN", "MEDIA:UPLOAD"),
+                    Map.of("Applicant.ssn", "MASKED", "Owner.bankAccount", "HIDDEN", "Document.sensitive", "VISIBLE")),
             new RoleTemplate("LEASING_AGENT", "Leasing Agent", "Handles listings, showings and applications; cannot approve.",
                     "PROPERTY", "#3E7CB1",
                     grants("DASHBOARD:VIEW", "PROPERTY:VIEW", "LISTING:VIEW,CREATE,EDIT", "SHOWING:VIEW,CREATE,EDIT",
-                            "APPLICATION:VIEW,EDIT", "LEASE:VIEW", "AI_ASSISTANT:VIEW"),
-                    Map.of("Applicant.ssn", "HIDDEN", "Applicant.income", "MASKED", "Owner.bankAccount", "HIDDEN")),
+                            "APPLICATION:VIEW,EDIT", "LEASE:VIEW", "AI_ASSISTANT:VIEW", "CONVERSATION:VIEW,CREATE",
+                            "DOCUMENT:VIEW,CREATE,EDIT", "ESIGN:VIEW", "MEDIA:UPLOAD"),
+                    Map.of("Applicant.ssn", "HIDDEN", "Applicant.income", "MASKED", "Owner.bankAccount", "HIDDEN", "Document.sensitive", "MASKED")),
             new RoleTemplate("ACCOUNTANT", "Accountant", "Owns receivables, payables, owner statements and reconciliation.",
                     "ORG", "#2A6F4E",
                     grants("DASHBOARD:VIEW", "PROPERTY:VIEW", "LEASE:VIEW", "INVOICE:VIEW,CREATE,EDIT,APPROVE,EXPORT",
                             "PAYMENT:VIEW,CREATE,APPROVE,EXPORT", "OWNER_STATEMENT:VIEW,CREATE,EXPORT", "VENDOR:VIEW",
-                            "WORK_ORDER:VIEW", "REPORT:VIEW,EXPORT", "AI_ASSISTANT:VIEW", "AUDIT:VIEW"),
-                    Map.of("Applicant.ssn", "HIDDEN")),
+                            "WORK_ORDER:VIEW", "REPORT:VIEW,EXPORT", "AI_ASSISTANT:VIEW", "AUDIT:VIEW", "TAX_REPORT:VIEW,EDIT,EXPORT", "ALERT:VIEW", "CONVERSATION:VIEW,CREATE",
+                            "DOCUMENT:VIEW,CREATE,EDIT,EXPORT", "ESIGN:VIEW,CREATE,SIGN", "MEDIA:UPLOAD"),
+                    Map.of("Applicant.ssn", "HIDDEN", "Document.sensitive", "VISIBLE")),
             new RoleTemplate("OWNER", "Property Owner", "Sees only their own properties; approves repairs over their limit.",
                     "OWNER", "#C8963E",
                     grants("DASHBOARD:VIEW", "PROPERTY:VIEW", "LEASE:VIEW", "APPLICATION:VIEW,APPROVE", "INVOICE:VIEW",
                             "PAYMENT:VIEW", "OWNER_STATEMENT:VIEW,EXPORT", "WORK_ORDER:VIEW,APPROVE", "REPORT:VIEW",
-                            "OPPORTUNITY:VIEW", "AI_ASSISTANT:VIEW"),
+                            "OPPORTUNITY:VIEW", "AI_ASSISTANT:VIEW", "CONVERSATION:VIEW,CREATE", "DOCUMENT:VIEW,CREATE", "ESIGN:VIEW,SIGN", "MEDIA:UPLOAD"),
                     Map.of("Applicant.ssn", "HIDDEN", "Tenant.phone", "MASKED", "Vendor.rates", "HIDDEN")),
             new RoleTemplate("TENANT", "Resident", "Sees only their own lease, balance and requests.",
                     "TENANT", "#5C6B73",
                     grants("DASHBOARD:VIEW", "LEASE:VIEW,SIGN", "INVOICE:VIEW", "PAYMENT:VIEW,CREATE",
-                            "WORK_ORDER:VIEW,CREATE,VERIFY", "AI_ASSISTANT:VIEW"),
+                            "WORK_ORDER:VIEW,CREATE,VERIFY", "AI_ASSISTANT:VIEW", "CONVERSATION:VIEW,CREATE", "DOCUMENT:VIEW,CREATE", "ESIGN:VIEW,SIGN", "MEDIA:UPLOAD"),
                     Map.of("Owner.bankAccount", "HIDDEN", "Vendor.rates", "HIDDEN")),
             new RoleTemplate("VENDOR", "Vendor", "Sees only jobs assigned to their company.",
                     "VENDOR", "#8B5E34",
-                    grants("DASHBOARD:VIEW", "WORK_ORDER:VIEW,UPDATE"),
+                    grants("DASHBOARD:VIEW", "WORK_ORDER:VIEW,UPDATE", "CONVERSATION:VIEW,CREATE", "DOCUMENT:VIEW,CREATE", "ESIGN:VIEW,SIGN", "MEDIA:UPLOAD"),
                     Map.of("Tenant.email", "HIDDEN", "Owner.bankAccount", "HIDDEN", "Payment.method", "HIDDEN"))
     );
 
@@ -97,6 +100,12 @@ public final class DefaultRoles {
         out.addAll(extra);
         return out;
     }
+
+    /** Features added after first release. Existing organisations get them once, from the template grants, so the Roles screen stays in step. */
+    public static final List<String> SYNCED_FEATURES = List.of("TAX_REPORT", "ALERT", "CONVERSATION", "DOCUMENT", "ESIGN", "MEDIA");
+
+    /** Field rules added after first release, copied once to existing default roles that have no rule for the field yet. */
+    public static final List<String> SYNCED_FIELDS = List.of("Document.sensitive");
 
     public static Optional<RoleTemplate> byKey(String key) {
         if (PLATFORM_ADMIN.key().equals(key)) return Optional.of(PLATFORM_ADMIN);

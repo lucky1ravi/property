@@ -14,10 +14,12 @@ public class AiController {
     private final ChatService chat;
     private final Insights insights;
     private final Capabilities capabilities;
+    private final com.propertyos.ai.service.ImageModeration imageModeration;
     private final AiAudit audit;
     private final LlmProvider provider;
 
-    public AiController(ChatService chat, Insights insights, Capabilities capabilities, AiAudit audit, LlmProvider provider) {
+    public AiController(ChatService chat, Insights insights, Capabilities capabilities, AiAudit audit, LlmProvider provider, com.propertyos.ai.service.ImageModeration imageModeration) {
+        this.imageModeration = imageModeration;
         this.chat = chat;
         this.insights = insights;
         this.capabilities = capabilities;
@@ -50,6 +52,17 @@ public class AiController {
 
     @GetMapping("/api/ai/audit") @RequiresPermission("AUDIT:VIEW")
     public Object audit() { return audit.summary(); }
+
+    @PostMapping("/internal/ai/moderate-image")
+    public JsonNode moderateImage(@RequestBody JsonNode in) {
+        byte[] bytes = java.util.Base64.getDecoder().decode(in.path("imageBase64").asText(""));
+        return imageModeration.check(in.path("kind").asText("PROPERTY"), in.path("fileName").asText(""), in.path("mime").asText("image/jpeg"), bytes);
+    }
+
+    @GetMapping("/internal/ai/vision-status")
+    public Object visionStatus() {
+        return Map.of("online", provider.vision().isPresent(), "provider", provider.vision().map(v -> v.provider() + ":" + v.model()).orElse("built-in simulator"));
+    }
 
     @PostMapping("/internal/ai/{capability}")
     public JsonNode capability(@PathVariable String capability, @RequestBody JsonNode input) { return capabilities.run(capability, input); }

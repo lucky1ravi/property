@@ -14,10 +14,16 @@ public class BedrockLlm implements Llm {
     private final BedrockRuntimeClient client;
     private final ObjectMapper mapper;
     private final String modelId;
+    private final boolean vision;
 
     public BedrockLlm(ObjectMapper mapper, String region, String modelId) {
+        this(mapper, region, modelId, false);
+    }
+
+    public BedrockLlm(ObjectMapper mapper, String region, String modelId, boolean vision) {
         this.mapper = mapper;
         this.modelId = modelId;
+        this.vision = vision;
         this.client = BedrockRuntimeClient.builder().region(Region.of(region)).build();
     }
 
@@ -29,6 +35,24 @@ public class BedrockLlm implements Llm {
     @Override
     public String model() {
         return modelId;
+    }
+
+    @Override
+    public boolean supportsVision() {
+        return vision;
+    }
+
+    @Override
+    public String vision(String system, String prompt, byte[] image, String mime) throws Exception {
+        ImageFormat fmt = mime.contains("png") ? ImageFormat.PNG : mime.contains("gif") ? ImageFormat.GIF : mime.contains("webp") ? ImageFormat.WEBP : ImageFormat.JPEG;
+        Message m = Message.builder().role(ConversationRole.USER).content(
+                ContentBlock.fromText(prompt),
+                ContentBlock.fromImage(ImageBlock.builder().format(fmt).source(ImageSource.builder().bytes(software.amazon.awssdk.core.SdkBytes.fromByteArray(image)).build()).build())).build();
+        ConverseResponse res = client.converse(ConverseRequest.builder().modelId(modelId).system(SystemContentBlock.builder().text(system).build())
+                .messages(m).inferenceConfig(InferenceConfiguration.builder().maxTokens(600).temperature(0f).build()).build());
+        StringBuilder text = new StringBuilder();
+        for (ContentBlock b : res.output().message().content()) if (b.text() != null) text.append(b.text());
+        return text.toString();
     }
 
     @Override
@@ -71,16 +95,24 @@ public class BedrockLlm implements Llm {
         List<ToolCall> calls = new ArrayList<>();
         for (ContentBlock b : res.output().message().content()) {
             if (b.text() != null) text.append(b.text());
-            if (b.toolUse() != null) calls.add(new ToolCall(b.toolUse().toolUseId(), b.toolUse().name(), mapper.readTree(docToJson(b.toolUse().input()))));
+            if (b.toolUse() != null) calls.add(new ToolCall(b.toolUse().toolUseId(), b.toolUse().name(), clean(mapper.readTree(docToJson(b.toolUse().input())))));
         }
         return new Reply(text.toString(), calls, res.usage().inputTokens(), res.usage().outputTokens());
+    }
+
+    /** Some models send {"": ""} for a tool with no parameters, and the API rejects that when it is sent back. */
+    private JsonNode clean(JsonNode n) {
+        if (n == null || !n.isObject()) return mapper.createObjectNode();
+        com.fasterxml.jackson.databind.node.ObjectNode out = mapper.createObjectNode();
+        n.fields().forEachRemaining(e -> { if (!e.getKey().isBlank()) out.set(e.getKey(), e.getValue()); });
+        return out;
     }
 
     private Document toDoc(JsonNode n) {
         if (n == null || n.isNull()) return Document.fromNull();
         if (n.isObject()) {
             Map<String, Document> m = new LinkedHashMap<>();
-            n.fields().forEachRemaining(e -> m.put(e.getKey(), toDoc(e.getValue())));
+            n.fields().forEachRemaining(e -> { if (!e.getKey().isBlank()) m.put(e.getKey(), toDoc(e.getValue())); });
             return Document.fromMap(m);
         }
         if (n.isArray()) {

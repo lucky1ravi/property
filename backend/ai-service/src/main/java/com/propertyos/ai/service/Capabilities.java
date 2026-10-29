@@ -32,7 +32,7 @@ public class Capabilities {
         this.audit = audit;
     }
 
-    private static final Map<String, String> CONFIG_KEY = Map.of("listing", "LISTING_WRITER", "lead-reply", "LEASING_AGENT", "screening", "SCREENING", "triage", "MAINTENANCE_TRIAGE");
+    private static final Map<String, String> CONFIG_KEY = Map.of("listing", "LISTING_WRITER", "lead-reply", "LEASING_AGENT", "screening", "SCREENING", "triage", "MAINTENANCE_TRIAGE", "thread", "CONVERSATION_ASSIST");
 
     public JsonNode run(String capability, JsonNode input) {
         String key = CONFIG_KEY.get(capability);
@@ -68,6 +68,9 @@ public class Capabilities {
                     + "Do not consider or mention protected characteristics. The decision belongs to a person.";
             case "triage" -> base + "Triage a maintenance request. Return {\"category\": one of PLUMBING, HVAC, ELECTRICAL, APPLIANCE, PEST, GENERAL, \"priority\": one of EMERGENCY, HIGH, NORMAL, LOW, "
                     + "\"estimate\": typical US repair cost in dollars as a number, \"summary\": one sentence}. Gas smell, fire, sparking, flooding or no heat in cold weather are EMERGENCY.";
+            case "thread" -> base + "You help a property manager catch up on a conversation between parties (residents, owners, vendors, staff). Return {\"summary\": 2 sentences, "
+                    + "\"openQuestions\": array of up to 3 short strings for things still unanswered, \"suggestedReply\": a polite, concise reply (under 60 words) the next staff member could send}. "
+                    + "Only use facts in the messages. Never promise payment terms, legal outcomes or repairs that the messages do not already commit to. Never mention or imply anyone's protected characteristics.";
             default -> base;
         };
     }
@@ -86,6 +89,11 @@ public class Capabilities {
             }
             case "screening" -> {
                 if (out.path("summary").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "Empty summary");
+            }
+            case "thread" -> {
+                if (out.path("summary").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "Empty summary");
+                if (!guardrails.fairHousing(out.path("summary").asText(), out.path("suggestedReply").asText("")).isEmpty())
+                    throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "FAIR_HOUSING", "Suggestion blocked");
             }
             case "triage" -> {
                 if (!List.of("PLUMBING", "HVAC", "ELECTRICAL", "APPLIANCE", "PEST", "GENERAL").contains(out.path("category").asText()))

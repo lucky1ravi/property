@@ -2,6 +2,9 @@ import { BrowserRouter, Navigate, Route, Routes, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getToken } from '@propertyos/ui';
 import { SignIn } from './pages/SignIn';
+import { Messages } from './pages/Messages';
+import { Deadlines } from './pages/Deadlines';
+import { Preferences } from './pages/Preferences';
 import { AppLayout } from './layout/AppLayout';
 import { RemoteModule } from './layout/RemoteModule';
 import { Toaster } from './layout/Toaster';
@@ -13,6 +16,7 @@ const qc = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: 
 const remotes = {
   leasing: () => import('leasing/App'),
   payments: () => import('payments/App'),
+  documents: () => import('documents/App'),
   maintenance: () => import('maintenance/App'),
   broker: () => import('broker/App'),
   admin: () => import('admin/App'),
@@ -64,7 +68,11 @@ export function App() {
             <Route path="broker/*" element={<RemoteModule name="broker" loader={remotes.broker} />} />
             <Route path="leasing/*" element={<RemoteModule name="leasing" loader={remotes.leasing} />} />
             <Route path="payments/*" element={<RemoteModule name="payments" loader={remotes.payments} />} />
+            <Route path="documents/*" element={<RemoteModule name="documents" loader={remotes.documents} />} />
             <Route path="maintenance/*" element={<RemoteModule name="maintenance" loader={remotes.maintenance} />} />
+            <Route path="messages" element={<Messages />} />
+            <Route path="deadlines" element={<Deadlines />} />
+            <Route path="preferences" element={<Preferences />} />
             <Route path="admin/*" element={<RemoteModule name="admin" loader={remotes.admin} />} />
           </Route>
           <Route path="*" element={<NotFound />} />

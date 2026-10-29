@@ -1,3 +1,4 @@
+import { Avatar } from '../components/primitives';
 import type { ReactNode } from 'react';
 import { useSession } from '../lib/session';
 
@@ -29,10 +30,13 @@ const RULES: Record<QuickKind, { perm: string; blocked: string[] }> = {
 export function QuickLink({ kind, id, name, children, className = '' }: { kind: QuickKind; id?: string | null; name?: string; children: ReactNode; className?: string }) {
   const { session, can } = useSession();
   const rule = RULES[kind];
-  if (!id || !session || !can(rule.perm) || rule.blocked.includes(session.scope)) return <>{children}</>;
-  return (
+  const person = (kind === 'tenant' || kind === 'applicant') && !!(name || typeof children === 'string');
+  const label = name ?? (typeof children === 'string' ? children : undefined);
+  const withPhoto = (node: ReactNode) => person && label ? <span className="inline-flex items-center gap-2"><Avatar name={label} size={24} />{node}</span> : <>{node}</>;
+  if (!id || !session || !can(rule.perm) || rule.blocked.includes(session.scope)) return withPhoto(children);
+  return withPhoto(
     <button type="button" onClick={(e) => { e.stopPropagation(); openQuickView({ kind, id, name }); }}
-      className={`text-left font-semibold text-federal-800 underline-offset-2 hover:text-federal-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600 ${className}`}>
+      className={`text-left font-semibold text-[#4a7fd9] underline decoration-[#4a7fd9]/50 underline-offset-2 hover:text-[#2f63bd] hover:decoration-[#2f63bd] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600 ${className}`}>
       {children}
     </button>
   );

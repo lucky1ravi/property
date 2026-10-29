@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Route, Routes, useNavigate } from 'react-router-dom';
+import { AiTools } from './AiTools';
 import { motion } from 'framer-motion';
 import {
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, AiInsight, DataTable, type Column, TrendChart, CompareChart, RankBars, EmptyState, Skeleton,
@@ -143,5 +144,5 @@ function Reports() {
 }
 
 export default function App({ view }: { view?: 'home' | 'reports' }) {
-  return <MicroApp name="insights">{view === 'reports' ? <Reports /> : <Home />}</MicroApp>;
+  return <MicroApp name="insights">{view === 'reports' ? <Routes><Route path="ai" element={<AiTools />} /><Route path="*" element={<Reports />} /></Routes> : <Home />}</MicroApp>;
 }

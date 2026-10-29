@@ -11,8 +11,8 @@ class Boundary extends Component<{ name: string; children: ReactNode }, { error:
     if (this.state.error) {
       return (
         <div className="rounded-md border border-crit-100 bg-crit-50 p-6">
-          <p className="font-bold text-crit-700">The {this.props.name} module hit an error</p>
-          <p className="mt-1 text-sm text-graphite-700">{this.state.error.message}</p>
+          <p className="font-bold text-crit-700">This part of PropertyOS couldn’t load</p>
+          <p className="mt-1 text-sm text-graphite-700">Your data is safe. Try again, or reload the page. If it keeps happening, contact support.</p>
           <button className="mt-3 text-sm font-semibold text-federal-900 underline" onClick={() => this.setState({ error: null })}>Try again</button>
         </div>
       );

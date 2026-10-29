@@ -16,6 +16,7 @@ import java.util.Optional;
 public class LlmProvider {
     private static final Logger log = LoggerFactory.getLogger(LlmProvider.class);
     private final Llm llm;
+    private final Llm vision;
 
     public LlmProvider(ObjectMapper mapper) {
         String choice = env("AI_PROVIDER", "");
@@ -31,11 +32,25 @@ public class LlmProvider {
             log.warn("AI provider could not start, running in offline mode: {}", e.getMessage());
         }
         this.llm = built;
+        Llm v = null;
+        try {
+            String visionModel = env("BEDROCK_VISION_MODEL_ID", "");
+            if ("bedrock".equalsIgnoreCase(choice) && !visionModel.isBlank()) v = new BedrockLlm(mapper, env("AWS_REGION", "us-east-1"), visionModel, true);
+            else if (built != null && built.provider().equals("openai") && built.supportsVision()) v = built;
+        } catch (Exception e) {
+            log.warn("Image model could not start, image checks use the built-in simulator: {}", e.getMessage());
+        }
+        this.vision = v;
         log.info("AI provider: {}", built == null ? "offline (rules only)" : built.provider() + " / " + built.model());
     }
 
     public Optional<Llm> get() {
         return Optional.ofNullable(llm);
+    }
+
+    /** The model used for image checks, if one that accepts images is configured. */
+    public Optional<Llm> vision() {
+        return Optional.ofNullable(vision);
     }
 
     public String describe() {

@@ -45,6 +45,19 @@ public class InternalController {
                 "email", u.get("email"))).orElse(Map.of()));
     }
 
+    /** Active people in the organisation, for deciding who may message whom. */
+    @GetMapping("/directory")
+    public List<Map<String, Object>> directory() {
+        return tx.read(() -> store.users().stream().filter(u -> "ACTIVE".equals(String.valueOf(u.get("status"))))
+                .map(u -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", u.get("id")); m.put("name", u.get("name")); m.put("title", u.get("title")); m.put("persona", u.get("persona"));
+                    m.put("party_type", u.get("party_type")); m.put("party_id", u.get("party_id"));
+                    m.put("roles", String.valueOf(u.get("roles"))); m.put("property_ids", String.valueOf(u.get("property_ids")));
+                    return m;
+                }).toList());
+    }
+
     @GetMapping("/orgs")
     public List<Map<String, Object>> orgs() {
         return tx.read(store::orgs);

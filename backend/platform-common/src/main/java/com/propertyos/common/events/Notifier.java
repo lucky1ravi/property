@@ -33,6 +33,20 @@ public class Notifier {
         events.publish("NotificationRequested", "Notification", UUID.randomUUID(), p);
     }
 
+    /** Like {@link #send} with a category (drives each person's preferences) and a key that stops the same alert being sent twice. */
+    public void sendAlert(String audience, String target, String title, String body, String link, String priority, String category, String dedupeKey) {
+        Map<String, Object> p = new HashMap<>();
+        p.put("audience", audience);
+        p.put("target", target);
+        p.put("title", title);
+        p.put("body", body);
+        p.put("link", link);
+        p.put("priority", priority == null ? "NORMAL" : priority);
+        p.put("category", category);
+        p.put("dedupeKey", dedupeKey);
+        events.publish("NotificationRequested", "Notification", UUID.randomUUID(), p);
+    }
+
     public void toParty(UUID partyId, String title, String body, String link) {
         if (partyId != null) send("PARTY", partyId.toString(), title, body, link, "NORMAL");
     }

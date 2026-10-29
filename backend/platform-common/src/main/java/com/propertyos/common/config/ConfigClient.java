@@ -60,6 +60,7 @@ public class ConfigClient {
 
     /** Value at a slash path such as "fees/lateFee/flat", or a missing node. */
     public JsonNode at(String path) {
+        path = path.replace('.', '/');   // callers use both "fees.nsfFee" and "fees/nsfFee"
         JsonNode n = current().at("/" + path);
         if (n.isMissingNode()) n = defaults.at("/" + path);
         return n == null ? MissingNode.getInstance() : n;

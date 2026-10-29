@@ -16,6 +16,7 @@ export default defineConfig({
       remotes: {
         leasing: remote('leasing'),
         payments: remote('payments'),
+        documents: remote('documents'),
         maintenance: remote('maintenance'),
         broker: remote('broker'),
         admin: remote('admin'),

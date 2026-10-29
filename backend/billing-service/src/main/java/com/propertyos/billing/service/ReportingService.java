@@ -1,5 +1,6 @@
 package com.propertyos.billing.service;
 
+import com.propertyos.common.config.ConfigClient;
 import com.propertyos.common.events.EventPublisher;
 import com.propertyos.common.events.Notifier;
 import com.propertyos.common.rls.Db;
@@ -17,8 +18,10 @@ public class ReportingService {
     private final Db db;
     private final Notifier notifier;
     private final EventPublisher events;
+    private final ConfigClient config;
 
-    public ReportingService(Db db, Notifier notifier, EventPublisher events) {
+    public ReportingService(Db db, Notifier notifier, EventPublisher events, ConfigClient config) {
+        this.config = config;
         this.db = db;
         this.notifier = notifier;
         this.events = events;
@@ -93,5 +96,73 @@ public class ReportingService {
             events.publish("ReminderSent", "Tenant", (UUID) t.get("tenant_id"), Map.of("balance", t.get("balance").toString()));
         }
         return Map.of("sent", targets.size());
+    }
+
+    // ---------- Tax and compliance ----------
+    /** Sales or rental tax billed and collected, by month and state. Collected tax is the share of each invoice that has been paid. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> taxSummary(int year) {
+        List<Map<String, Object>> rows = db.list("""
+                select to_char(created_at, 'YYYY-MM') as month, coalesce(state, 'N/A') as state,
+                       sum(subtotal) filter (where tax_amount > 0) as taxable_base,
+                       sum(subtotal) filter (where tax_amount = 0 and kind <> 'DEPOSIT') as non_taxable,
+                       sum(tax_amount) as tax_invoiced,
+                       round(sum(tax_amount * least(paid / nullif(amount, 0), 1)), 2) as tax_collected,
+                       max(tax_rate) as rate
+                from billing.invoice where status <> 'VOID' and extract(year from created_at) = ?
+                group by 1, 2 order by 1 desc, 2""", year);
+        BigDecimal invoiced = BigDecimal.ZERO, collected = BigDecimal.ZERO;
+        for (Map<String, Object> r : rows) {
+            invoiced = invoiced.add(r.get("tax_invoiced") == null ? BigDecimal.ZERO : (BigDecimal) r.get("tax_invoiced"));
+            collected = collected.add(r.get("tax_collected") == null ? BigDecimal.ZERO : (BigDecimal) r.get("tax_collected"));
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("year", year);
+        out.put("rows", rows);
+        out.put("taxInvoiced", invoiced);
+        out.put("taxCollected", collected);
+        out.put("taxEnabled", config.flag("payments/tax/enabled", true));
+        return out;
+    }
+
+    /** Preparation worksheet for IRS Form 1099-MISC (rents paid to owners). It is not a filed return. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> owner1099(int year) {
+        BigDecimal threshold = config.number("payments/reporting/form1099Threshold", "2000");
+        BigDecimal bw = config.number("payments/reporting/backupWithholdingPercent", "24");
+        List<Map<String, Object>> rows = db.list("""
+                select s.owner_id, max(s.owner_name) as owner_name, count(*) as statements,
+                       sum(s.rent_collected + s.fees_collected) as gross_collected, sum(s.net_payout) as net_paid,
+                       max(p.legal_name) as legal_name, max(p.tin_type) as tin_type, max(p.tin_last4) as tin_last4, max(p.w9_received_at) as w9_received_at
+                from billing.owner_statement s left join billing.owner_tax_profile p on p.owner_id = s.owner_id
+                where s.status in ('PUBLISHED','PAID') and s.period like ?
+                group by s.owner_id order by sum(s.net_payout) desc""", year + "-%");
+        int missing = 0;
+        for (Map<String, Object> r : rows) {
+            boolean reportable = ((BigDecimal) r.get("gross_collected")).compareTo(threshold) >= 0;
+            boolean w9 = r.get("w9_received_at") != null;
+            r.put("reportable", reportable);
+            r.put("w9_on_file", w9);
+            r.put("backup_withholding_due", reportable && !w9 ? ((BigDecimal) r.get("net_paid")).multiply(bw).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP) : BigDecimal.ZERO);
+            if (reportable && !w9) missing++;
+        }
+        // Owners with no published statement yet still need a W-9 before their first payout.
+        return Map.of("year", year, "threshold", threshold, "backupWithholdingPercent", bw, "owners", rows, "missingW9", missing);
+    }
+
+    @Transactional
+    public Map<String, Object> saveW9(UUID ownerId, Map<String, Object> b) {
+        String tin = com.propertyos.common.web.Req.str(b, "tinLast4");
+        if (tin != null && !tin.matches("\\d{4}")) throw ApiException.badRequest("Enter only the last 4 digits of the SSN or EIN. The full number is never stored here.");
+        boolean received = com.propertyos.common.web.Req.bool(b, "w9Received");
+        UUID org = com.propertyos.common.security.UserContextHolder.orgId();
+        db.update("""
+                insert into billing.owner_tax_profile (owner_id, org_id, legal_name, tin_type, tin_last4, w9_received_at, updated_by)
+                values (?,?,?,?,?,?,?)
+                on conflict (owner_id) do update set legal_name = excluded.legal_name, tin_type = excluded.tin_type, tin_last4 = excluded.tin_last4,
+                    w9_received_at = excluded.w9_received_at, updated_by = excluded.updated_by, updated_at = now()""",
+                ownerId, org, com.propertyos.common.web.Req.str(b, "legalName"), com.propertyos.common.web.Req.str(b, "tinType"), tin,
+                received ? java.time.LocalDate.now() : null, com.propertyos.common.security.UserContextHolder.require().name());
+        return Map.of("ownerId", ownerId, "w9Received", received);
     }
 }

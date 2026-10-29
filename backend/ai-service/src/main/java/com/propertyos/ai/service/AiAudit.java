@@ -26,7 +26,7 @@ public class AiAudit {
         db.update("""
                 insert into ai.ai_audit (id, org_id, user_id, user_name, kind, capability, prompt, tools_used, provider, input_tokens, output_tokens, blocked, block_reason, fallback, latency_ms)
                 values (?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?)""",
-                UUID.randomUUID(), ctx.orgId(), ctx.userId(), ctx.name(), kind, capability, trim(guardrails.redact(prompt), 1900), db.json(tools), provider, in, out, blocked, reason, fallback, (int) ms);
+                UUID.randomUUID(), ctx.orgId(), ctx.userId(), ctx.name(), trim(kind, 20), trim(capability, 40), trim(guardrails.redact(prompt), 1900), db.json(tools), trim(provider, 60), in, out, blocked, trim(reason, 190), fallback, (int) ms);
     }
 
     @Transactional(readOnly = true)

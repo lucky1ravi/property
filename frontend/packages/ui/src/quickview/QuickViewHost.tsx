@@ -1,12 +1,16 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Phone } from 'lucide-react';
+import { InvoiceDownload } from '../components/InvoiceDownload';
+import { Carousel } from '../components/Carousel';
 import { Drawer } from '../components/overlay';
 import { KeyValues, Panel } from '../components/layout';
-import { Badge, Button, Skeleton, StatusPill } from '../components/primitives';
+import { Avatar, Badge, Button, Skeleton, StatusPill } from '../components/primitives';
 import { useApi } from '../lib/hooks';
 import { useSession } from '../lib/session';
 import { fmt } from '../lib/format';
+import { DocumentsPanel } from '../components/documents';
+import { PhotoManager } from '../components/media';
 import { QUICKVIEW_EVENT, QuickLink, type QuickTarget } from './QuickLink';
 
 const OPEN_STATUSES = ['COMPLETED', 'CLOSED', 'CANCELLED', 'VERIFIED'];
@@ -42,12 +46,12 @@ export function QuickViewHost() {
 
 interface PanelProps { id: string; name?: string; onClose: () => void; onBack?: () => void }
 
-function Shell({ title, subtitle, onClose, onBack, openPath, openLabel = 'Open full record', width = 640, children }: {
-  title: ReactNode; subtitle?: ReactNode; onClose: () => void; onBack?: () => void; openPath?: string; openLabel?: string; width?: number; children: ReactNode;
+function Shell({ title, avatar, subtitle, onClose, onBack, openPath, openLabel = 'Open full record', width = 640, children }: {
+  title: ReactNode; avatar?: string; subtitle?: ReactNode; onClose: () => void; onBack?: () => void; openPath?: string; openLabel?: string; width?: number; children: ReactNode;
 }) {
   const nav = useNavigate();
   return (
-    <Drawer open onClose={onClose} width={width} title={title} subtitle={subtitle}
+    <Drawer open onClose={onClose} width={width} title={avatar ? <span className="flex items-center gap-3"><Avatar name={avatar} size={44} ring /><span>{title}</span></span> : title} subtitle={subtitle}
       footer={openPath ? <Button variant="primary" onClick={() => { onClose(); nav(openPath); }}>{openLabel}</Button> : undefined}>
       {onBack && <button onClick={onBack} className="mb-3 text-sm font-semibold text-federal-800 hover:underline">← Back</button>}
       <div className="space-y-5">{children}</div>
@@ -80,7 +84,7 @@ function PropertyPanel({ id, onClose, onBack }: PanelProps) {
   return (
     <Shell title={p?.name ?? 'Property'} subtitle={p ? `${p.street}, ${p.city}, ${p.state} ${p.zip}` : undefined} onClose={onClose} onBack={onBack} width={680} openPath="/app/leasing/listings" openLabel="View listings">
       {!p ? <Loading /> : (<>
-        {p.photo_url && <img src={p.photo_url} alt="" className="h-44 w-full rounded-md object-cover" loading="lazy" />}
+        <Carousel images={p.photos?.length ? p.photos : [p.photo_url]} alt={p.name} aspect="aspect-[16/9]" />
         <Panel title="At a glance">
           <KeyValues cols={3} items={[
             { label: 'Type', value: fmt.title(p.type) }, { label: 'Year built', value: p.year_built }, { label: 'Status', value: <StatusPill status={p.status} /> },
@@ -88,6 +92,7 @@ function PropertyPanel({ id, onClose, onBack }: PanelProps) {
             { label: 'Rent roll', value: stats ? fmt.usd(stats.rent_roll) : '—' }, { label: 'Market rent', value: stats ? fmt.usd(stats.market_rent_total) : '—' }, { label: 'Live listings', value: stats?.live_listings },
           ]} />
         </Panel>
+        <Panel title="Photos"><PhotoManager propertyId={id} /></Panel>
         <Panel title="Owner">
           <QuickLink kind="owner" id={p.owner_id}>{p.owner_name ?? 'No owner'}</QuickLink>
           <div className="mt-1"><Contact email={p.owner_email} phone={p.owner_phone} /></div>
@@ -117,9 +122,10 @@ function OwnerPanel({ id, onClose, onBack }: PanelProps) {
   const o = owners?.find((x) => x.id === id);
   const mine = (props ?? []).filter((p) => p.owner_id === id);
   return (
-    <Shell title={o?.name ?? 'Owner'} subtitle={o?.contact && o.contact !== o.name ? `Contact: ${o.contact}` : undefined} onClose={onClose} onBack={onBack} width={560}>
+    <Shell avatar={o?.contact || o?.name} title={o?.name ?? 'Owner'} subtitle={o?.contact && o.contact !== o.name ? `Contact: ${o.contact}` : undefined} onClose={onClose} onBack={onBack} width={560}>
       {!owners ? <Loading /> : !o ? <Missing what="owner" /> : (<>
         <Panel title="Contact"><Contact email={o.email} phone={o.phone} /></Panel>
+        <DocumentsPanel entityType="OWNER" entityId={id} compact title="Documents" />
         <Panel title="Terms">
           <KeyValues cols={2} items={[
             { label: 'Repairs they can approve up to', value: fmt.usd(o.approval_limit) }, { label: 'Management fee', value: `${o.management_fee_pct}%` },
@@ -187,8 +193,9 @@ function TenantPanel({ id, name, onClose, onBack }: PanelProps) {
   const paid = myPayments.filter((p) => p.status === 'SUCCEEDED').reduce((s, p) => s + Number(p.amount), 0);
   const loaded = leases && invoices;
   return (
-    <Shell title={who} subtitle={unit} onClose={onClose} onBack={onBack} width={620}>
+    <Shell avatar={who} title={who} subtitle={unit} onClose={onClose} onBack={onBack} width={620}>
       {!loaded ? <Loading /> : (<>
+        <DocumentsPanel filter={{ tenantId: id }} uploadTarget={{ entityType: 'TENANT', entityId: id }} compact title="Documents" />
         <Panel title="Account">
           <KeyValues cols={3} items={[
             { label: 'Balance due', value: <span className={balance > 0 ? 'font-bold text-crit-700' : ''}>{fmt.usd(balance)}</span> },
@@ -204,7 +211,7 @@ function TenantPanel({ id, name, onClose, onBack }: PanelProps) {
         </Panel>
         <Panel title="Recent invoices" padded={false}>
           <ul className="divide-y divide-limestone-200">
-            {take(myInvoices).map((i) => (<Row key={i.id}><div className="min-w-0"><QuickLink kind="invoice" id={i.id}>{i.description}</QuickLink><div className="text-xs text-graphite-500">Due {fmt.date(i.due_date)}</div></div><div className="flex items-center gap-2"><span className="tabular-nums">{fmt.usd(i.amount, true)}</span><StatusPill status={i.status} /></div></Row>))}
+            {take(myInvoices).map((i) => (<Row key={i.id}><div className="min-w-0"><QuickLink kind="invoice" id={i.id}>{i.description}</QuickLink><div className="text-xs text-graphite-500">Due {fmt.date(i.due_date)}</div></div><div className="flex items-center gap-2"><span className="tabular-nums">{fmt.usd(i.amount, true)}</span><StatusPill status={i.status} /><InvoiceDownload id={i.id} /></div></Row>))}
             {myInvoices.length === 0 && <Empty>No invoices.</Empty>}
           </ul>
         </Panel>
@@ -237,9 +244,10 @@ function VendorPanel({ id, onClose, onBack }: PanelProps) {
   const jobs = (orders ?? []).filter((w) => w.vendor_id === id);
   const soon = v?.insurance_expires && new Date(v.insurance_expires).getTime() - Date.now() < 60 * 864e5;
   return (
-    <Shell title={v?.name ?? 'Vendor'} subtitle={v?.contact ? `Contact: ${v.contact}` : undefined} onClose={onClose} onBack={onBack} openPath="/app/maintenance/vendors" openLabel="All vendors" width={600}>
+    <Shell avatar={v?.contact || v?.name} title={v?.name ?? 'Vendor'} subtitle={v?.contact ? `Contact: ${v.contact}` : undefined} onClose={onClose} onBack={onBack} openPath="/app/maintenance/vendors" openLabel="All vendors" width={600}>
       {!vendors ? <Loading /> : !v ? <Missing what="vendor" /> : (<>
         <Panel title="Contact"><Contact email={v.email} phone={v.phone} /></Panel>
+        <DocumentsPanel entityType="VENDOR" entityId={id} compact title="Documents" />
         <Panel title="Performance">
           <KeyValues cols={3} items={[
             { label: 'Rating', value: `${v.rating} / 5` }, { label: 'Jobs completed', value: v.jobs_completed }, { label: 'Open jobs', value: v.open_jobs },
@@ -268,6 +276,7 @@ function WorkOrderPanel({ id, onClose, onBack }: PanelProps) {
       onClose={onClose} onBack={onBack} openPath={`/app/maintenance/${id}`} width={620}>
       {!w ? <Loading /> : (<>
         {w.description && <p className="text-sm text-graphite-800">{w.description}</p>}
+        <DocumentsPanel entityType="WORK_ORDER" entityId={id} compact title="Photos and files" />
         <Panel title="Details">
           <KeyValues cols={2} items={[
             { label: 'Property', value: <QuickLink kind="property" id={w.property_id}>{w.property_name}</QuickLink> },
@@ -297,6 +306,8 @@ function InvoicePanel({ id, onClose, onBack }: PanelProps) {
   return (
     <Shell title={i?.description ?? 'Invoice'} subtitle={i ? <span className="flex items-center gap-2"><StatusPill status={i.status} />{fmt.title(i.kind)}</span> : undefined} onClose={onClose} onBack={onBack} width={560}>
       {!i ? <Loading /> : (<>
+        <div className="flex justify-end"><InvoiceDownload id={i.id} invoice={i} label="Download PDF" /></div>
+        <DocumentsPanel entityType="INVOICE" entityId={id} compact title="Attachments" />
         <Panel title="Amounts">
           <KeyValues cols={3} items={[
             { label: 'Amount', value: fmt.usd(i.amount, true) }, { label: 'Paid', value: fmt.usd(i.paid, true) },
@@ -348,7 +359,7 @@ function ApplicantPanel({ id, onClose, onBack }: PanelProps) {
   const { data: a } = useApi<any>(`/api/leasing/applications/${id}`);
   const s = a?.screening;
   return (
-    <Shell title={a?.applicant_name ?? 'Applicant'} subtitle={a ? <span className="flex items-center gap-2"><StatusPill status={a.status} />{a.unit_label}</span> : undefined} onClose={onClose} onBack={onBack} openPath={`/app/leasing/applications/${id}`} openLabel="Open application" width={600}>
+    <Shell avatar={a?.applicant_name} title={a?.applicant_name ?? 'Applicant'} subtitle={a ? <span className="flex items-center gap-2"><StatusPill status={a.status} />{a.unit_label}</span> : undefined} onClose={onClose} onBack={onBack} openPath={`/app/leasing/applications/${id}`} openLabel="Open application" width={600}>
       {!a ? <Loading /> : (<>
         <Panel title="Contact"><Contact email={a.applicant_email} /></Panel>
         <Panel title="Application">

@@ -65,7 +65,7 @@ public class BillingSeeder implements EventHandler {
         UUID org = event.orgId();
         UserContextHolder.runAsSystem(org, () -> {
             tx.executeWithoutResult(s -> {
-                for (String t : List.of("owner_statement", "expense", "deposit", "ledger_entry", "payment_method", "payment", "invoice"))
+                for (String t : List.of("owner_statement", "owner_tax_profile", "expense", "deposit", "ledger_entry", "payment_method", "payment", "invoice"))
                     db.update("delete from billing." + t + " where org_id = ?", org);
                 seed(org);
             });
@@ -115,11 +115,17 @@ public class BillingSeeder implements EventHandler {
             db.update("insert into billing.expense (id, org_id, property_id, owner_id, description, category, amount, incurred_on) values (?,?,?,?,?,'MAINTENANCE',?,?)",
                     DemoData.id("exp:" + p.id()), org, p.id(), p.ownerId(), "HVAC service and filter replacement", 180 + rnd.nextInt(220), prev.atDay(12));
         }
-        for (DemoData.Owner o : DemoData.owners()) {
-            if (!o.orgId().equals(org)) continue;
+        List<DemoData.Owner> owners = DemoData.owners().stream().filter(o -> o.orgId().equals(org)).toList();
+        for (int i = 0; i < owners.size(); i++) {
+            DemoData.Owner o = owners.get(i);
+            // Every owner but the last has a W-9 on file, so the compliance check has something to show.
+            boolean w9 = i < owners.size() - 1;
+            if (w9) db.update("insert into billing.owner_tax_profile (owner_id, org_id, legal_name, tin_type, tin_last4, w9_received_at, updated_by) values (?,?,?,?,?,current_date - 90,'Demo data') on conflict do nothing",
+                    o.id(), org, o.name(), "SSN", String.format("%04d", Math.abs(o.name().hashCode()) % 10000));
             Map<String, Object> st = statements.generate(o.id(), prev.toString(), o.name(), o.managementFeePercent());
-            if (st != null) statements.publish((UUID) st.get("id"));
+            if (st != null && w9) statements.publish((UUID) st.get("id"));
         }
+        db.update("update billing.invoice i set state = d.state from billing.deposit d where d.lease_id = i.lease_id and i.state is null and d.state is not null");
     }
 
     private String rentDesc(YearMonth ym) {

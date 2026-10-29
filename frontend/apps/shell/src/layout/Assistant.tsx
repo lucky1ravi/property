@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Send, X, ShieldCheck, Database } from 'lucide-react';
-import { api, AiMark, RichText, Button, Spinner, toastError, type Persona } from '@propertyos/ui';
+import { Send, X, ShieldCheck, Database, Download } from 'lucide-react';
+import { api, AiMark, RichText, Button, Spinner, toastError, errorText, type Persona } from '@propertyos/ui';
 
 interface Pending { id: string; tool: string; summary: string }
 interface Msg {
@@ -32,6 +32,7 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState<string[]>([]);
+  const [exportOpen, setExportOpen] = useState(false);
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, busy]);
 
   const send = async (text: string) => {
@@ -52,10 +53,30 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
       }]);
       setMore(r.suggestions ?? []);
     } catch (e) {
-      setMsgs((cur) => [...cur, { role: 'assistant', content: e instanceof Error ? e.message : 'The assistant is unavailable right now. Try again in a moment.' }]);
+      setMsgs((cur) => [...cur, { role: 'assistant', content: errorText(e) }]);
     } finally {
       setBusy(false);
     }
+  };
+
+  const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  const transcript = () => msgs.filter((m) => m.content).map((m) => `### ${m.role === 'user' ? 'You' : 'PropertyOS'}\n\n${m.content}${m.tools?.length ? `\n\n_Looked up: ${m.tools.join(', ')}_` : ''}`).join('\n\n---\n\n');
+  const save = (name: string, body: string, type: string) => {
+    const url = URL.createObjectURL(new Blob([body], { type }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setExportOpen(false);
+  };
+  const exportMd = () => save(`propertyos-chat-${stamp()}.md`, `# PropertyOS chat\n\nExported ${new Date().toLocaleString()}\n\n${transcript()}\n`, 'text/markdown');
+  const exportTxt = () => save(`propertyos-chat-${stamp()}.txt`, msgs.filter((m) => m.content).map((m) => `${m.role === 'user' ? 'You' : 'PropertyOS'}: ${m.content}`).join('\n\n'), 'text/plain');
+  const exportPdf = () => {
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const html = `<html><head><title>PropertyOS chat</title><style>body{font:14px/1.5 system-ui,sans-serif;margin:32px;color:#1d2530}h1{font-size:20px}.m{margin:14px 0;padding:10px 12px;border-radius:6px;white-space:pre-wrap}.u{background:#e8eef8}.a{background:#f5f3ef}b{display:block;font-size:11px;color:#667;margin-bottom:4px}</style></head><body><h1>PropertyOS chat</h1><div>${esc(new Date().toLocaleString())}</div>${msgs.filter((m) => m.content).map((m) => `<div class="m ${m.role === 'user' ? 'u' : 'a'}"><b>${m.role === 'user' ? 'You' : 'PropertyOS'}</b>${esc(m.content)}</div>`).join('')}</body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) { toastError(new Error('Allow pop-ups to export as PDF, or use the Markdown export.')); return; }
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
+    setExportOpen(false);
   };
 
   const decide = async (i: number, approve: boolean) => {
@@ -76,7 +97,20 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
           className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[540px] flex-col border-l border-limestone-200 bg-white shadow-drawer" aria-label="PropertyOS assistant">
           <header className="flex items-center justify-between border-b border-limestone-200 px-5 py-3.5">
             <div className="flex items-center gap-2"><AiMark /><span className="font-bold text-graphite-900">Ask PropertyOS</span></div>
-            <button onClick={onClose} aria-label="Close assistant" className="rounded p-1.5 text-graphite-500 hover:bg-limestone-100"><X className="h-5 w-5" /></button>
+            <div className="flex items-center gap-1">
+              <div className="relative">
+                <button onClick={() => setExportOpen((v) => !v)} disabled={msgs.length === 0} aria-label="Export chat" aria-expanded={exportOpen} title={msgs.length ? 'Export chat' : 'Nothing to export yet'}
+                  className="flex items-center gap-1 rounded p-1.5 text-sm text-graphite-600 hover:bg-limestone-100 disabled:opacity-40"><Download className="h-5 w-5" /><span className="hidden sm:inline">Export</span></button>
+                {exportOpen && (
+                  <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded border border-limestone-200 bg-white py-1 text-sm shadow-drawer">
+                    <button onClick={exportMd} className="block w-full px-3 py-2 text-left hover:bg-limestone-100">Markdown (.md)</button>
+                    <button onClick={exportTxt} className="block w-full px-3 py-2 text-left hover:bg-limestone-100">Plain text (.txt)</button>
+                    <button onClick={exportPdf} className="block w-full px-3 py-2 text-left hover:bg-limestone-100">PDF (print)</button>
+                  </div>
+                )}
+              </div>
+              <button onClick={onClose} aria-label="Close assistant" className="rounded p-1.5 text-graphite-500 hover:bg-limestone-100"><X className="h-5 w-5" /></button>
+            </div>
           </header>
           <div className="flex items-start gap-2 border-b border-limestone-200 bg-federal-50/60 px-5 py-2.5 text-xs text-federal-900">
             <ShieldCheck className="mt-px h-4 w-4 shrink-0" />

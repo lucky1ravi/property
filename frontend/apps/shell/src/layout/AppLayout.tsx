@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast, QuickViewHost } from '@propertyos/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Logo } from './Logo';
-import { visibleNav } from './nav';
+import { visibleNav, breadcrumbs, type NavItem } from './nav';
 import { Assistant } from './Assistant';
 import { ErrorBoundary } from './ErrorBoundary';
+
+/** Every visible menu entry, refreshed on each render of the layout. Used to decide which entry is the most specific match for a path. */
+let navPool: NavItem[] = [];
 
 const PERSONA_LABEL: Record<string, string> = {
   platform: 'Platform admin', admin: 'Org admin', manager: 'Property manager', broker: 'Broker', agent: 'Leasing agent',
@@ -31,6 +34,7 @@ export function AppLayout() {
 
   const persona = personaOf(session);
   const groups = visibleNav(session, persona, can, feature);
+  navPool = groups.flatMap((g) => g.items.flatMap((i) => i.children ?? [i]));
   const aiEnabled = feature('AI_ASSISTANT') && can('AI_ASSISTANT:VIEW') && persona !== 'platform';
 
   const renderSidebar = (slim: boolean) => (
@@ -51,19 +55,7 @@ export function AppLayout() {
           <div key={gi} className="mt-3 first:mt-0">
             {g.label && !slim && <div className="px-3 pb-1 pt-2 text-2xs font-semibold text-federal-300">{g.label}</div>}
             {g.label && slim && gi > 0 && <div className="mx-3 mb-2 mt-1 border-t border-white/10" />}
-            {g.items.map((i) => (
-              <NavLink key={i.to} to={i.to} title={slim ? i.label : undefined} aria-label={slim ? i.label : undefined} end={i.to === '/app' || i.to === '/app/leasing' || i.to === '/app/broker'}
-                className={({ isActive }) => clsx('group relative mb-0.5 flex items-center gap-3 rounded py-2 text-[14px] font-medium transition-colors', slim ? 'justify-center px-0' : 'px-3',
-                  isActive ? 'bg-federal-800 text-white' : 'text-federal-100/85 hover:bg-federal-800/60 hover:text-white')}>
-                {({ isActive }) => (
-                  <>
-                    {isActive && <motion.span layoutId="nav-active" className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brick-500" />}
-                    <i.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={isActive ? 2.25 : 1.75} />
-                    {!slim && i.label}
-                  </>
-                )}
-              </NavLink>
-            ))}
+            {g.items.map((i) => <NavEntry key={i.label + i.to} item={i} slim={slim} pathname={loc.pathname} />)}
           </div>
         ))}
       </div>
@@ -87,27 +79,170 @@ export function AppLayout() {
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-limestone-200 bg-white px-4 lg:px-8">
           <button className="rounded p-2 text-graphite-600 hover:bg-limestone-100 lg:hidden" aria-label="Open navigation" onClick={() => setMobileNav(true)}><Menu className="h-5 w-5" /></button>
           <div className="min-w-0 flex-1 truncate text-sm text-graphite-500">{session.organization.name}</div>
-          {aiEnabled && (
-            <button onClick={() => setAssistant(true)} className="inline-flex h-9 items-center gap-2 rounded border border-federal-100 bg-federal-50 px-3 text-sm font-semibold text-federal-900 hover:bg-federal-100">
-              <MessageSquareText className="h-4 w-4" /> <span className="hidden sm:inline">Ask PropertyOS</span>
-            </button>
-          )}
           <Notifications />
-          <UserMenu name={session.name} subtitle={session.roles.join(', ')} />
+          <UserMenu name={session.name} email={session.email} subtitle={session.roles.join(', ')} />
         </header>
         <main className="scrollbar-thin flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1360px] px-4 py-6 lg:px-8 lg:py-8">
+            <Breadcrumbs pathname={loc.pathname} groups={groups} />
+            <SectionTabs pathname={loc.pathname} groups={groups} />
             <ErrorBoundary label="page" key={loc.pathname}><Outlet /></ErrorBoundary>
           </div>
         </main>
       </div>
       <ErrorBoundary label="quick view" compact><QuickViewHost /></ErrorBoundary>
+      {aiEnabled && !assistant && (
+        <button onClick={() => setAssistant(true)} aria-label="Ask PropertyOS"
+          style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))', right: 'max(1rem, env(safe-area-inset-right))' }}
+          title="Ask PropertyOS"
+          className="group fixed z-30 inline-flex h-11 w-11 items-center justify-center rounded-full bg-federal-800 text-white shadow-[0_6px_18px_rgba(20,50,120,0.4)] ring-2 ring-white transition hover:bg-federal-900 hover:shadow-[0_8px_22px_rgba(20,50,120,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600">
+          <MessageSquareText className="h-5 w-5" aria-hidden />
+        </button>
+      )}
       {aiEnabled && <ErrorBoundary label="assistant" compact><Assistant open={assistant} onClose={() => setAssistant(false)} persona={persona} /></ErrorBoundary>}
     </div>
   );
 }
 
-function UserMenu({ name, subtitle }: { name: string; subtitle: string }) {
+function Breadcrumbs({ pathname, groups }: { pathname: string; groups: ReturnType<typeof visibleNav> }) {
+  const nav = useNavigate();
+  const crumbs = breadcrumbs(pathname, groups);
+  if (crumbs.length === 0) return null;
+  return (
+    <nav aria-label="Breadcrumb" className="mb-4 -mt-2">
+      <ol className="flex flex-wrap items-center gap-1 text-[13px] text-graphite-500">
+        {crumbs.map((c, i) => {
+          const last = i === crumbs.length - 1;
+          return (
+            <li key={i} className="flex items-center gap-1">
+              {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-graphite-400" aria-hidden />}
+              {last || !c.to
+                ? <span aria-current={last ? 'page' : undefined} className={last ? 'font-semibold text-graphite-800' : ''}>{c.label}</span>
+                : <a href={c.to} onClick={(e) => { e.preventDefault(); nav(c.to!); }} className="rounded px-0.5 hover:text-federal-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-slateblue-600">{c.label}</a>}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+/**
+ * Tabs for the section the person is in. They come from the same menu definition as the left menu, so the tabs on a page
+ * always match the submenu it belongs to (and clicking one never jumps to a different menu).
+ */
+function SectionTabs({ pathname, groups }: { pathname: string; groups: ReturnType<typeof visibleNav> }) {
+  const parent = groups.flatMap((g) => g.items).find((i) => i.children?.some((c) => childActive(c, i.children!, pathname)));
+  if (!parent?.children || parent.children.length < 2) return null;
+  const kids = parent.children;
+  return (
+    <nav aria-label={`${parent.label} sections`} className="-mx-4 mb-5 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+      <ul className="flex min-w-max gap-1 border-b border-limestone-200">
+        {kids.map((c) => {
+          const on = childActive(c, kids, pathname);
+          return (
+            <li key={c.label + c.to}>
+              <NavLink to={c.to} aria-current={on ? 'page' : 'false'}
+                className={clsx('-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold', on ? 'border-federal-900 text-federal-900' : 'border-transparent text-graphite-500 hover:text-graphite-800')}>
+                {c.label}
+              </NavLink>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+const isExactRoot = (to: string) => to === '/app' || to === '/app/leasing' || to === '/app/broker';
+
+/** A submenu entry is active on its own path or below it, unless a more specific sibling matches. */
+function childActive(c: NavItem, siblings: NavItem[], pathname: string) {
+  const hit = (to: string) => pathname === to || pathname.startsWith(to + '/');
+  if (!hit(c.to)) return false;
+  // Compare against every visible menu entry, not just this section's, so /app/leasing/units lights up Portfolio and not Leasing as well.
+  const pool = navPool.length ? navPool : siblings;
+  return !pool.some((s) => s.to !== c.to && s.to.startsWith(c.to + '/') && hit(s.to));
+}
+
+function NavEntry({ item, slim, pathname }: { item: NavItem; slim: boolean; pathname: string }) {
+  const kids = item.children;
+  const active = !!kids && kids.some((c) => childActive(c, kids, pathname));
+  const [open, setOpen] = useState(active);
+  const [fly, setFly] = useState<number | null>(null);
+  useEffect(() => { if (active) setOpen(true); }, [active]);
+
+  const linkCls = (isActive: boolean, sub = false) => clsx('group relative mb-0.5 flex items-center gap-3 rounded text-[14px] font-medium transition-colors',
+    sub ? 'py-1.5 pl-3 pr-2 text-[13px]' : 'py-2', !sub && (slim ? 'justify-center px-0' : 'px-3'),
+    isActive ? 'bg-federal-800 text-white' : 'text-federal-100/85 hover:bg-federal-800/60 hover:text-white');
+
+  if (!kids) {
+    return (
+      <NavLink to={item.to} title={slim ? item.label : undefined} aria-label={slim ? item.label : undefined} end={isExactRoot(item.to)} className={({ isActive }) => linkCls(isActive)}>
+        {({ isActive }) => (
+          <>
+            {isActive && <motion.span layoutId="nav-active" className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brick-500" />}
+            <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={isActive ? 2.25 : 1.75} />
+            {!slim && item.label}
+          </>
+        )}
+      </NavLink>
+    );
+  }
+
+  const parentCls = clsx('relative mb-0.5 flex w-full items-center gap-3 rounded py-2 text-left text-[14px] font-medium transition-colors', slim ? 'justify-center px-0' : 'px-3',
+    active ? 'text-white' : 'text-federal-100/85 hover:bg-federal-800/60 hover:text-white', active && slim && 'bg-federal-800');
+
+  if (slim) {
+    return (
+      <div onMouseLeave={() => setFly(null)} onMouseEnter={(e) => setFly(e.currentTarget.getBoundingClientRect().top)}>
+        <NavLink to={kids[0].to} aria-label={item.label} aria-haspopup="menu" aria-expanded={fly !== null} className={parentCls} onFocus={(e) => setFly(e.currentTarget.getBoundingClientRect().top)}>
+          {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brick-500" />}
+          <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.25 : 1.75} />
+        </NavLink>
+        {fly !== null && (
+          <div role="menu" style={{ top: Math.max(8, fly - 4) }} className="fixed left-[64px] z-50 w-60 rounded-md border border-limestone-200 bg-white p-1.5 pl-3 shadow-drawer">
+            <div className="px-2 pb-1 pt-1.5 text-xs font-semibold text-graphite-500">{item.label}</div>
+            {kids.map((c) => {
+              const on = childActive(c, kids, pathname);
+              return (
+                <NavLink key={c.label + c.to} to={c.to} role="menuitem" aria-current={on ? 'page' : 'false'} onClick={() => setFly(null)}
+                  className={clsx('flex items-center gap-2.5 rounded px-2.5 py-2 text-sm font-medium', on ? 'bg-federal-50 text-federal-900' : 'text-graphite-800 hover:bg-limestone-100')}>
+                  <c.icon className="h-4 w-4 shrink-0 text-graphite-500" />{c.label}
+                </NavLink>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={parentCls}>
+        {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brick-500" />}
+        <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.25 : 1.75} />
+        <span className="flex-1">{item.label}</span>
+        <ChevronDown className={clsx('h-4 w-4 text-federal-300 transition-transform', !open && '-rotate-90')} />
+      </button>
+      {open && (
+        <div className="mb-1 ml-[21px] border-l border-white/10 pl-2">
+          {kids.map((c) => {
+            const on = childActive(c, kids, pathname);
+            return (
+              <NavLink key={c.label + c.to} to={c.to} aria-current={on ? 'page' : 'false'} className={() => linkCls(on, true)}>
+                <c.icon className="h-4 w-4 shrink-0" strokeWidth={on ? 2.25 : 1.75} />{c.label}
+              </NavLink>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UserMenu({ name, email, subtitle }: { name: string; email?: string; subtitle: string }) {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -121,7 +256,7 @@ function UserMenu({ name, subtitle }: { name: string; subtitle: string }) {
   return (
     <div className="relative">
       <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-limestone-100" aria-expanded={open}>
-        <Avatar name={name} size={32} />
+        <Avatar name={name} size={34} seed={email} ring />
         <span className="hidden text-left md:block">
           <span className="block text-sm font-semibold leading-tight text-graphite-900">{name}</span>
           <span className="block max-w-[160px] truncate text-2xs text-graphite-500">{subtitle}</span>
@@ -132,6 +267,7 @@ function UserMenu({ name, subtitle }: { name: string; subtitle: string }) {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute right-0 z-40 mt-2 w-56 rounded-md border border-limestone-200 bg-white py-1 shadow-lift">
+            <button onClick={() => { setOpen(false); nav('/app/preferences'); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><Bell className="h-4 w-4" /> Notification preferences</button>
             <button onClick={refresh} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><RefreshCw className="h-4 w-4" /> Refresh permissions</button>
             <button onClick={() => { setToken(null); qc.clear(); nav('/signin'); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><LogOut className="h-4 w-4" /> Sign out</button>
           </div>

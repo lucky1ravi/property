@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: document-service
+  config:
+    import: classpath:common.yml
+  flyway:
+    schemas: document
+    default-schema: document
+  jpa:
+    properties:
+      hibernate:
+        default_schema: document
+  servlet:
+    multipart:
+      max-file-size: 26MB
+      max-request-size: 30MB
+
+server:
+  port: ${PORT:8087}

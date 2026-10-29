@@ -18,8 +18,10 @@ public class PublicService {
     private final EventPublisher events;
     private final LeadService leads;
     private final TransactionTemplate tx;
+    private final com.propertyos.common.security.SignedLinks links;
 
-    public PublicService(Db db, EventPublisher events, LeadService leads, PlatformTransactionManager tm) {
+    public PublicService(Db db, EventPublisher events, LeadService leads, PlatformTransactionManager tm, com.propertyos.common.security.SignedLinks links) {
+        this.links = links;
         this.tx = new TransactionTemplate(tm);
         this.db = db;
         this.events = events;
@@ -119,6 +121,8 @@ public class PublicService {
                 Req.str(b, "pets"), Req.date(b, "moveInDate"), db.json(Req.strings(b, "documents")));
         events.publish(orgId, "ApplicationSubmitted", "Application", id,
                 Map.of("listingId", listingId.toString(), "applicantName", first + " " + last, "applicantEmail", email, "unit", li.get("number").toString()));
-        return Map.of("id", id, "status", "SUBMITTED", "message", "Application received. We'll email you as soon as screening is complete.");
+        // A signed link lets the applicant (who has no account) add documents to this one application.
+        return Map.of("id", id, "status", "SUBMITTED", "uploadToken", links.sign("application-upload", id),
+                "message", "Application received. Upload your documents now so screening isn't held up. We'll email you as soon as screening is complete.");
     }
 }

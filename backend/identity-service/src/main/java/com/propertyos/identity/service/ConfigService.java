@@ -22,7 +22,7 @@ import java.util.*;
 @Service
 public class ConfigService {
     public static final Set<String> SECTIONS = Set.of("features", "fees", "invoicing", "approvals", "screening", "sla",
-            "renewals", "ai", "notifications", "branding", "stateRules", "templates", "customFields");
+            "renewals", "ai", "notifications", "branding", "stateRules", "payments", "alerts", "chat", "documents", "moderation", "templates", "customFields");
 
     private final IdentityStore store;
     private final ConfigClient configClient;
@@ -49,26 +49,69 @@ public class ConfigService {
         ObjectNode over = overrides(orgId);
         merge(result, over);
         String plan = store.org(orgId).map(o -> (String) o.get("plan")).orElse("ENTERPRISE");
-        applyPlan(result, plan);
+        applyPlan(result, plan, store.org(orgId).map(o -> read(String.valueOf(o.get("entitlements")))).orElse(mapper.createObjectNode()));
         result.put("plan", plan);
         result.put("version", store.config(orgId).map(m -> ((Number) m.get("version")).intValue()).orElse(0));
         return result;
     }
 
     /** Features outside the plan are switched off, whatever the organisation override says. */
-    private void applyPlan(ObjectNode cfg, String plan) {
+    private void applyPlan(ObjectNode cfg, String plan, JsonNode entitlements) {
         JsonNode planFeatures = cfg.at("/plans/" + plan + "/features");
-        if (!planFeatures.isArray()) return;
         Set<String> allowed = new HashSet<>();
-        planFeatures.forEach(n -> allowed.add(n.asText()));
-        if (allowed.contains("*")) return;
+        if (planFeatures.isArray()) planFeatures.forEach(n -> allowed.add(n.asText()));
+        boolean all = allowed.contains("*");
         ObjectNode features = (ObjectNode) cfg.get("features");
         ObjectNode gated = mapper.createObjectNode();
         features.fieldNames().forEachRemaining(f -> {
-            if (!allowed.contains(f)) gated.put(f, "Not in " + plan + " plan");
+            JsonNode e = entitlements == null ? null : entitlements.get(f);
+            if (e != null && e.isBoolean()) {
+                if (!e.asBoolean()) gated.put(f, "Turned off for your company by PropertyOS");
+            } else if (!all && !allowed.contains(f)) gated.put(f, "Not in " + plan + " plan");
         });
         gated.fieldNames().forEachRemaining(f -> features.put(f, false));
         cfg.set("planGated", gated);
+    }
+
+    /** What a platform operator can set for one company: each feature's plan default, the override, and what the company ends up with. */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> featureMatrix(UUID orgId) {
+        ObjectNode defaults = configClient.defaults().deepCopy();
+        String plan = store.org(orgId).map(o -> (String) o.get("plan")).orElseThrow(() -> ApiException.notFound("Company"));
+        JsonNode ent = read(String.valueOf(store.org(orgId).get().get("entitlements")));
+        JsonNode planFeatures = defaults.at("/plans/" + plan + "/features");
+        Set<String> inPlan = new HashSet<>();
+        if (planFeatures.isArray()) planFeatures.forEach(n -> inPlan.add(n.asText()));
+        ObjectNode eff = effective(orgId);
+        List<Map<String, Object>> out = new ArrayList<>();
+        defaults.get("features").fieldNames().forEachRemaining(f -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("feature", f);
+            m.put("inPlan", inPlan.contains("*") || inPlan.contains(f));
+            m.put("override", ent.has(f) && ent.get(f).isBoolean() ? ent.get(f).asBoolean() : null);
+            m.put("enabled", eff.path("features").path(f).asBoolean(false));
+            m.put("companyTurnedOff", false);
+            out.add(m);
+        });
+        return out;
+    }
+
+    @Transactional
+    public List<Map<String, Object>> setEntitlements(UUID orgId, Map<String, Object> changes) {
+        Set<String> known = new HashSet<>();
+        configClient.defaults().get("features").fieldNames().forEachRemaining(known::add);
+        ObjectNode ent = (ObjectNode) read(String.valueOf(store.org(orgId).orElseThrow(() -> ApiException.notFound("Company")).get("entitlements")));
+        for (Map.Entry<String, Object> e : changes.entrySet()) {
+            if (!known.contains(e.getKey())) throw ApiException.badRequest("Unknown feature: " + e.getKey());
+            if (e.getValue() == null) ent.remove(e.getKey());
+            else if (e.getValue() instanceof Boolean b) ent.put(e.getKey(), b);
+            else throw ApiException.badRequest("Use true, false or null for " + e.getKey());
+        }
+        store.setEntitlements(orgId, ent.toString());
+        audit.record("Organization", orgId, "ORG_FEATURES_CHANGED", null, null, Map.of("changes", changes.toString(), "by", UserContextHolder.require().name()));
+        events.publish("ConfigurationChanged", "Organization", orgId, Map.of("section", "features", "version", 0));
+        configClient.invalidate(orgId);
+        return featureMatrix(orgId);
     }
 
     @Transactional

@@ -21,7 +21,7 @@ npm run build
 npm run preview                    # http://localhost:4173
 ```
 
-Gateway: http://localhost:8080. Services: 8081 identity, 8082 leasing, 8083 billing, 8084 maintenance, 8085 workflow, 8086 ai. Logs are in `logs/`.
+Gateway: http://localhost:8080. Services: 8081 identity, 8082 leasing, 8083 billing, 8084 maintenance, 8085 workflow, 8086 ai, 8087 documents. Logs are in `logs/`.
 Open http://localhost:4173, pick a demo persona on the sign-in page. The public rental site is at `/homes`.
 
 To use a real LLM, set environment variables before starting the AI service (never commit keys):

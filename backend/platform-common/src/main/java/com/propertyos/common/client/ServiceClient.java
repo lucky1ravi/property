@@ -19,7 +19,7 @@ import java.util.UUID;
  */
 @Component
 public class ServiceClient {
-    public enum Service {IDENTITY, LEASING, BILLING, MAINTENANCE, WORKFLOW, AI}
+    public enum Service {IDENTITY, LEASING, BILLING, MAINTENANCE, WORKFLOW, AI, DOCUMENTS}
 
     private final Environment env;
     private final String internalToken;

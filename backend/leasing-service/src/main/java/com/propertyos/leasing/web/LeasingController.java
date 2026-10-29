@@ -16,8 +16,11 @@ public class LeasingController {
     private final LeadService leads;
     private final ApplicationService applications;
     private final LeaseService leases;
+    private final com.propertyos.common.security.SignedLinks signedLinks;
 
-    public LeasingController(PortfolioService portfolio, ListingService listings, LeadService leads, ApplicationService applications, LeaseService leases) {
+    public LeasingController(PortfolioService portfolio, ListingService listings, LeadService leads, ApplicationService applications, LeaseService leases,
+                             com.propertyos.common.security.SignedLinks signedLinks) {
+        this.signedLinks = signedLinks;
         this.portfolio = portfolio;
         this.listings = listings;
         this.leads = leads;
@@ -93,6 +96,13 @@ public class LeasingController {
     @PostMapping("/applications/{id}/actions/{action}") @RequiresPermission("APPLICATION:VIEW")
     public Object applicationAction(@PathVariable UUID id, @PathVariable String action, @RequestBody(required = false) Map<String, Object> b) {
         return applications.act(id, action, b == null ? null : Req.str(b, "reason"));
+    }
+
+    /** A link the leasing team can send so the applicant uploads documents without an account. */
+    @PostMapping("/applications/{id}/upload-link") @RequiresPermission("APPLICATION:EDIT")
+    public Object uploadLink(@PathVariable UUID id) {
+        applications.get(id);   // row-level security: only applications this person can see
+        return Map.of("path", "/homes/applications/" + id + "/documents?token=" + signedLinks.sign("application-upload", id));
     }
 
     @PostMapping("/applications/{id}/screen") @RequiresPermission("APPLICATION:EDIT")

@@ -15,8 +15,10 @@ public class WorkflowController {
     private final DefinitionService defs;
     private final AutomationService.Rules rules;
     private final NotificationService.Inbox inbox;
+    private final com.propertyos.workflow.service.ChatService chat;
 
-    public WorkflowController(DefinitionService defs, AutomationService.Rules rules, NotificationService.Inbox inbox) {
+    public WorkflowController(DefinitionService defs, AutomationService.Rules rules, NotificationService.Inbox inbox, com.propertyos.workflow.service.ChatService chat) {
+        this.chat = chat;
         this.defs = defs;
         this.rules = rules;
         this.inbox = inbox;
@@ -66,9 +68,37 @@ public class WorkflowController {
     @GetMapping("/api/workflow/automation/events") @RequiresPermission("AUTOMATION:VIEW")
     public Object events() { return rules.events(); }
 
+    // ---- Conversations
+    @GetMapping("/api/workflow/chat/conversations") @RequiresPermission("CONVERSATION:VIEW")
+    public Object conversations() { return chat.list(); }
+
+    @GetMapping("/api/workflow/chat/contacts") @RequiresPermission("CONVERSATION:CREATE")
+    public Object contacts() { return chat.contacts(); }
+
+    @PostMapping("/api/workflow/chat/conversations") @RequiresPermission("CONVERSATION:CREATE")
+    public Object startConversation(@RequestBody java.util.Map<String, Object> b) { return chat.create(b); }
+
+    @GetMapping("/api/workflow/chat/conversations/{id}") @RequiresPermission("CONVERSATION:VIEW")
+    public Object conversation(@PathVariable java.util.UUID id) { return chat.get(id); }
+
+    @PostMapping("/api/workflow/chat/conversations/{id}/messages") @RequiresPermission("CONVERSATION:CREATE")
+    public Object postMessage(@PathVariable java.util.UUID id, @RequestBody java.util.Map<String, Object> b) { return chat.post(id, b.get("body") == null ? "" : String.valueOf(b.get("body"))); }
+
+    @PostMapping("/api/workflow/chat/conversations/{id}/resolve") @RequiresPermission("CONVERSATION:CREATE")
+    public Object resolveConversation(@PathVariable java.util.UUID id, @RequestBody java.util.Map<String, Object> b) { return chat.resolve(id, !Boolean.FALSE.equals(b.get("resolved"))); }
+
+    @PostMapping("/api/workflow/chat/conversations/{id}/assist") @RequiresPermission("CONVERSATION:VIEW")
+    public Object assist(@PathVariable java.util.UUID id) { return chat.assist(id); }
+
     // ---- Notifications (any signed-in user)
     @GetMapping("/api/workflow/notifications")
     public Object notifications() { return inbox.mine(); }
+
+    @GetMapping("/api/workflow/notifications/preferences")
+    public Object preferences() { return inbox.preferences(); }
+
+    @PutMapping("/api/workflow/notifications/preferences")
+    public Object savePreferences(@RequestBody java.util.List<java.util.Map<String, Object>> body) { return inbox.savePreferences(body); }
 
     @PostMapping("/api/workflow/notifications/{id}/read")
     public void read(@PathVariable UUID id) { inbox.markRead(id); }

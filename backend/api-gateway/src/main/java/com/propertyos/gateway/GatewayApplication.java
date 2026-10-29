@@ -29,7 +29,8 @@ public class GatewayApplication {
                                @Value("${propertyos.services.billing}") String billing,
                                @Value("${propertyos.services.maintenance}") String maintenance,
                                @Value("${propertyos.services.workflow}") String workflow,
-                               @Value("${propertyos.services.ai}") String ai) {
+                               @Value("${propertyos.services.ai}") String ai,
+                               @Value("${propertyos.services.documents}") String documents) {
         return b.routes()
                 .route("identity", r -> r.path("/api/identity/**").uri(identity))
                 .route("leasing", r -> r.path("/api/leasing/**").uri(leasing))
@@ -37,6 +38,7 @@ public class GatewayApplication {
                 .route("maintenance", r -> r.path("/api/maintenance/**").uri(maintenance))
                 .route("workflow", r -> r.path("/api/workflow/**").uri(workflow))
                 .route("ai", r -> r.path("/api/ai/**").uri(ai))
+                .route("documents", r -> r.path("/api/documents/**").uri(documents))
                 .build();
     }
 
@@ -47,7 +49,7 @@ public class GatewayApplication {
         c.setAllowedOriginPatterns(list);
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Correlation-Id"));
-        c.setExposedHeaders(List.of("X-Correlation-Id", "X-RateLimit-Remaining", "Retry-After"));
+        c.setExposedHeaders(List.of("X-Correlation-Id", "X-RateLimit-Remaining", "Retry-After", "Content-Disposition"));
         c.setMaxAge(Duration.ofHours(1));
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", c);

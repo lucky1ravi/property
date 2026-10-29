@@ -26,7 +26,7 @@ public class PortfolioService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> properties() {
         return db.list("""
-                select p.id, p.name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.type, p.year_built, p.amenities, p.photo_url,
+                select p.id, p.name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.type, p.year_built, p.amenities, p.photo_url, p.photos,
                        p.owner_id, o.name as owner_name,
                        count(u.id) as units,
                        count(u.id) filter (where u.status = 'OCCUPIED') as occupied,
@@ -87,11 +87,11 @@ public class PortfolioService {
         String state = Req.required(b, "state").toUpperCase();
         if (state.length() != 2) throw ApiException.badRequest("State must be a two-letter code, for example TX");
         db.update("""
-                insert into leasing.property (id, org_id, owner_id, name, street, city, state, zip, type, year_built, photo_url, amenities)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)""",
+                insert into leasing.property (id, org_id, owner_id, name, street, city, state, zip, type, year_built, photo_url, photos, amenities)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb)""",
                 id, UserContextHolder.orgId(), ownerId, Req.required(b, "name"), Req.required(b, "street"), Req.required(b, "city"), state,
                 Req.required(b, "zip"), Optional.ofNullable(Req.str(b, "type")).orElse("MULTIFAMILY"), Req.integer(b, "yearBuilt"),
-                Req.str(b, "photoUrl"), db.json(Req.strings(b, "amenities")));
+                Req.str(b, "photoUrl"), db.json(Req.str(b, "photoUrl") == null ? List.of() : List.of(Req.str(b, "photoUrl"))), db.json(Req.strings(b, "amenities")));
         audit.record("Property", id, "CREATED", null, "ACTIVE", Map.of("name", Req.required(b, "name")));
         return Map.of("id", id);
     }

@@ -72,6 +72,24 @@ public class LeasingSeeder implements EventHandler {
         log.info("Leasing data reset for org {}", org);
     }
 
+    private static final List<String> GALLERY = List.of(
+            "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&q=80", "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=80",
+            "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=80", "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&q=80",
+            "https://images.unsplash.com/photo-1460317442991-0ec209397118?w=1200&q=80", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&q=80",
+            "https://images.unsplash.com/photo-1494526585095-c41746248156?w=1200&q=80");
+
+    /** Cover photo first, then three more from the shared pool so every property has a gallery. */
+    static List<String> gallery(String cover, UUID id) {
+        int h = Math.abs(id.toString().hashCode());
+        List<String> out = new ArrayList<>();
+        if (cover != null) out.add(cover);
+        for (int k : new int[]{1, 3, 5}) {
+            String u = GALLERY.get((h + k) % GALLERY.size());
+            if (!out.contains(u)) out.add(u);
+        }
+        return out;
+    }
+
     private void seedOrg(UUID org) {
         for (DemoData.Owner o : DemoData.owners()) {
             if (!o.orgId().equals(org)) continue;
@@ -83,10 +101,10 @@ public class LeasingSeeder implements EventHandler {
             if (!p.orgId().equals(org)) continue;
             props.put(p.id(), p);
             db.update("""
-                    insert into leasing.property (id, org_id, owner_id, name, street, city, state, zip, lat, lng, type, year_built, amenities, photo_url)
-                    values (?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?)""",
+                    insert into leasing.property (id, org_id, owner_id, name, street, city, state, zip, lat, lng, type, year_built, amenities, photo_url, photos)
+                    values (?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?::jsonb)""",
                     p.id(), org, p.ownerId(), p.name(), p.street(), p.city(), p.state(), p.zip(), p.lat(), p.lng(), p.type(), p.yearBuilt(),
-                    db.json(p.amenities()), p.photo());
+                    db.json(p.amenities()), p.photo(), db.json(gallery(p.photo(), p.id())));
         }
         Set<UUID> leased = new HashSet<>();
         Map<UUID, DemoData.Lease> leaseByUnit = new HashMap<>();

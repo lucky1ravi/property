@@ -7,6 +7,13 @@
   body { font-variant-numeric: lining-nums; }
   :focus-visible { outline-color: #3B6E9C; }
   ::selection { background: #C3DCDA; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  /* Phones: 16px form text stops iOS from zooming the page on focus; dvh keeps bottom controls above the browser bar. */
+  @media (max-width: 767px) {
+    input:not([type='checkbox']):not([type='radio']), select, textarea { font-size: 16px !important; }
+  }
+  @supports (height: 100dvh) { .h-screen { height: 100dvh; } }
+  main { overscroll-behavior: contain; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   }
@@ -15,3 +22,6 @@
 @layer utilities {
   .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #BCC6C2 transparent; }
 }
+
+/* After the utilities so it wins: the visible height on phones excludes the browser's address bar. */
+@supports (height: 100dvh) { .h-screen { height: 100dvh; } }

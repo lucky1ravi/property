@@ -54,7 +54,7 @@ public class WorkflowSeeder implements EventHandler {
     public void handle(DomainEvent event) {
         UserContextHolder.runAsSystem(event.orgId(), () -> {
             tx.executeWithoutResult(s -> {
-                for (String t : List.of("automation_run", "automation_rule", "workflow_def_history", "workflow_def", "delivery", "notification"))
+                for (String t : List.of("message", "conversation_member", "conversation", "notification_pref", "notification_dedupe", "automation_run", "automation_rule", "workflow_def_history", "workflow_def", "delivery", "notification"))
                     db.update("delete from workflow." + t + " where org_id = ?", event.orgId());
                 seed(event.orgId());
             });

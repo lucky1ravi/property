@@ -22,10 +22,16 @@ public final class FeatureCatalog {
             new Feature("INVOICE", "Invoices and charges", "Payments", List.of("VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT"), false),
             new Feature("PAYMENT", "Payments, fees and refunds", "Payments", List.of("VIEW", "CREATE", "APPROVE", "EXPORT"), false),
             new Feature("OWNER_STATEMENT", "Owner statements and payouts", "Payments", List.of("VIEW", "CREATE", "EXPORT"), false),
+            new Feature("TAX_REPORT", "Tax and 1099 compliance", "Payments", List.of("VIEW", "EDIT", "EXPORT"), false),
             new Feature("WORK_ORDER", "Work orders", "Maintenance", List.of("VIEW", "CREATE", "EDIT", "UPDATE", "APPROVE", "VERIFY"), false),
             new Feature("VENDOR", "Vendors", "Maintenance", List.of("VIEW", "CREATE", "EDIT"), false),
             new Feature("AUTOMATION", "Automation rules", "Automation", List.of("VIEW", "CONFIGURE"), false),
             new Feature("WORKFLOW", "Workflow designer", "Automation", List.of("VIEW", "CONFIGURE"), false),
+            new Feature("ALERT", "Deadline alerts and compliance calendar", "Automation", List.of("VIEW", "CONFIGURE"), false),
+            new Feature("CONVERSATION", "Messages and conversations", "Communication", List.of("VIEW", "CREATE", "EXPORT"), false),
+            new Feature("DOCUMENT", "Documents and files", "Documents", List.of("VIEW", "CREATE", "EDIT", "DELETE", "EXPORT", "CONFIGURE"), false),
+            new Feature("ESIGN", "E-signature requests", "Documents", List.of("VIEW", "CREATE", "SIGN"), false),
+            new Feature("MEDIA", "Photo uploads and image review", "Documents", List.of("UPLOAD", "REVIEW"), false),
             new Feature("OPPORTUNITY", "Opportunities and profit insights", "Insights", List.of("VIEW"), false),
             new Feature("REPORT", "Reports", "Insights", List.of("VIEW", "EXPORT"), false),
             new Feature("AI_ASSISTANT", "AI assistant", "AI", List.of("VIEW"), false),
@@ -57,7 +63,8 @@ public final class FeatureCatalog {
             Map.of("key", "Tenant.phone", "label", "Resident phone"),
             Map.of("key", "Tenant.email", "label", "Resident email"),
             Map.of("key", "Payment.method", "label", "Payment method details"),
-            Map.of("key", "Vendor.rates", "label", "Vendor rates and cost history")
+            Map.of("key", "Vendor.rates", "label", "Vendor rates and cost history"),
+            Map.of("key", "Document.sensitive", "label", "Sensitive documents (IDs, pay stubs, tax forms)")
     );
 
     public static boolean valid(String feature, String action) {

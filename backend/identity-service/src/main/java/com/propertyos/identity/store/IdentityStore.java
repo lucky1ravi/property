@@ -33,6 +33,10 @@ public class IdentityStore {
         return jdbc.queryForList("select * from identity.organization where id = ?", id).stream().findFirst();
     }
 
+    public void setEntitlements(UUID id, String json) {
+        jdbc.update("update identity.organization set entitlements = ?, updated_at = now() where id = ?", json, id);
+    }
+
     public void updateOrg(UUID id, String plan, String status) {
         jdbc.update("update identity.organization set plan = coalesce(?, plan), status = coalesce(?, status), updated_at = now() where id = ?",
                 plan, status, id);
@@ -80,6 +84,10 @@ public class IdentityStore {
     }
 
     public void setUserRoles(UUID userId, UUID orgId, Collection<UUID> roleIds) {
+        for (UUID r : roleIds) {
+            Integer own = jdbc.queryForObject("select count(*) from identity.role where id = ? and org_id = ?", Integer.class, r, orgId);
+            if (own == null || own == 0) throw com.propertyos.common.web.ApiException.badRequest("One of the selected roles doesn't exist in this company.");
+        }
         jdbc.update("delete from identity.user_role where user_id = ?", userId);
         for (UUID r : roleIds) jdbc.update("insert into identity.user_role (user_id, role_id, org_id) values (?, ?, ?)", userId, r, orgId);
     }
@@ -94,7 +102,7 @@ public class IdentityStore {
     }
 
     public List<Map<String, Object>> userRoles(UUID userId) {
-        return jdbc.queryForList("select r.* from identity.user_role ur join identity.role r on r.id = ur.role_id where ur.user_id = ?", userId);
+        return jdbc.queryForList("select r.* from identity.user_role ur join identity.role r on r.id = ur.role_id and r.org_id = ur.org_id where ur.user_id = ?", userId);
     }
 
     public List<UUID> usersWithRoleKeyOrName(String roleKeyOrName) {
@@ -156,7 +164,7 @@ public class IdentityStore {
 
     public List<Map<String, Object>> permissionsForUser(UUID userId) {
         return jdbc.queryForList("select p.feature, p.action, p.max_amount from identity.role_permission p " +
-                "join identity.user_role ur on ur.role_id = p.role_id where ur.user_id = ?", userId);
+                "join identity.user_role ur on ur.role_id = p.role_id join identity.role r on r.id = ur.role_id and r.org_id = ur.org_id where ur.user_id = ?", userId);
     }
 
     public Optional<UUID> roleIdByKey(String key) {
@@ -217,6 +225,31 @@ public class IdentityStore {
         jdbc.update("delete from identity.role where org_id = ?", orgId);
         jdbc.update("delete from identity.config_history where org_id = ?", orgId);
         jdbc.update("delete from identity.org_config where org_id = ?", orgId);
+    }
+
+    // ---------------- catalog sync ----------------
+    public boolean featureSynced(UUID orgId, String feature) {
+        Long c = jdbc.queryForObject("select count(*) from identity.catalog_sync where org_id = ? and feature = ?", Long.class, orgId, feature);
+        return c != null && c > 0;
+    }
+
+    public void markFeatureSynced(UUID orgId, String feature) {
+        jdbc.update("insert into identity.catalog_sync (org_id, feature) values (?, ?) on conflict do nothing", orgId, feature);
+    }
+
+    public List<Map<String, Object>> systemRoles(UUID orgId) {
+        return jdbc.queryForList("select id, role_key from identity.role where org_id = ? and role_key is not null", orgId);
+    }
+
+    public void addGrantIfMissing(UUID roleId, UUID orgId, String feature, String action, BigDecimal max) {
+        jdbc.update("insert into identity.role_permission (id, org_id, role_id, feature, action, max_amount) values (?, ?, ?, ?, ?, ?) on conflict (role_id, feature, action) do nothing",
+                UUID.randomUUID(), orgId, roleId, feature, action, max);
+    }
+
+    /** Adds a field rule to a role only when the role has no rule for that field yet (an admin's choice is never overwritten). */
+    public void addFieldRuleIfMissing(UUID roleId, String field, String access) {
+        jdbc.update("update identity.role set field_rules = coalesce(field_rules, '{}'::jsonb) || jsonb_build_object(?::text, ?::text), updated_at = now() " +
+                "where id = ? and not jsonb_exists(coalesce(field_rules, '{}'::jsonb), ?)", field, access, roleId, field);
     }
 
     public long countOrgs() {

@@ -58,6 +58,7 @@ public class BillingEvents implements EventHandler {
         lease.put("tenant_name", e.text("tenantName"));
         lease.put("unit_label", e.text("unitLabel"));
         lease.put("property_name", e.text("propertyName"));
+        if (e.text("state") != null) lease.put("state", e.text("state"));
         BigDecimal deposit = new BigDecimal(e.text("deposit"));
         BigDecimal rent = new BigDecimal(e.text("rent"));
         LocalDate start = LocalDate.parse(e.text("startDate"));

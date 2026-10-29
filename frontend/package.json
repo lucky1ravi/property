@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
-    "build:remotes": "npm run build -w @propertyos/leasing -w @propertyos/payments -w @propertyos/maintenance -w @propertyos/broker -w @propertyos/admin -w @propertyos/insights",
+    "build:remotes": "npm run build -w @propertyos/leasing -w @propertyos/payments -w @propertyos/documents -w @propertyos/maintenance -w @propertyos/broker -w @propertyos/admin -w @propertyos/insights",
     "build": "npm run build:remotes && npm run build -w @propertyos/shell && node scripts/assemble.mjs",
     "preview": "npx --yes serve -s dist -l 4173"
   }

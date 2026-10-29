@@ -13,8 +13,10 @@ public class BillingController {
     private final BillingService billing;
     private final ReportingService reporting;
     private final StatementService statements;
+    private final BillingAlerts alerts;
 
-    public BillingController(BillingService billing, ReportingService reporting, StatementService statements) {
+    public BillingController(BillingService billing, ReportingService reporting, StatementService statements, BillingAlerts alerts) {
+        this.alerts = alerts;
         this.billing = billing;
         this.reporting = reporting;
         this.statements = statements;
@@ -39,6 +41,29 @@ public class BillingController {
 
     @PostMapping("/payments") @RequiresPermission("PAYMENT:CREATE")
     public Object pay(@RequestBody Map<String, Object> b) { return billing.pay(b); }
+
+    @GetMapping("/payments/quote") @RequiresPermission("PAYMENT:VIEW")
+    public Object quote(@RequestParam java.math.BigDecimal amount, @RequestParam(required = false) String method, @RequestParam(required = false) UUID tenantId) {
+        return billing.quote(amount, method, tenantId);
+    }
+
+    @GetMapping("/settings") @RequiresPermission("PAYMENT:VIEW")
+    public Object settings() { return billing.paymentSettings(); }
+
+    @GetMapping("/tax/summary") @RequiresPermission("TAX_REPORT:VIEW")
+    public Object taxSummary(@RequestParam(required = false) Integer year) { return reporting.taxSummary(year == null ? java.time.LocalDate.now().getYear() : year); }
+
+    @GetMapping("/tax/1099") @RequiresPermission("TAX_REPORT:VIEW")
+    public Object owner1099(@RequestParam(required = false) Integer year) { return reporting.owner1099(year == null ? java.time.LocalDate.now().getYear() : year); }
+
+    @PutMapping("/tax/owners/{ownerId}/w9") @RequiresPermission("TAX_REPORT:EDIT")
+    public Object w9(@PathVariable UUID ownerId, @RequestBody Map<String, Object> b) { return reporting.saveW9(ownerId, b); }
+
+    @GetMapping("/deadlines") @RequiresPermission("ALERT:VIEW")
+    public Object deadlines() { return com.propertyos.common.events.Deadlines.publicView(alerts.deadlines()); }
+
+    @PostMapping("/alerts/run") @RequiresPermission("ALERT:CONFIGURE")
+    public Object runAlerts() { return Map.of("sent", alerts.run()); }
 
     @GetMapping("/my") @RequiresPermission("PAYMENT:VIEW")
     public Object mine() { return billing.mine(); }

@@ -3,22 +3,12 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-rout
 import { Sparkles } from 'lucide-react';
 import {
   PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Tabs, KeyValues, ActionBar, WorkflowTrack, Timeline, Field, Input,
-  Modal, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge, QuickLink,
+  Modal, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge, QuickLink, PersonCell, DocumentsPanel, toast,
 } from '@propertyos/ui';
 import { useBase, APPLICATION_STEPS, LEASE_STEPS, LISTING_STEPS, labelOf } from '../common';
 
-const SubNav = () => {
-  const base = useBase();
-  const { can } = useSession();
-  const items = [['', 'Overview'], ['listings', 'Listings'], ['leads', 'Leads'], ['showings', 'Showings'], ['applications', 'Applications'], ['leases', 'Leases'], ['properties', 'Properties']];
-  return (
-    <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-limestone-200">
-      {items.filter(([k]) => k !== 'properties' || can('PROPERTY:VIEW')).map(([k, label]) => (
-        <NavLink key={k} to={`${base}/${k}`} end={k === ''} className={({ isActive }) => `-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold ${isActive ? 'border-federal-900 text-federal-900' : 'border-transparent text-graphite-500 hover:text-graphite-800'}`}>{label}</NavLink>
-      ))}
-    </nav>
-  );
-};
+// The section tabs (Leasing: Overview, Listings, Leads...) are drawn once by the shell from the same menu definition as the left menu.
+const SubNav = () => null;
 
 function Overview() {
   const { data: props } = useApi<any[]>('/api/leasing/properties');
@@ -53,6 +43,38 @@ function Properties({ embedded }: { embedded?: boolean }) {
   ];
   const t = <Panel title="Properties" padded={false}><DataTable rows={data} columns={cols} rowKey={(p) => p.id} loading={isLoading} exportName="properties" empty={{ title: 'No properties yet' }} /></Panel>;
   return embedded ? t : <><PageHeader title="Properties" /><SubNav />{t}</>;
+}
+
+function Units() {
+  const { data, isLoading } = useApi<any[]>('/api/leasing/units');
+  const cols: Column<any>[] = [
+    { key: 'property_name', header: 'Property', render: (u) => <QuickLink kind="property" id={u.property_id}>{u.property_name}</QuickLink> },
+    { key: 'number', header: 'Unit', render: (u) => <QuickLink kind="unit" id={u.id}>{u.number}</QuickLink> },
+    { key: 'status', header: 'Status', render: (u) => <StatusPill status={u.status} /> },
+    { key: 'beds', header: 'Beds', align: 'right' },
+    { key: 'baths', header: 'Baths', align: 'right', hideOnMobile: true },
+    { key: 'sqft', header: 'Sq ft', align: 'right', hideOnMobile: true },
+    { key: 'market_rent', header: 'Market rent', align: 'right', value: (u) => Number(u.market_rent), render: (u) => fmt.usd(u.market_rent) },
+    { key: 'current_rent', header: 'Current rent', align: 'right', value: (u) => (u.current_rent == null ? null : Number(u.current_rent)), render: (u) => (u.current_rent == null ? '—' : fmt.usd(u.current_rent)) },
+    { key: 'vacant_since', header: 'Vacant since', hideOnMobile: true, render: (u) => (u.vacant_since ? fmt.date(u.vacant_since) : '—') },
+  ];
+  return (<><PageHeader title="Units" description="Every door in your portfolio, with rent and vacancy." /><SubNav />
+    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(u) => u.id} loading={isLoading} exportName="units" empty={{ title: 'No units yet' }} /></Panel></>);
+}
+
+function Owners() {
+  const { data, isLoading } = useApi<any[]>('/api/leasing/owners');
+  const cols: Column<any>[] = [
+    { key: 'name', header: 'Owner', render: (o) => <QuickLink kind="owner" id={o.id}>{o.name}</QuickLink> },
+    { key: 'contact', header: 'Contact', render: (o) => (o.contact ? <PersonCell name={o.contact} sub={o.email} /> : '—') },
+    { key: 'phone', header: 'Phone', hideOnMobile: true, filter: 'text' },
+    { key: 'properties', header: 'Properties', align: 'right', value: (o) => Number(o.properties) },
+    { key: 'units', header: 'Units', align: 'right', value: (o) => Number(o.units) },
+    { key: 'management_fee_pct', header: 'Mgmt fee %', align: 'right', hideOnMobile: true, value: (o) => Number(o.management_fee_pct) },
+    { key: 'approval_limit', header: 'Approval limit', align: 'right', hideOnMobile: true, value: (o) => Number(o.approval_limit), render: (o) => fmt.usd(o.approval_limit) },
+  ];
+  return (<><PageHeader title="Owners" description="Property owners, their contacts and management terms." /><SubNav />
+    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(o) => o.id} loading={isLoading} exportName="owners" empty={{ title: 'No owners yet' }} /></Panel></>);
 }
 
 function Listings() {
@@ -152,13 +174,18 @@ function ApplicationDetail() {
   const screen = useAction(() => api.post(`/api/leasing/applications/${id}/screen`, {}), { success: 'Screening complete', invalidate: inv });
   const act = useAction((v: { a: string; reason?: string }) => api.post(`/api/leasing/applications/${id}/actions/${v.a}`, { reason: v.reason }), { success: 'Application updated', invalidate: inv });
   const mkLease = useAction(() => api.post<any>(`/api/leasing/applications/${id}/lease`, {}), { success: 'Lease drafted', invalidate: inv, onSuccess: (r) => nav(`${base}/leases/${r.id}`) });
+  const link = useAction(() => api.post<{ path: string }>(`/api/leasing/applications/${id}/upload-link`, {}), {
+    silent: true, onSuccess: async (r) => {
+      const url = `${window.location.origin}${r.path}`;
+      try { await navigator.clipboard.writeText(url); toast('Upload link copied. Send it to the applicant.'); } catch { window.prompt('Copy this link and send it to the applicant', url); }
+    } });
   if (isLoading || !a) return <Skeleton className="h-96" />;
   const s = a.screening;
   const canScreen = ['SUBMITTED', 'DOCS_PENDING'].includes(a.status);
   return (<>
     <PageHeader title={a.applicant_name} back={<Link to={`${base}/applications`} className="text-sm font-semibold text-federal-900">All applications</Link>}
       meta={<><StatusPill status={a.status} /><span>{a.unit_label}</span></>}
-      actions={<>{canScreen && <Button variant="primary" loading={screen.isPending} onClick={() => screen.mutate(undefined)}>Run screening</Button>}
+      actions={<>{!['REJECTED', 'WITHDRAWN', 'LEASED'].includes(a.status) && <Button variant="secondary" loading={link.isPending} onClick={() => link.mutate(undefined)}>Copy upload link</Button>}{canScreen && <Button variant="primary" loading={screen.isPending} onClick={() => screen.mutate(undefined)}>Run screening</Button>}
         <ActionBar actions={a.actions} loading={act.isPending} primary={['APPROVE']} onAction={(x, reason) => act.mutate({ a: x, reason })} />
         {a.status === 'APPROVED' && !a.lease && <Button variant="primary" loading={mkLease.isPending} onClick={() => mkLease.mutate(undefined)}>Create lease</Button>}
         {a.lease && <Link to={`${base}/leases/${a.lease.id}`}><Button>Open lease</Button></Link>}</>} />
@@ -171,6 +198,7 @@ function ApplicationDetail() {
           { label: 'Rent applied for', value: fmt.usd(a.listing_rent) }, { label: 'Credit score', value: a.credit_score ?? 'Not run' }, { label: 'Background', value: a.background_clear == null ? 'Not run' : a.background_clear ? 'Clear' : 'Needs review' },
         ]} /></Panel>
         {a.decision_reason && <Panel title="Decision"><p className="text-sm text-graphite-800">{a.decision_reason}</p></Panel>}
+        <DocumentsPanel entityType="APPLICATION" entityId={a.id} title="Applicant files" description="ID, income proof and anything else the applicant sent. Files from the applicant wait for your review." />
       </div>
       <div>
         {s ? <AiInsight title={`Screening: ${labelOf(s.recommendation)}`} confidence={(s.score ?? 0) / 100} tone={s.recommendation === 'APPROVE' ? 'good' : s.recommendation === 'DECLINE' ? 'crit' : 'warn'}
@@ -214,7 +242,10 @@ function LeaseView({ mine }: { mine?: boolean }) {
         <ActionBar actions={l.actions} loading={act.isPending} primary={['SEND', 'COUNTERSIGN']} onAction={(a, reason) => act.mutate({ a, reason })} /></> : undefined} />
     <div className="mb-6"><WorkflowTrack steps={LEASE_STEPS} current={l.status} /></div>
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-      <Panel title="Lease agreement"><pre className="max-h-[560px] overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed text-graphite-800">{l.document_text}</pre></Panel>
+      <div className="space-y-6">
+        <Panel title="Lease agreement"><pre className="max-h-[560px] overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed text-graphite-800">{l.document_text}</pre></Panel>
+        <DocumentsPanel entityType="LEASE" entityId={l.id} title="Lease documents" description="The signed lease, addenda, insurance and inspections." />
+      </div>
       <div className="space-y-6">
         <Panel title="Terms"><KeyValues cols={1} items={[{ label: 'Rent', value: fmt.usd(l.rent) }, { label: 'Deposit', value: fmt.usd(l.deposit) }, { label: 'Term', value: `${fmt.date(l.start_date)} to ${fmt.date(l.end_date)}` }, { label: 'State', value: l.state },
           { label: 'Tenant signed', value: l.tenant_signed_at ? fmt.date(l.tenant_signed_at) : 'Not yet' }, { label: 'Countersigned', value: l.manager_signed_at ? fmt.date(l.manager_signed_at) : 'Not yet' }]} /></Panel>
@@ -231,6 +262,8 @@ export function Staff() {
     <Routes>
       <Route index element={<Overview />} />
       <Route path="properties" element={<Properties />} />
+      <Route path="units" element={<Units />} />
+      <Route path="owners" element={<Owners />} />
       <Route path="listings" element={<Listings />} />
       <Route path="listings/:id" element={<ListingDetail />} />
       <Route path="leads" element={<Leads />} />

@@ -110,13 +110,17 @@ public class LeaseService {
                 throw ApiException.badRequest("Type your full legal name exactly as shown on the lease: " + l.get("tenant_name"));
             sm.apply("Lease", "leasing.lease", id, WF, action, reason, null, Map.of("signature", sig));
             db.update("update leasing.lease set tenant_signature = ?, tenant_signed_at = now() where id = ?", sig, id);
+            events.publish("LeaseSignatureUpdated", "Lease", id, Map.of("status", "TENANT_SIGNED"));
             notifier.toRole("PROPERTY_MANAGER", "Lease signed by tenant", l.get("tenant_name") + " signed the lease for " + l.get("unit_label") + ". Countersign to activate.", "/leasing/leases/" + id, "HIGH");
             return get(id);
         }
         if ("RENEWAL_ACCEPT".equals(action)) action = "ACCEPT_RENEWAL";
         StateMachine.Outcome o = sm.apply("Lease", "leasing.lease", id, WF, action, reason, null, null);
         switch (o.to()) {
-            case "SENT" -> notifier.toParty((UUID) l.get("tenant_id"), "Your lease is ready to sign", "Review and sign the lease for " + l.get("unit_label") + ".", "/my-lease");
+            case "SENT" -> {
+                notifier.toParty((UUID) l.get("tenant_id"), "Your lease is ready to sign", "Review and sign the lease for " + l.get("unit_label") + ".", "/my-lease");
+                events.publish("LeaseSignatureUpdated", "Lease", id, Map.of("status", "SENT"));
+            }
             case "ACTIVE" -> {
                 if ("COUNTERSIGN".equals(action)) activate(l, ctx);
                 else if ("ACCEPT_RENEWAL".equals(action)) applyRenewal(l);

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, KeyRound, Mail, ShieldCheck } from 'lucide-react';
-import { api, setToken, Button, Input, Field, Avatar, Spinner, toastError } from '@propertyos/ui';
+import { api, setToken, Button, Input, Field, Avatar, Spinner, Select, toastError, errorText } from '@propertyos/ui';
 import { Streetscape } from './Streetscape';
 import { Logo } from '../layout/Logo';
 
@@ -35,7 +35,7 @@ export function SignIn() {
       const r = await api.post<{ token: string }>('/api/identity/public/login', { email: email.trim(), password });
       finish(r.token);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Sign-in failed.');
+      setFormError(errorText(err));
       setBusy(null);
     }
   };
@@ -127,7 +127,7 @@ export function SignIn() {
 
             {apiDown && (
               <div role="alert" className="mx-6 mt-4 rounded border border-crit-200 bg-crit-50 px-3 py-2 text-sm text-crit-800">
-                Can’t reach the PropertyOS API. Start the backend (<code>docker compose -f infra/docker-compose.full.yml up</code>), then check <code>http://localhost:8080/actuator/health</code> and reload.
+                We can’t connect to PropertyOS right now. Check your internet connection, wait a minute, and reload the page. If it keeps happening, contact your administrator.
               </div>
             )}
             {mode === 'password' ? (
@@ -144,11 +144,11 @@ export function SignIn() {
                   <div className="rounded bg-limestone-100 p-3 text-xs text-graphite-600">
                     <p className="font-semibold text-graphite-800">Demo environment</p>
                     <p className="mt-1">Every demo user shares the password <code className="font-bold">{options.data.demoPassword}</code>. Pick a role to fill the form:</p>
-                    <select aria-label="Fill in a demo user" className="mt-2 w-full rounded border border-limestone-300 bg-white px-2 py-1.5 text-sm"
+                    <Select aria-label="Fill in a demo user" className="mt-2"
                       value="" onChange={(e) => { const u = users.find((x) => x.id === e.target.value); if (u) { setEmail(u.email); setPassword(options.data?.demoPassword ?? ''); } }}>
                       <option value="">Choose a persona…</option>
                       {users.map((u) => <option key={u.id} value={u.id}>{u.persona.replace(' (second company)', ' (company 2)')}: {u.name}</option>)}
-                    </select>
+                    </Select>
                   </div>
                 )}
               </form>
@@ -160,7 +160,7 @@ export function SignIn() {
                   <li key={u.id}>
                     <button onClick={() => signInAs(u)} disabled={!!busy}
                       className="flex w-full items-center gap-3 rounded px-3 py-2.5 text-left transition-colors hover:bg-federal-50 focus-visible:bg-federal-50 focus-visible:outline-none disabled:opacity-60">
-                      <Avatar name={u.name} size={36} />
+                      <Avatar name={u.name} size={36} seed={u.email} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-bold text-graphite-900">{u.name}</span>
                         <span className="block truncate text-xs text-graphite-500">{u.title}{u.organization !== 'Summit Ridge Property Group' ? `, ${u.organization}` : ''}</span>

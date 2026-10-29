@@ -27,6 +27,7 @@
         <module>maintenance-service</module>
         <module>workflow-service</module>
         <module>ai-service</module>
+        <module>document-service</module>
     </modules>
 
     <properties>

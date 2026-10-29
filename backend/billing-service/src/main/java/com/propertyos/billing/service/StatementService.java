@@ -51,10 +51,10 @@ public class StatementService {
         Map<String, Object> existing = db.find("select id, status from billing.owner_statement where owner_id = ? and period = ?", ownerId, period).orElse(null);
         if (existing != null && !"DRAFT".equals(existing.get("status"))) throw ApiException.conflict("That statement has already been published.");
         BigDecimal rent = db.value(BigDecimal.class, """
-                select coalesce(sum((a->>'amount')::numeric), 0) from billing.payment p, jsonb_array_elements(p.allocations) a
+                select coalesce(sum((a->>'amount')::numeric - coalesce((a->>'tax')::numeric, 0)), 0) from billing.payment p, jsonb_array_elements(p.allocations) a
                 where p.owner_id = ? and p.status = 'SUCCEEDED' and a->>'kind' = 'RENT' and p.created_at >= ? and p.created_at < ?""", ownerId, from, to);
         BigDecimal fees = db.value(BigDecimal.class, """
-                select coalesce(sum((a->>'amount')::numeric), 0) from billing.payment p, jsonb_array_elements(p.allocations) a
+                select coalesce(sum((a->>'amount')::numeric - coalesce((a->>'tax')::numeric, 0)), 0) from billing.payment p, jsonb_array_elements(p.allocations) a
                 where p.owner_id = ? and p.status = 'SUCCEEDED' and a->>'kind' <> 'RENT' and a->>'kind' <> 'DEPOSIT' and p.created_at >= ? and p.created_at < ?""", ownerId, from, to);
         BigDecimal expenses = db.value(BigDecimal.class, "select coalesce(sum(amount), 0) from billing.expense where owner_id = ? and incurred_on >= ? and incurred_on < ?", ownerId, from, to);
         BigDecimal pct = feePct != null ? feePct : config.number("fees.managementFeePercent", "8");
@@ -78,6 +78,9 @@ public class StatementService {
     public Map<String, Object> publish(UUID id) {
         Map<String, Object> s = statement(id);
         if (!"DRAFT".equals(s.get("status"))) throw ApiException.conflict("This statement is already published.");
+        if (config.flag("payments/reporting/requireW9BeforePublish", true)
+                && db.value(Long.class, "select count(*) from billing.owner_tax_profile where owner_id = ? and w9_received_at is not null", s.get("owner_id")) == 0)
+            throw ApiException.conflict("A W-9 isn't on file for " + s.get("owner_name") + ". Record it under Payments, Tax and compliance before publishing, so year-end 1099 reporting is complete.");
         db.update("update billing.owner_statement set status = 'PUBLISHED', published_at = now() where id = ?", id);
         audit.record("OwnerStatement", id, "PUBLISHED", "DRAFT", "PUBLISHED", Map.of("net", s.get("net_payout")));
         notifier.toParty((UUID) s.get("owner_id"), "Your " + s.get("period") + " statement is ready", "Net payout: $" + s.get("net_payout"), "/payments/statements");

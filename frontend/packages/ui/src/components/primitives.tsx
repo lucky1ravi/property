@@ -1,5 +1,7 @@
-import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { Children, Fragment, forwardRef, isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import clsx from 'clsx';
+import { createPortal } from 'react-dom';
+import { Check, ChevronDown, Search as SearchIcon } from 'lucide-react';
 import { fmt } from '../lib/format';
 
 // ---------------- Button ----------------
@@ -107,14 +109,32 @@ export function Badge({ children, tone = 'neutral', className }: { children: Rea
 }
 
 // ---------------- Avatar ----------------
-export function Avatar({ name, size = 32, color }: { name?: string; size?: number; color?: string }) {
+export function Avatar({ name, size = 32, color, seed, src, ring = false }: { name?: string; size?: number; color?: string; seed?: string; src?: string | null; ring?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  const key = (seed || name || '').trim().toLowerCase();
+  const url = src ?? (key ? `https://i.pravatar.cc/${Math.max(64, size * 2)}?u=${encodeURIComponent(key)}` : null);
+  const base = `inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white ${ring ? 'ring-2 ring-white shadow-sm' : ''}`;
+  if (url && !failed) {
+    return (
+      <span className={`${base} bg-limestone-200`} style={{ width: size, height: size }}>
+        <img src={url} alt={name ? `${name}, profile photo` : ''} width={size} height={size} loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+      </span>
+    );
+  }
   return (
-    <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white"
-      style={{ width: size, height: size, fontSize: size * 0.38, background: color ?? hashColor(name ?? '') }}
-      aria-hidden
-    >
+    <span className={base} style={{ width: size, height: size, fontSize: size * 0.38, background: color ?? hashColor(name ?? '') }} aria-hidden>
       {fmt.initials(name)}
+    </span>
+  );
+}
+
+/** Round photo + name (+ optional secondary line) for table cells and lists. */
+export function PersonCell({ name, sub, size = 28, seed }: { name?: string | null; sub?: ReactNode; size?: number; seed?: string }) {
+  if (!name) return <span className="text-graphite-400">—</span>;
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <Avatar name={name} size={size} seed={seed} />
+      <span className="min-w-0"><span className="block truncate">{name}</span>{sub && <span className="block truncate text-xs font-normal text-graphite-500">{sub}</span>}</span>
     </span>
   );
 }
@@ -153,11 +173,119 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   return <textarea ref={ref} className={clsx(inputBase, 'py-2 leading-relaxed', className)} {...rest} />;
 });
 
-export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select({ className, children, ...rest }, ref) {
+interface Opt { value: string; label: string; disabled?: boolean }
+
+function textOf(n: ReactNode): string {
+  if (n == null || typeof n === 'boolean') return '';
+  if (typeof n === 'string' || typeof n === 'number') return String(n);
+  if (Array.isArray(n)) return n.map(textOf).join('');
+  if (isValidElement(n)) return textOf((n.props as any).children);
+  return '';
+}
+
+function collectOptions(children: ReactNode, out: Opt[] = []): Opt[] {
+  Children.forEach(children, (c) => {
+    if (!isValidElement(c)) return;
+    const props = c.props as any;
+    if (c.type === 'option') {
+      const label = textOf(props.children);
+      out.push({ value: props.value != null ? String(props.value) : label, label, disabled: props.disabled });
+    } else if (c.type === 'optgroup' || c.type === Fragment) collectOptions(props.children, out);
+  });
+  return out;
+}
+
+/**
+ * A drop-in replacement for the native select that every dropdown in the product uses: same props and the same
+ * `onChange(e)` with `e.target.value`, plus a search box, keyboard control and a list that is never clipped by a dialog.
+ */
+export const Select = forwardRef<HTMLButtonElement, Omit<SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> & { onChange?: (e: ChangeEvent<HTMLSelectElement>) => void }>(function Select(
+  { className, children, value, defaultValue, onChange, disabled, name, id, required, ...rest }, ref) {
+  const options = useMemo(() => collectOptions(children), [children]);
+  const [inner, setInner] = useState<string>(String(defaultValue ?? ''));
+  const current = value !== undefined ? String(value ?? '') : inner;
+  const selected = options.find((o) => o.value === current);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [hi, setHi] = useState(0);
+  const [pos, setPos] = useState<{ left: number; top: number; width: number; up: boolean }>({ left: 0, top: 0, width: 240, up: false });
+  const btn = useRef<HTMLButtonElement | null>(null);
+  const box = useRef<HTMLDivElement | null>(null);
+  const search = useRef<HTMLInputElement | null>(null);
+  const listId = useId();
+  const shown = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    return n ? options.filter((o) => o.label.toLowerCase().includes(n) || o.value.toLowerCase().includes(n)) : options;
+  }, [options, q]);
+
+  const place = () => {
+    const r = btn.current?.getBoundingClientRect();
+    if (!r) return;
+    const room = window.innerHeight - r.bottom;
+    const up = room < 280 && r.top > room;
+    setPos({ left: r.left, top: up ? r.top : r.bottom, width: Math.max(r.width, 200), up });
+  };
+  useLayoutEffect(() => { if (open) place(); }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    setQ('');
+    setHi(Math.max(0, options.findIndex((o) => o.value === current)));
+    const t = setTimeout(() => search.current?.focus(), 0);
+    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) setOpen(false); };
+    const move = (e: Event) => { if (!box.current?.contains(e.target as Node)) place(); };
+    document.addEventListener('mousedown', away);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', move, true);
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', away); window.removeEventListener('resize', place); window.removeEventListener('scroll', move, true); };
+  }, [open]);
+  useEffect(() => { setHi(0); }, [q]);
+  useEffect(() => { box.current?.querySelector<HTMLElement>('[data-hi="true"]')?.scrollIntoView({ block: 'nearest' }); }, [hi, open]);
+
+  const choose = (o: Opt) => {
+    if (o.disabled) return;
+    setInner(o.value);
+    setOpen(false);
+    btn.current?.focus();
+    if (o.value !== current) onChange?.({ target: { value: o.value, name }, currentTarget: { value: o.value, name } } as unknown as ChangeEvent<HTMLSelectElement>);
+  };
+  const keys = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(shown.length - 1, h + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (shown[hi]) choose(shown[hi]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopPropagation(); setOpen(false); btn.current?.focus(); }
+    else if (e.key === 'Tab') setOpen(false);
+  };
+
   return (
-    <select ref={ref} className={clsx(inputBase, 'h-9 pr-8', className)} {...rest}>
-      {children}
-    </select>
+    <>
+      <button ref={(el) => { btn.current = el; if (typeof ref === 'function') ref(el); else if (ref) (ref as any).current = el; }} type="button" id={id} disabled={disabled}
+        role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? listId : undefined} aria-label={(rest as any)['aria-label']} title={rest.title}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => { if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); setOpen(true); } }}
+        className={clsx(inputBase, 'relative flex h-9 items-center pr-8 text-left disabled:cursor-not-allowed', className)}>
+        <span className={clsx('block truncate', !selected?.value && 'text-graphite-500')}>{selected?.label ?? ''}</span>
+        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite-500" aria-hidden />
+      </button>
+      {name && <input type="hidden" name={name} value={current} required={required} />}
+      {open && createPortal(
+        <div ref={box} onKeyDown={keys} style={{ position: 'fixed', left: pos.left, top: pos.up ? undefined : pos.top + 4, bottom: pos.up ? window.innerHeight - pos.top + 4 : undefined, width: pos.width, zIndex: 1000 }}
+          className="overflow-hidden rounded-md border border-limestone-300 bg-white shadow-lg">
+          <div className="flex items-center gap-2 border-b border-limestone-200 px-3 py-2">
+            <SearchIcon className="h-4 w-4 shrink-0 text-graphite-400" aria-hidden />
+            <input ref={search} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search options" aria-controls={listId}
+              className="w-full bg-transparent text-sm text-graphite-900 outline-none placeholder:text-graphite-400" />
+          </div>
+          <ul id={listId} role="listbox" className="max-h-64 overflow-y-auto py-1">
+            {shown.length === 0 && <li className="px-3 py-2 text-sm text-graphite-500">No matches</li>}
+            {shown.map((o, i) => (
+              <li key={`${o.value}-${i}`} role="option" aria-selected={o.value === current} aria-disabled={o.disabled} data-hi={i === hi}
+                onMouseEnter={() => setHi(i)} onClick={() => choose(o)}
+                className={clsx('flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-sm', i === hi && 'bg-limestone-100', o.disabled ? 'cursor-not-allowed text-graphite-400' : 'text-graphite-900', o.value === current && 'font-semibold')}>
+                <span className="truncate">{o.label || '—'}</span>{o.value === current && <Check className="h-4 w-4 shrink-0 text-federal-800" aria-hidden />}
+              </li>))}
+          </ul>
+        </div>, document.body)}
+    </>
   );
 });
 

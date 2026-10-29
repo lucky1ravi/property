@@ -24,8 +24,10 @@ public class PlatformController {
     private final AuditService audit;
     private final JdbcTemplate jdbc;
     private final Tx tx;
+    private final com.propertyos.identity.service.ConfigService config;
 
-    public PlatformController(IdentityStore store, IdentitySeeder seeder, AuditService audit, JdbcTemplate jdbc, Tx tx) {
+    public PlatformController(IdentityStore store, IdentitySeeder seeder, AuditService audit, JdbcTemplate jdbc, Tx tx, com.propertyos.identity.service.ConfigService config) {
+        this.config = config;
         this.store = store;
         this.seeder = seeder;
         this.audit = audit;
@@ -75,6 +77,17 @@ public class PlatformController {
                     Map.of("name", name, "plan", plan, "by", UserContextHolder.require().name()));
         });
         return Map.of("orgId", orgId, "adminUserId", adminId, "defaultRoles", DefaultRoles.TEMPLATES.size());
+    }
+
+    @GetMapping("/orgs/{id}/features")
+    public List<Map<String, Object>> features(@PathVariable UUID id) {
+        return tx.read(() -> config.featureMatrix(id));
+    }
+
+    @PutMapping("/orgs/{id}/features")
+    @RequiresPermission("PLATFORM:CONFIGURE")
+    public List<Map<String, Object>> setFeatures(@PathVariable UUID id, @RequestBody Map<String, Object> changes) {
+        return tx.write(() -> config.setEntitlements(id, changes));
     }
 
     @PutMapping("/orgs/{id}")

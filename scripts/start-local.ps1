@@ -27,7 +27,7 @@ if (Test-Path $envFile) {
 $env:PGHOST = "localhost"; $env:PGPORT = "5433"; $env:PGDATABASE = "propertyos"
 $env:PGUSER = "postgres"; $env:PGPASSWORD = "postgres"
 
-$services = @("identity-service", "leasing-service", "billing-service", "maintenance-service", "workflow-service", "ai-service", "api-gateway")
+$services = @("identity-service", "leasing-service", "billing-service", "maintenance-service", "workflow-service", "ai-service", "document-service", "api-gateway")
 New-Item -ItemType Directory -Force -Path logs | Out-Null
 foreach ($s in $services) {
     $jar = "backend\$s\target\app.jar"

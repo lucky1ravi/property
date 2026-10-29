@@ -10,7 +10,7 @@ fi
 
 # All-in-one: internal services on fixed local ports, gateway on the public port.
 export IDENTITY_URL=http://localhost:8081 LEASING_URL=http://localhost:8082 BILLING_URL=http://localhost:8083
-export MAINTENANCE_URL=http://localhost:8084 WORKFLOW_URL=http://localhost:8085 AI_URL=http://localhost:8086
+export MAINTENANCE_URL=http://localhost:8084 WORKFLOW_URL=http://localhost:8085 AI_URL=http://localhost:8086 DOCUMENTS_URL=http://localhost:8087
 HEAP="${SERVICE_HEAP:--Xmx200m}"
 
 start() { # name port
@@ -27,6 +27,6 @@ wait_up() { # port
 # Identity first: it creates the shared platform schema and roles the others depend on.
 start identity-service 8081; wait_up 8081 || { tail -50 /tmp/identity-service.log; exit 1; }
 start leasing-service 8082; start billing-service 8083; start maintenance-service 8084
-start workflow-service 8085; start ai-service 8086
-for p in 8082 8083 8084 8085 8086; do wait_up $p || exit 1; done
+start workflow-service 8085; start ai-service 8086; start document-service 8087
+for p in 8082 8083 8084 8085 8086 8087; do wait_up $p || exit 1; done
 PORT="$PUBLIC_PORT" exec java $JAVA_OPTS $HEAP -XX:MaxRAMPercentage=0 -jar /app/api-gateway.jar

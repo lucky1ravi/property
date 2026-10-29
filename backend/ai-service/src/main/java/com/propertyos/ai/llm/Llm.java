@@ -34,5 +34,15 @@ public interface Llm {
 
     String model();
 
+    /** True when this model accepts images. */
+    default boolean supportsVision() {
+        return false;
+    }
+
+    /** Sends one image with a prompt and returns the model's text. Only called when supportsVision() is true. */
+    default String vision(String system, String prompt, byte[] image, String mime) throws Exception {
+        throw new UnsupportedOperationException("This model does not accept images.");
+    }
+
     Reply chat(String system, List<Msg> messages, List<ToolSpec> tools, boolean jsonOutput) throws Exception;
 }

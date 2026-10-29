@@ -38,13 +38,46 @@ public class IdentitySeeder implements EventHandler {
 
     @EventListener(ApplicationReadyEvent.class)
     public void seedIfEmpty() {
-        if (!demo) return;
+        if (!demo) {
+            syncCatalog();
+            return;
+        }
         UserContextHolder.runAsSystem(null, () -> {
             tx.executeWithoutResult(s -> {
                 if (store.countOrgs() > 0) return;
                 for (DemoData.Org o : DemoData.orgs()) store.insertOrg(o.id(), o.name(), o.legalName(), o.state(), o.plan());
                 for (DemoData.Org o : DemoData.orgs()) seedOrg(o.id());
                 log.info("Seeded identity demo data");
+            });
+            return null;
+        });
+        syncCatalog();
+    }
+
+    /** Offers features added since an organisation was created to its default roles, once, so existing roles gain the new rows on the Roles screen. */
+    void syncCatalog() {
+        UserContextHolder.runAsSystem(null, () -> {
+            tx.executeWithoutResult(s -> {
+                for (Map<String, Object> o : store.orgs()) {
+                    UUID orgId = (UUID) o.get("id");
+                    if (orgId.equals(DemoData.PLATFORM.id())) continue;
+                    for (String feature : DefaultRoles.SYNCED_FEATURES) {
+                        if (store.featureSynced(orgId, feature)) continue;
+                        for (Map<String, Object> r : store.systemRoles(orgId)) {
+                            DefaultRoles.byKey((String) r.get("role_key")).ifPresent(t -> t.grants().stream().filter(g -> g.feature().equals(feature))
+                                    .forEach(g -> store.addGrantIfMissing((UUID) r.get("id"), orgId, feature, g.action(), g.maxAmount())));
+                        }
+                        store.markFeatureSynced(orgId, feature);
+                    }
+                    for (String field : DefaultRoles.SYNCED_FIELDS) {
+                        String key = "field:" + field;
+                        if (store.featureSynced(orgId, key)) continue;
+                        for (Map<String, Object> r : store.systemRoles(orgId))
+                            DefaultRoles.byKey((String) r.get("role_key")).map(t -> t.fieldRules().get(field))
+                                    .ifPresent(access -> store.addFieldRuleIfMissing((UUID) r.get("id"), field, access));
+                        store.markFeatureSynced(orgId, key);
+                    }
+                }
             });
             return null;
         });

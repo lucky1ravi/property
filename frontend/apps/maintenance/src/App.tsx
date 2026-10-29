@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import {
+  DocumentsPanel,
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Modal, Field, Input, Select, Textarea, KeyValues, Timeline,
   AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction, QuickLink } from '@propertyos/ui';
 
@@ -9,18 +10,8 @@ const inv = ['/api/maintenance'];
 const STEPS = [{ key: 'TRIAGED', label: 'Triaged' }, { key: 'AWAITING_APPROVAL', label: 'Approval' }, { key: 'ASSIGNED', label: 'Assigned' }, { key: 'SCHEDULED', label: 'Scheduled' }, { key: 'IN_PROGRESS', label: 'In progress' }, { key: 'COMPLETED', label: 'Completed' }, { key: 'VERIFIED', label: 'Verified' }];
 const prioTone = (p: string) => (p === 'EMERGENCY' ? 'crit' : p === 'HIGH' ? 'warn' : 'neutral');
 
-const SubNav = () => {
-  const { can, session } = useSession();
-  const staff = personaOf(session) !== 'tenant';
-  const items: [string, string, boolean][] = [['', 'Work orders', true], ['vendors', 'Vendors', staff && can('VENDOR:VIEW')], ['recurring', 'Preventive maintenance', staff]];
-  return (
-    <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-limestone-200">
-      {items.filter((i) => i[2]).map(([k, label]) => (
-        <NavLink key={k} to={`${BASE}/${k}`} end={k === ''} className={({ isActive }) => `-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold ${isActive ? 'border-federal-900 text-federal-900' : 'border-transparent text-graphite-500 hover:text-graphite-800'}`}>{label}</NavLink>
-      ))}
-    </nav>
-  );
-};
+// The section tabs (Maintenance: Work orders, Vendors, Preventive maintenance) are drawn once by the shell from the same menu definition as the left menu.
+const SubNav = () => null;
 
 function List() {
   const nav = useNavigate(); const { can, session } = useSession();
@@ -106,6 +97,7 @@ function Detail() {
       </div>
       <div className="space-y-6">
         {t && <AiInsight title="AI triage" confidence={t.confidence} tone={t.safetyRisk ? 'crit' : 'neutral'} reasons={t.tips}><p>{t.summary}</p><p className="mt-2 text-xs text-graphite-500">{t.guardrail}</p></AiInsight>}
+        <DocumentsPanel entityType="WORK_ORDER" entityId={w.id} title="Photos and files" description="Photos, quotes and invoices for this job." compact />
         <Panel title="History"><Timeline items={w.timeline} /></Panel>
       </div>
     </div>

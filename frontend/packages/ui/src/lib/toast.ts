@@ -13,5 +13,7 @@ export function toast(title: string, opts: { tone?: ToastTone; body?: string } =
   window.dispatchEvent(new CustomEvent<ToastMessage>('pos:toast', { detail }));
 }
 
+import { errorText } from './api';
+
 export const toastError = (e: unknown, fallback = 'That didn’t work') =>
-  toast(fallback, { tone: 'error', body: e instanceof Error ? e.message : String(e) });
+  toast(fallback, { tone: 'error', body: errorText(e) });
