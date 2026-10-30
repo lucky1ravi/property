@@ -76,6 +76,20 @@ class PlatformGovernanceIT extends IdentityIntegrationTest {
     }
 
     @Test
+    @DisplayName("deleting a company is soft, hidden by default and prevents sign-in")
+    void softDelete() {
+        Company company = onboard();
+        String platform = api.login(PLATFORM_ADMIN, DEMO_PASSWORD);
+
+        assertThat(api.delete(platform, "/api/identity/platform/orgs/" + company.orgId()).status()).isEqualTo(200);
+        assertThat(api.get(platform, "/api/identity/platform/orgs").body().findValues("id").stream()
+                .map(n -> n.asText()).toList()).doesNotContain(company.orgId().toString());
+        assertThat(api.get(platform, "/api/identity/platform/orgs?status=DELETED").body().findValues("id").stream()
+                .map(n -> n.asText()).toList()).contains(company.orgId().toString());
+        assertThat(api.post(null, "/api/identity/public/login", Map.of("email", company.adminEmail(), "password", "Chosen-password-2026")).status()).isEqualTo(403);
+    }
+
+    @Test
     @DisplayName("sign-in rejects a wrong password with a friendly message")
     void wrongPassword() {
         Reply r = api.post(null, "/api/identity/public/login", Map.of("email", SUMMIT_ADMIN, "password", "wrong"));

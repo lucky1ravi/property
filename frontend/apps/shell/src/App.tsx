@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getToken } from '@propertyos/ui';
+import { useToken } from '@propertyos/ui';
 import { SignIn } from './pages/SignIn';
 import { Messages } from './pages/Messages';
 import { Deadlines } from './pages/Deadlines';
@@ -33,20 +33,21 @@ const remotes = {
   insights: () => import('insights/App'),
 };
 
-function PublicLayout() {
+/** Public listings (search, a listing, applying), shown inside the marketing site's header and footer. */
+function PublicListings() {
   return (
-    <div className="min-h-screen bg-limestone-100">
-      <header className="border-b border-limestone-200 bg-white">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
-          <Link to="/homes"><Logo /></Link>
-          <Link to="/signin" className="rounded bg-federal-900 px-4 py-2 text-sm font-semibold text-white hover:bg-federal-800">Sign in</Link>
-        </div>
-      </header>
-      <main className="mx-auto max-w-[1200px] px-6 py-8">
+    <div className="bg-limestone-100">
+      <div className="mx-auto max-w-[1200px] px-6 py-8">
         <RemoteModule name="leasing" loader={remotes.leasing} props={{ publicMode: true }} />
-      </main>
+      </div>
     </div>
   );
+}
+
+/** Signed-in people go straight to the app. Read at render time, so signing out shows the form instead of a stale redirect. */
+function SignInRoute() {
+  const token = useToken();
+  return token ? <Navigate to="/app" replace /> : <SignIn />;
 }
 
 function NotFound() {
@@ -74,9 +75,9 @@ export function App() {
             <Route path="/why-us" element={<WhyUs />} />
             <Route path="/security" element={<Security />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/homes/*" element={<PublicListings />} />
           </Route>
-          <Route path="/signin" element={getToken() ? <Navigate to="/app" replace /> : <SignIn />} />
-          <Route path="/homes/*" element={<PublicLayout />} />
+          <Route path="/signin" element={<SignInRoute />} />
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<RemoteModule name="insights" loader={remotes.insights} props={{ view: 'home' }} />} />
             <Route path="insights/*" element={<RemoteModule name="insights" loader={remotes.insights} props={{ view: 'reports' }} />} />

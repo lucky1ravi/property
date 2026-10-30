@@ -33,7 +33,7 @@ export function Profile() {
     if (!session) return;
     setName(session.name ?? ''); setTitle(session.title ?? ''); setPhone(session.phone ?? ''); setPhoto(session.photo ?? null);
   }, [session?.userId, session?.name, session?.title, session?.phone, session?.photo]);
-  const save = useAction(() => api.put('/api/identity/me/profile', { name, title, phone, photo }), { success: 'Profile saved', invalidate: ['/api/identity'] });
+  const save = useAction(() => api.put('/api/identity/me/profile', { name, title, phone, photo }), { success: 'Profile saved', invalidate: ['/api/identity', 'session'] });
   if (!session) return <Skeleton className="h-96" />;
   const pick = async (f?: File) => {
     if (!f) return;

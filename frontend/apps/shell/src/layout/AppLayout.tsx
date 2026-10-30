@@ -92,11 +92,10 @@ export function AppLayout() {
       </div>
       <ErrorBoundary label="quick view" compact><QuickViewHost /></ErrorBoundary>
       {aiEnabled && !assistant && (
-        <button onClick={() => setAssistant(true)} aria-label="Ask PropertyOS"
+        <button onClick={() => setAssistant(true)} aria-label="Ask PropertyOS" title="Chat"
           style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))', right: 'max(1rem, env(safe-area-inset-right))' }}
-          className="group fixed z-30 inline-flex items-center gap-2 rounded-full bg-federal-800 p-4 text-sm font-bold text-white sm:px-5 sm:py-3.5 shadow-[0_10px_30px_rgba(20,50,120,0.45)] ring-2 ring-white transition hover:bg-federal-900 hover:shadow-[0_14px_36px_rgba(20,50,120,0.55)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600">
-          <span className="absolute inset-0 -z-10 rounded-full bg-federal-600/50 motion-safe:animate-ping" aria-hidden />
-          <MessageSquareText className="h-6 w-6 sm:h-5 sm:w-5" /> <span className="hidden sm:inline">Ask PropertyOS</span>
+          className="fixed z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-federal-800 text-white shadow-[0_8px_24px_rgba(20,50,120,0.4)] ring-2 ring-white transition hover:bg-federal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600">
+          <MessageSquareText className="h-5 w-5" />
         </button>
       )}
       {aiEnabled && <ErrorBoundary label="assistant" compact><Assistant open={assistant} onClose={() => setAssistant(false)} persona={persona} /></ErrorBoundary>}

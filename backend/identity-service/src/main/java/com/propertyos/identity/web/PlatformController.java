@@ -45,8 +45,12 @@ public class PlatformController {
      * Platform administrators: lists customer companies.
      */
     @GetMapping("/orgs")
-    public List<Map<String, Object>> orgs() {
-        return tx.read(store::orgs);
+    public List<Map<String, Object>> orgs(@RequestParam(required = false) List<String> status) {
+        List<String> selected = status == null || status.isEmpty() ? List.of("ACTIVE") : status.stream()
+                .map(String::toUpperCase).distinct().toList();
+        if (selected.stream().anyMatch(s -> !List.of("ACTIVE", "SUSPENDED", "DELETED").contains(s)))
+            throw ApiException.badRequest("Status must be ACTIVE, SUSPENDED or DELETED.");
+        return tx.read(() -> store.orgs(selected));
     }
 
     /**
@@ -56,10 +60,10 @@ public class PlatformController {
     public Map<String, Object> summary() {
         return tx.read(() -> {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("organizations", jdbc.queryForObject("select count(*) from identity.organization where plan is not null", Long.class));
-            m.put("users", jdbc.queryForObject("select count(*) from identity.app_user", Long.class));
-            m.put("activeUsers7d", jdbc.queryForObject("select count(*) from identity.app_user where last_login_at > now() - interval '7 days'", Long.class));
-            m.put("planMix", jdbc.queryForList("select plan, count(*) as count from identity.organization group by plan order by plan"));
+            m.put("organizations", jdbc.queryForObject("select count(*) from identity.organization where status = 'ACTIVE'", Long.class));
+            m.put("users", jdbc.queryForObject("select count(*) from identity.app_user u join identity.organization o on o.id = u.org_id where o.status = 'ACTIVE'", Long.class));
+            m.put("activeUsers7d", jdbc.queryForObject("select count(*) from identity.app_user u join identity.organization o on o.id = u.org_id where o.status = 'ACTIVE' and u.last_login_at > now() - interval '7 days'", Long.class));
+            m.put("planMix", jdbc.queryForList("select plan, count(*) as count from identity.organization where status = 'ACTIVE' group by plan order by plan"));
             m.put("signIns", jdbc.queryForList("select date_trunc('day', created_at)::date as day, count(*) as count from platform.audit_event " +
                     "where action = 'SIGNED_IN' and created_at > now() - interval '14 days' group by 1 order by 1"));
             m.put("configChanges30d", jdbc.queryForObject("select count(*) from platform.audit_event where action like 'CONFIG_%' and created_at > now() - interval '30 days'", Long.class));
@@ -142,29 +146,53 @@ public class PlatformController {
         return tx.write(() -> config.setEntitlements(id, changes));
     }
 
-    /**
-     * Platform administrators: changes a company's plan or status.
-     */
+    /** Platform administrators: changes a company's profile, plan or status. */
     @PutMapping("/orgs/{id}")
     @RequiresPermission("PLATFORM:CONFIGURE")
     public void updateOrg(@PathVariable UUID id, @RequestBody Map<String, String> body) {
+        String name = body.get("name"), legalName = body.get("legalName"), state = body.get("state");
         String plan = body.get("plan"), status = body.get("status"), reason = body.get("reason");
+        if (name != null && name.isBlank()) throw ApiException.badRequest("Company name can't be blank.");
+        if (state != null && !state.trim().matches("[A-Za-z]{2}")) throw ApiException.badRequest("State must be a two-letter code.");
+        String normalizedState = state == null ? null : state.trim().toUpperCase(Locale.ROOT);
         if (plan != null && !tx.read(() -> plans.exists(plan))) throw ApiException.badRequest("That plan doesn't exist.");
         if (status != null && !List.of("ACTIVE", "SUSPENDED").contains(status)) throw ApiException.badRequest("Status must be ACTIVE or SUSPENDED.");
         if (id.equals(com.propertyos.common.demo.DemoData.PLATFORM.id()) && status != null && !"ACTIVE".equals(status))
             throw ApiException.badRequest("The platform's own account can't be suspended.");
         if ("SUSPENDED".equals(status) && (reason == null || reason.isBlank())) throw ApiException.badRequest("Say why the company is being suspended, for the audit trail.");
         tx.run(() -> {
-            if (!store.org(id).isPresent()) throw ApiException.notFound("Company not found.");
+            Map<String, Object> current = store.org(id).orElseThrow(() -> ApiException.notFound("Company not found."));
+            if ("DELETED".equals(current.get("status"))) throw ApiException.conflict("A deleted company can't be changed.");
             String by = UserContextHolder.require().name();
-            if (plan != null) store.updateOrg(id, plan, null);
+            Map<String, Object> changed = new LinkedHashMap<>();
+            if (name != null) changed.put("name", name.trim());
+            if (legalName != null) changed.put("legalName", legalName.trim());
+            if (normalizedState != null) changed.put("state", normalizedState);
+            if (plan != null) changed.put("plan", plan);
+            if (!changed.isEmpty()) store.updateOrg(id, name == null ? null : name.trim(), legalName == null ? null : legalName.trim(), normalizedState, plan);
             if (status != null) {
                 store.setOrgStatus(id, status, reason == null ? null : reason.trim(), by);
                 audit.record("Organization", id, "SUSPENDED".equals(status) ? "ORG_SUSPENDED" : "ORG_RESTORED", null, status,
                         Map.of("reason", reason == null ? "" : reason.trim(), "by", by));
             }
-            if (plan != null) audit.record("Organization", id, "ORG_UPDATED", null, status, Map.of("plan", plan));
+            if (!changed.isEmpty()) audit.record("Organization", id, "ORG_UPDATED", null, status, changed);
         });
         suspended.replace(tx.read(store::suspendedOrgIds)); // takes effect here at once; other services pick it up within seconds
+    }
+
+    /** Soft-deletes a company while retaining its records and audit history. */
+    @DeleteMapping("/orgs/{id}")
+    @RequiresPermission("PLATFORM:CONFIGURE")
+    public void deleteOrg(@PathVariable UUID id) {
+        if (id.equals(com.propertyos.common.demo.DemoData.PLATFORM.id()))
+            throw ApiException.badRequest("The platform's own account can't be deleted.");
+        tx.run(() -> {
+            Map<String, Object> org = store.org(id).orElseThrow(() -> ApiException.notFound("Company not found."));
+            if ("DELETED".equals(org.get("status"))) throw ApiException.conflict("This company is already deleted.");
+            String by = UserContextHolder.require().name();
+            store.softDeleteOrg(id, by);
+            audit.record("Organization", id, "ORG_DELETED", String.valueOf(org.get("status")), "DELETED", Map.of("by", by));
+        });
+        suspended.replace(tx.read(store::suspendedOrgIds)); // deleted companies are blocked straight away
     }
 }

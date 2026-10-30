@@ -17,6 +17,7 @@ export * from './quickview/QuickLink';
 export * from './quickview/QuickViewHost';
 export * from './components/RichText';
 export * from './components/Carousel';
+export * from './components/RowActions';
 export * from './components/InvoiceDownload';
 export * from './components/documents';
 export * from "./components/media";

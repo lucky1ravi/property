@@ -96,8 +96,12 @@ public class LeaseService {
             throw ApiException.conflict("A lease already exists for this application.");
         Map<String, Object> u = db.one("Unit", """
                 select u.*, p.name as pname, p.street, p.city, p.state, p.zip from leasing.unit u join leasing.property p on p.id = u.property_id where u.id = ?""", a.get("unit_id"));
-        Map<String, Object> li = db.one("Listing", "select rent, deposit from leasing.listing where id = ?", a.get("listing_id"));
-        LocalDate start = Optional.ofNullable(Req.date(b, "startDate")).orElse(LocalDate.parse(String.valueOf(a.get("move_in_date"))));
+        Map<String, Object> li = db.one("Listing", "select rent, deposit, available_date from leasing.listing where id = ?", a.get("listing_id"));
+        // Applicants often leave the move-in date blank: fall back to the date the home is available, then to today.
+        LocalDate start = Optional.ofNullable(Req.date(b, "startDate"))
+                .or(() -> Optional.ofNullable(a.get("move_in_date")).map(d -> LocalDate.parse(String.valueOf(d))))
+                .or(() -> Optional.ofNullable(li.get("available_date")).map(d -> LocalDate.parse(String.valueOf(d))))
+                .orElseGet(LocalDate::now);
         int months = Optional.ofNullable(Req.integer(b, "termMonths")).orElse(12);
         BigDecimal rent = Optional.ofNullable(Req.money(b, "rent")).orElse((BigDecimal) li.get("rent"));
         BigDecimal reqDeposit = Optional.ofNullable(Req.money(b, "deposit")).orElse((BigDecimal) li.get("deposit"));

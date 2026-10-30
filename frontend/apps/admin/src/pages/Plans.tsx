@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PageHeader, Panel, DataTable, type Column, useApi, Button, Field, Input, Textarea, Modal, Badge, useAction, api, Toggle, ConfirmDialog } from '@propertyos/ui';
+import { PageHeader, Panel, DataTable, type Column, useApi, Button, Field, Input, Textarea, Modal, Badge, useAction, api, Toggle, ConfirmDialog, RowActions } from '@propertyos/ui';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const BASE = '/api/identity/platform/plans';
@@ -95,7 +95,7 @@ export function Plans() {
     { key: 'company_count', header: 'Companies', align: 'right', render: (r) => r.company_count },
     { key: 'highlight', header: 'Most popular', hideOnMobile: true, render: (r) => <Toggle checked={r.highlight} onChange={(v) => patch.mutate({ key: r.plan_key, body: { highlight: v } })} label={`Mark ${r.name} as most popular`} /> },
     { key: 'visible', header: 'On website', hideOnMobile: true, render: (r) => <Toggle checked={r.visible} onChange={(v) => patch.mutate({ key: r.plan_key, body: { visible: v } })} label={`Show ${r.name} on the website`} /> },
-    { key: 'actions', header: '', render: (r) => <span className="flex gap-2"><Button variant="secondary" onClick={() => setEditing(r)}>Edit</Button><Button variant="quiet" onClick={() => setRemoving(r)}>Delete</Button></span> },
+    { key: 'actions', header: '', render: (r) => <RowActions name={r.name} onEdit={() => setEditing(r)} onDelete={() => setRemoving(r)} /> },
   ];
 
   return (<>

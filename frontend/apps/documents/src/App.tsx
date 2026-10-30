@@ -353,7 +353,7 @@ function SignaturePage() {
         {me && r.status === 'PENDING' && me.status === 'PENDING' && (
           <Panel title="Sign" description={mustWait ? 'Others sign first. You’ll be asked when it’s your turn.' : undefined}>
             {!mustWait && <div className="space-y-4">
-              <Field label="Type your full legal name" hint={`Type it exactly as shown: ${me.name}. Typing your name is your signature.`}><Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder={me.name} /></Field>
+              <Field label="Type your full legal name" hint="Typing your name is your signature."><Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder={me.name} /><button type="button" className="mt-1 text-xs font-semibold text-federal-800 underline" onClick={() => setName(me.name)}>Use my name</button></Field>
               {name.trim() && <p className="rounded border border-dashed border-limestone-300 bg-limestone-50 px-4 py-3 text-2xl italic text-graphite-900" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{name}</p>}
               <label className="flex items-start gap-2 text-sm text-graphite-700"><input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>{r.consentText}</span></label>
               <div className="flex gap-2"><Button disabled={!name.trim() || !consent || !r.unchanged} loading={sign.isPending} icon={<PenLine className="h-4 w-4" />} onClick={() => sign.mutate(undefined)}>Sign document</Button>

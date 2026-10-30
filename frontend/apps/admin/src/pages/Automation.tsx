@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Modal, Field, Input, Select, Textarea, Toggle, Badge, Skeleton, ConfirmDialog, useApi, useAction, api, fmt, useSession, Tabs, Timeline } from '@propertyos/ui';
+import { PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Modal, Field, Input, Select, Textarea, Toggle, Badge, Skeleton, ConfirmDialog, useApi, useAction, api, fmt, useSession, Tabs, Timeline, RowActions } from '@propertyos/ui';
 
 const inv = ['/api/workflow'];
 const ROLES = ['PROPERTY_MANAGER', 'LEASING_AGENT', 'BROKER', 'ACCOUNTANT', 'ORG_ADMIN'];
@@ -50,7 +50,7 @@ export function Automations() {
     { key: 'trigger_event', header: 'When', hideOnMobile: true, render: (r) => human(r.trigger_event) },
     { key: 'runs', header: 'Runs', align: 'right' },
     { key: 'enabled', header: 'On', align: 'center', render: (r) => <span onClick={(e) => e.stopPropagation()}><Toggle checked={r.enabled} disabled={!editable} onChange={(on) => toggle.mutate({ id: r.id, on })} /></span> },
-    { key: 'a', header: '', align: 'right', render: (r) => editable && <Button size="sm" variant="quiet" onClick={(e) => { e.stopPropagation(); setDel(r); }}>Delete</Button> },
+    { key: 'a', header: '', align: 'right', render: (r) => editable && <RowActions name={r.name} onDelete={() => setDel(r)} /> },
   ];
   return (<>
     <PageHeader title="Automation rules" description="Routine follow-up that runs by itself. Each run is logged and counted toward time saved." actions={editable && <Button variant="primary" onClick={() => setEdit('new')}>New automation</Button>} />

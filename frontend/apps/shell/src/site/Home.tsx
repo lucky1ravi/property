@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpenCheck, Fingerprint, Layers3, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, Fingerprint, Layers3, ShieldCheck, Workflow } from 'lucide-react';
 import { PRODUCTS, useSite, useTitle, usd } from './data';
 import { ButtonLink, Container, CtaBand } from './parts';
 import { QueueShot, ScoreShot, StatementShot, TriageShot } from './shots';
@@ -36,32 +36,43 @@ export function Home() {
   const cheapest = data?.plans.slice().sort((a, b) => a.pricePerUnit - b.pricePerUnit)[0];
   return (
     <>
-      <section className="relative overflow-hidden border-b border-limestone-200 bg-limestone-50">
-        <div aria-hidden className="pointer-events-none absolute inset-0 [background-image:linear-gradient(#E8ECEA_1px,transparent_1px),linear-gradient(90deg,#E8ECEA_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]" />
+      <section className="relative overflow-hidden border-b border-federal-800 bg-federal-950 text-white">
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(156,195,193,.18)_1px,transparent_1px),linear-gradient(90deg,rgba(156,195,193,.18)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(ellipse_at_70%_10%,black,transparent_68%)]" />
+        <div aria-hidden className="absolute -right-20 top-10 h-[440px] w-[440px] rounded-full bg-federal-700/30 blur-3xl" />
         <Container className="relative grid items-center gap-14 py-16 lg:grid-cols-[1.05fr_1fr] lg:py-24">
           <div>
-            <h1 className="max-w-[15ch] text-[44px] font-black leading-[1.02] tracking-[-0.04em] text-graphite-950 sm:text-[64px]">Run a bigger portfolio with the same team.</h1>
-            <p className="mt-6 max-w-[52ch] text-lg leading-relaxed text-graphite-700">
-              PropertyOS answers enquiries, screens applicants, collects rent and dispatches repairs on its own, then brings your team only the decisions that need a person.
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-federal-300">Enterprise property operations</p>
+            <h1 className="mt-4 max-w-[15ch] text-[44px] font-black leading-[1.02] tracking-[-0.045em] sm:text-[64px]">Control every property operation from one system.</h1>
+            <p className="mt-6 max-w-[52ch] text-lg leading-relaxed text-federal-100">
+              PropertyOS unifies leasing, payments, maintenance and portfolio oversight—automating repeatable work while keeping people in control of the decisions that matter.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink to="/contact">Request a demo</ButtonLink>
-              <ButtonLink to="/products" variant="secondary">Explore the platform</ButtonLink>
+              <Link to="/contact" className="inline-flex items-center justify-center rounded-md bg-white px-5 py-3 text-sm font-bold text-federal-900 shadow-sm transition-colors hover:bg-federal-50">Request a demo</Link>
+              <Link to="/products" className="inline-flex items-center justify-center rounded-md border border-federal-300/60 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10">Explore the platform</Link>
             </div>
-            <p className="mt-7 max-w-[52ch] text-sm text-graphite-600">Already a customer? <Link to="/signin" className="font-semibold text-federal-800 underline">Sign in</Link>. Want to look around first? Use the live demo from the sign-in page.</p>
+            <div className="mt-10 grid max-w-[40rem] grid-cols-3 gap-4 border-t border-federal-800 pt-6 text-sm">
+              {[['One record', 'for every property'], ['Clear controls', 'at every handoff'], ['Built to scale', 'without new silos']].map(([title, detail]) => <div key={title}><p className="font-extrabold text-white">{title}</p><p className="mt-1 text-xs leading-relaxed text-federal-200">{detail}</p></div>)}
+            </div>
           </div>
-          <QueueShot />
+          <div className="relative"><div aria-hidden className="absolute -inset-5 rounded-2xl bg-federal-700/20 blur-xl" /><QueueShot /></div>
         </Container>
       </section>
 
       <section aria-label="Platform principles" className="border-b border-limestone-200 bg-white">
-        <Container className="grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-4">
+        <Container className="grid gap-0 py-0 sm:grid-cols-2 lg:grid-cols-4">
           {PILLARS.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="flex gap-3.5">
-              <Icon className="mt-0.5 h-6 w-6 shrink-0 text-federal-700" aria-hidden />
+            <div key={title} className="flex gap-3.5 border-b border-limestone-200 px-1 py-7 last:border-b-0 sm:px-6 sm:even:border-l lg:border-b-0 lg:border-l lg:first:border-l-0">
+              <Icon className="mt-0.5 h-5 w-5 shrink-0 text-federal-700" aria-hidden />
               <div><h2 className="text-[15px] font-extrabold text-graphite-950">{title}</h2><p className="mt-1 text-sm leading-relaxed text-graphite-600">{body}</p></div>
             </div>
           ))}
+        </Container>
+      </section>
+
+      <section className="bg-limestone-50">
+        <Container className="grid gap-10 py-16 lg:grid-cols-[.85fr_1.15fr] lg:items-end">
+          <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-federal-700">Designed for operating complexity</p><h2 className="mt-3 max-w-[16ch] text-[34px] font-black leading-[1.08] tracking-[-0.035em] text-graphite-950">A system of record, not another point solution.</h2></div>
+          <div className="grid gap-3 sm:grid-cols-3">{[['One shared record', 'Properties, people, leases and work stay connected.'], ['Rules at the core', 'Your approvals, fees and state limits guide every workflow.'], ['Decisions surfaced', 'The platform routes exceptions to the right person.']].map(([title, body], index) => <article key={title} className="rounded-lg border border-limestone-300 bg-white p-5 shadow-panel"><span className="text-xs font-bold text-federal-700">0{index + 1}</span><h3 className="mt-5 font-extrabold text-graphite-950">{title}</h3><p className="mt-2 text-sm leading-relaxed text-graphite-600">{body}</p></article>)}</div>
         </Container>
       </section>
 
@@ -80,7 +91,8 @@ export function Home() {
 
       <section className="bg-federal-950 text-white" aria-labelledby="gov">
         <Container className="py-20">
-          <h2 id="gov" className="max-w-[24ch] text-[34px] font-black leading-[1.08] tracking-[-0.03em]">Automation that knows when to stop</h2>
+          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-federal-300"><Workflow className="h-4 w-4" /> Governed automation</p>
+          <h2 id="gov" className="mt-3 max-w-[24ch] text-[34px] font-black leading-[1.08] tracking-[-0.03em]">Automation that knows when to stop</h2>
           <p className="mt-4 max-w-[60ch] text-federal-100">Routine steps move on their own. Anything involving money, legal terms or safety waits for a named person, with a time limit and a record.</p>
           <div className="mt-10 grid gap-px overflow-hidden rounded-lg bg-federal-800 md:grid-cols-3">
             {[['Leasing', 'The broker approves every applicant.'], ['Rent', 'The accountant waives or approves every exception.'], ['Maintenance', 'The broker handles every emergency.']].map(([a, b]) => (

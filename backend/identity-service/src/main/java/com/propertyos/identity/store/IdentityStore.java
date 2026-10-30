@@ -31,8 +31,15 @@ public class IdentityStore {
      * Lists companies with their user counts.
      */
     public List<Map<String, Object>> orgs() {
+        return orgs(List.of("ACTIVE"));
+    }
+
+    /** Lists companies in the requested statuses with their user counts. */
+    public List<Map<String, Object>> orgs(Collection<String> statuses) {
+        List<String> selected = statuses == null || statuses.isEmpty() ? List.of("ACTIVE") : statuses.stream().distinct().toList();
+        String placeholders = String.join(", ", Collections.nCopies(selected.size(), "?"));
         return jdbc.queryForList("select o.*, (select count(*) from identity.app_user u where u.org_id = o.id) as user_count " +
-                "from identity.organization o order by o.created_at");
+                "from identity.organization o where o.status in (" + placeholders + ") order by o.created_at", selected.toArray());
     }
 
     /**
@@ -49,18 +56,23 @@ public class IdentityStore {
         jdbc.update("update identity.organization set entitlements = ?, updated_at = now() where id = ?", json, id);
     }
 
-    /**
-     * Changes a company's plan and/or status; null leaves a value unchanged.
-     */
-    public void updateOrg(UUID id, String plan, String status) {
-        jdbc.update("update identity.organization set plan = coalesce(?, plan), status = coalesce(?, status), updated_at = now() where id = ?",
-                plan, status, id);
+    /** Changes a company's profile and plan; null leaves a value unchanged. */
+    public void updateOrg(UUID id, String name, String legalName, String state, String plan) {
+        jdbc.update("update identity.organization set name = coalesce(?, name), legal_name = coalesce(?, legal_name), state = coalesce(?, state), " +
+                        "plan = coalesce(?, plan), updated_at = now() where id = ?",
+                name, legalName, state, plan, id);
     }
 
     /** Records a change of status: the reason (kept only while suspended), who made it and when. */
     public void setOrgStatus(UUID id, String status, String reason, String by) {
         jdbc.update("update identity.organization set status = ?, status_reason = ?, status_changed_by = ?, status_changed_at = now(), updated_at = now() where id = ?",
                 status, "SUSPENDED".equals(status) ? reason : null, by, id);
+    }
+
+    /** Soft-deletes a company without removing its configuration, users or audit history. */
+    public void softDeleteOrg(UUID id, String by) {
+        jdbc.update("update identity.organization set status = 'DELETED', deleted_at = now(), deleted_by = ?, updated_at = now() where id = ?",
+                by, id);
     }
 
     /** Ids of companies that are not active. */

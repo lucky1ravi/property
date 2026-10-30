@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PageHeader, Panel, DataTable, type Column, Select, useApi, fmt, Button, Field, Input, Textarea, Modal, Badge, useAction, api, Toggle } from '@propertyos/ui';
+import { PageHeader, Panel, DataTable, type Column, Select, useApi, fmt, Button, Field, Input, Textarea, Modal, Badge, useAction, api, Toggle, RowActions } from '@propertyos/ui';
 
 const STATUS_TONE: Record<string, 'warn' | 'brand' | 'neutral'> = { NEW: 'warn', CONTACTED: 'brand', CLOSED: 'neutral' };
 
@@ -30,7 +30,7 @@ export function Website() {
     { key: 'product', header: 'Product', render: (r) => <Badge>{r.product.charAt(0) + r.product.slice(1).toLowerCase()}</Badge> },
     { key: 'summary', header: 'Summary', hideOnMobile: true },
     { key: 'visible', header: 'Shown', render: (r) => <Toggle checked={r.visible} onChange={(v) => changeFeature.mutate({ key: r.feature_key, body: { visible: v } })} label={`Show ${r.title} on the website`} /> },
-    { key: 'edit', header: '', render: (r) => <Button variant="secondary" onClick={() => setFeature(r)}>Edit</Button> },
+    { key: 'edit', header: '', render: (r) => <RowActions name={r.title ?? r.feature_key} onEdit={() => setFeature(r)} /> },
   ];
   const inboxCols: Column<any>[] = [
     { key: 'created_at', header: 'Received', value: (r) => r.created_at, render: (r) => fmt.date(r.created_at) },

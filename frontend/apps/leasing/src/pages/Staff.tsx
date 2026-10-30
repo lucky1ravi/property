@@ -46,12 +46,29 @@ function AddOwner({ open, onClose, existing }: { open: boolean; onClose: () => v
   const [f, setF] = useState<any>(blank);
   useEffect(() => { if (open) setF(existing ? { name: existing.name ?? '', contact: existing.contact ?? '', email: existing.email ?? '', phone: existing.phone ?? '', managementFeePct: String(existing.management_fee_pct ?? ''), approvalLimit: String(existing.approval_limit ?? '') } : blank); }, [open, existing?.id]);
   const body = () => ({ ...f, managementFeePct: num(f.managementFeePct), approvalLimit: num(f.approvalLimit) });
-  const save = useAction(() => (existing ? api.put(`/api/leasing/owners/${existing.id}`, body()) : api.post('/api/leasing/owners', body())),
-    { success: existing ? 'Owner updated' : 'Owner added', invalidate: ['/api/leasing/owners', '/api/leasing/properties'], onSuccess: () => { setF(blank); onClose(); } });
+  const { can } = useSession();
+  const canInvite = can('USER:CREATE');
+  const [invite, setInvite] = useState(true);
+  const [issued, setIssued] = useState<{ name: string; email: string; password: string } | null>(null);
+  // A new owner with an email also gets a sign-in, the same way people are added under Users and roles.
+  const save = useAction(async () => {
+    if (existing) return api.put(`/api/leasing/owners/${existing.id}`, body());
+    const owner = await api.post<{ id: string }>('/api/leasing/owners', body());
+    const email = f.email.trim().toLowerCase();
+    if (!invite || !canInvite || !email) return owner;
+    try {
+      const roles = await api.get<any[]>('/api/identity/roles');
+      const role = roles.find((r) => r.scope === 'OWNER');
+      if (!role) { toast('Owner added, but there is no owner role to sign in with. Create one under Users and roles.'); return owner; }
+      const user = await api.post<{ temporaryPassword: string }>('/api/identity/users', { name: f.contact.trim() || f.name.trim(), email, roleIds: [role.id], partyType: 'OWNER', partyId: owner.id });
+      setIssued({ name: f.name.trim(), email, password: user.temporaryPassword });
+    } catch (e: any) { toast(`Owner added, but their sign-in could not be created: ${e?.message ?? 'try again from Users and roles'}`); }
+    return owner;
+  },
+    { success: existing ? 'Owner updated' : 'Owner added', invalidate: ['/api/leasing/owners', '/api/leasing/properties', '/api/identity/users'], onSuccess: () => { setF(blank); onClose(); } });
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const archive = useAction(() => api.del(`/api/leasing/owners/${existing?.id}`), { success: 'Owner archived', invalidate: ['/api/leasing/owners', '/api/leasing/properties'], onSuccess: () => { setConfirm(false); onClose(); } });
   const [confirm, setConfirm] = useState(false);
-  const { can } = useSession();
   return (<><AddDialog open={open} title={existing ? 'Edit owner' : 'Add an owner'} onClose={onClose} onSave={() => save.mutate(undefined as never)} saving={save.isPending} disabled={!f.name.trim()}
     onArchive={existing && can('OWNER:DELETE') ? () => setConfirm(true) : undefined}>
     <div className="sm:col-span-2"><Field label="Owner or company name" required><Input value={f.name} onChange={set('name')} /></Field></div>
@@ -60,7 +77,17 @@ function AddOwner({ open, onClose, existing }: { open: boolean; onClose: () => v
     <div className="sm:col-span-2"><Field label="Email"><Input type="email" value={f.email} onChange={set('email')} /></Field></div>
     <Field label="Management fee (%)" hint="Share of collected rent you keep"><Input type="number" min={0} max={100} step="0.1" value={f.managementFeePct} onChange={set('managementFeePct')} /></Field>
     <Field label="Repair approval limit ($)" hint="Repairs above this need the owner"><Input type="number" min={0} value={f.approvalLimit} onChange={set('approvalLimit')} /></Field>
+    {!existing && canInvite && <label className="flex items-start gap-2 text-sm text-graphite-800 sm:col-span-2"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-federal-900" checked={invite} onChange={(e) => setInvite(e.target.checked)} /><span>Create a sign-in for this owner<span className="block text-xs text-graphite-600">Needs an email. You’ll get a temporary password to pass on; they choose their own at first sign-in.</span></span></label>}
   </AddDialog>
+  <Modal open={!!issued} onClose={() => setIssued(null)} title={`Give ${issued?.name ?? 'this owner'} their sign-in`} footer={<Button variant="primary" onClick={() => setIssued(null)}>Done</Button>}>
+    <p className="text-sm text-graphite-700">They sign in with this email and temporary password, then choose their own. It is shown only now, so copy it before you close this.</p>
+    <dl className="mt-3 space-y-2 rounded bg-limestone-100 p-3 text-sm">
+      <div><dt className="text-xs text-graphite-600">Email</dt><dd className="font-semibold text-graphite-900">{issued?.email}</dd></div>
+      <div><dt className="text-xs text-graphite-600">Temporary password</dt><dd className="select-all font-mono text-base font-bold text-graphite-950">{issued?.password}</dd></div>
+    </dl>
+    <div className="mt-3"><Button variant="secondary" onClick={() => issued && navigator.clipboard?.writeText(`Email: ${issued.email}
+Temporary password: ${issued.password}`)}>Copy both</Button></div>
+  </Modal>
   <ConfirmDialog open={confirm} title={`Archive ${existing?.name ?? 'this owner'}?`} body="The owner is hidden from lists and pickers. Past statements and records are kept. An owner with properties can’t be archived." confirmLabel="Archive" tone="danger" loading={archive.isPending} onClose={() => setConfirm(false)} onConfirm={() => archive.mutate(undefined as never)} /></>);
 }
 
@@ -303,7 +330,7 @@ function Showings() {
   const act = useAction((v: { id: string; a: string }) => api.post(`/api/leasing/showings/${v.id}/actions/${v.a}`, {}), { success: 'Showing updated', invalidate: ['/api/leasing/showings'] });
   const cols: Column<any>[] = [
     { key: 'scheduled_at', header: 'When', value: (s) => s.scheduled_at, render: (s) => new Date(s.scheduled_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) },
-    { key: 'prospect_name', header: 'Prospect' }, { key: 'listing_title', header: 'Home', hideOnMobile: true },
+    { key: 'prospect_name', header: 'Prospect' }, { key: 'prospect_email', header: 'Email', render: (s) => s.prospect_email ? <a className="text-federal-800 underline" href={`mailto:${s.prospect_email}`} onClick={(e) => e.stopPropagation()}>{s.prospect_email}</a> : '—' }, { key: 'listing_title', header: 'Home', hideOnMobile: true },
     { key: 'status', header: 'Status', render: (s) => <StatusPill status={s.status} /> },
     { key: 'a', header: '', align: 'right', render: (s) => <div className="flex justify-end gap-2"><ActionBar actions={s.actions} primary={['CONFIRM']} onAction={(a) => act.mutate({ id: s.id, a })} /></div> },
   ];
@@ -385,8 +412,9 @@ function LeaseView({ mine }: { mine?: boolean }) {
   const path = mine ? '/api/leasing/leases/mine' : `/api/leasing/leases/${params.id}`;
   const { data: l, isLoading, error } = useApi<any>(path, { retry: false });
   const [sig, setSig] = useState('');
+  const [signFor, setSignFor] = useState(false);
   const inv = ['/api/leasing/leases'];
-  const act = useAction((v: { a: string; reason?: string; body?: any }) => api.post(`/api/leasing/leases/${l.id}/actions/${v.a}`, { reason: v.reason, ...(v.body ?? {}) }), { success: 'Lease updated', invalidate: inv });
+  const act = useAction((v: { a: string; reason?: string; body?: any }) => api.post(`/api/leasing/leases/${l.id}/actions/${v.a}`, { reason: v.reason, ...(v.body ?? {}) }), { success: 'Lease updated', invalidate: inv, onSuccess: () => { setSignFor(false); setSig(''); } });
   const renew = useAction(() => api.post<any>(`/api/leasing/leases/${l.id}/renewal`, {}), { success: 'Renewal offer prepared', invalidate: inv });
   if (isLoading) return <Skeleton className="h-96" />;
   if (error || !l) return <EmptyState title="No lease found" body="When you have an active lease it appears here." />;
@@ -396,7 +424,7 @@ function LeaseView({ mine }: { mine?: boolean }) {
     <PageHeader title={mine ? 'My lease' : `${l.tenant_name} · ${l.unit_label}`} back={!mine && <Link to={`${base}/leases`} className="text-sm font-semibold text-federal-900">All leases</Link>}
       meta={<><StatusPill status={l.status} /><span><QuickLink kind="property" id={l.property_id}>{l.property_name}</QuickLink></span></>}
       actions={!mine ? <>{l.status === 'ACTIVE' && <Button loading={renew.isPending} onClick={() => renew.mutate(undefined)}>Prepare renewal</Button>}
-        <ActionBar actions={l.actions} loading={act.isPending} primary={['SEND', 'COUNTERSIGN']} onAction={(a, reason) => act.mutate({ a, reason })} /></> : undefined} />
+        <ActionBar actions={l.actions} loading={act.isPending} primary={['SEND', 'COUNTERSIGN']} onAction={(a, reason) => (a === 'TENANT_SIGN' ? setSignFor(true) : act.mutate({ a, reason }))} /></> : undefined} />
     <div className="mb-6"><WorkflowTrack steps={LEASE_STEPS} current={l.status} /></div>
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <div className="space-y-6">
@@ -411,6 +439,10 @@ function LeaseView({ mine }: { mine?: boolean }) {
         {rn && <AiInsight title="Renewal offer" confidence={0.8}>{typeof rn === 'string' ? rn : JSON.stringify(rn)}</AiInsight>}
       </div>
     </div>
+    {!mine && <Modal open={signFor} onClose={() => setSignFor(false)} title="Record the tenant’s signature" footer={<><Button variant="quiet" onClick={() => setSignFor(false)}>Cancel</Button><Button variant="primary" disabled={!sig.trim()} loading={act.isPending} onClick={() => act.mutate({ a: 'TENANT_SIGN', body: { signature: sig } })}>Record signature</Button></>}>
+      <p className="mb-3 text-sm text-graphite-700">Use this when the tenant signs with you, for example in person. The signature is recorded with the date and your name in the audit log. Tenants can also sign themselves from their own sign-in.</p>
+      <Field label={`Type the tenant’s full legal name: ${l.tenant_name}`}><Input value={sig} onChange={(e) => setSig(e.target.value)} /></Field>
+    </Modal>}
   </>);
 }
 

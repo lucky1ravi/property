@@ -9,7 +9,8 @@
   "scripts": {
     "build:remotes": "npm run build -w @propertyos/leasing -w @propertyos/payments -w @propertyos/documents -w @propertyos/maintenance -w @propertyos/broker -w @propertyos/admin -w @propertyos/insights",
     "build": "npm run build:remotes && npm run build -w @propertyos/shell && node scripts/assemble.mjs",
-    "preview": "npx --yes serve -s dist -l 4173",
+    "dev": "node scripts/dev.mjs",
+    "preview":"npx --yes serve -s dist -l 4173",
     "test": "npm run test -w @propertyos/ui"
   }
 }

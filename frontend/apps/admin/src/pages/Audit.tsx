@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { PageHeader, Panel, DataTable, type Column, Select, useApi, fmt, Stat, StatStrip, Button, Field, Input, Modal, Badge, useAction, api, TrendChart, Skeleton, US_STATE_OPTIONS, Toggle, ConfirmDialog } from '@propertyos/ui';
+import { useEffect, useState, type ReactNode } from 'react';
+import { motion } from 'framer-motion';
+import { PageHeader, Panel, DataTable, type Column, Select, useApi, fmt, Stat, StatStrip, Button, Field, Input, Modal, Badge, useAction, api, TrendChart, Skeleton, US_STATE_OPTIONS, Toggle, ConfirmDialog, RowActions } from '@propertyos/ui';
 
 export function Audit() {
   const [type, setType] = useState('');
@@ -25,26 +26,30 @@ const FEATURE_NAMES: Record<string, [string, string]> = {
   SELF_GUIDED_SHOWINGS: ['Self-guided showings', 'Prospects tour without an agent'], AI_VOICE_AGENT: ['AI voice agent', 'Answers calls from prospects'],
 };
 
-function CompanyFeatures({ org, onClose }: { org: any; onClose: () => void }) {
-  const { data, isLoading } = useApi<any[]>(`/api/identity/platform/orgs/${org.id}/features`);
-  const save = useAction((changes: Record<string, boolean | null>) => api.put(`/api/identity/platform/orgs/${org.id}/features`, changes), { success: 'Features updated', invalidate: ['/api/identity/platform'] });
-  return (
-    <Modal open onClose={onClose} size="lg" title={`Features for ${org.name}`} footer={<Button variant="quiet" onClick={onClose}>Done</Button>}>
-      <p className="mb-3 text-sm text-graphite-600">{org.name} is on the {org.plan} plan. Turn a feature off and its screens disappear and its requests are refused for everyone in this company. Turn on a feature the plan doesn’t include to give it as an add-on.</p>
-      {isLoading || !data ? <Skeleton className="h-64" /> : (
-        <ul className="divide-y divide-limestone-200 rounded border border-limestone-200">{data.map((f) => {
-          const [name, desc] = FEATURE_NAMES[f.feature] ?? [f.feature, ''];
-          return (
-            <li key={f.feature} className="flex items-center gap-3 px-3 py-2.5">
-              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-graphite-900">{name}</span><span className="block text-xs text-graphite-600">{desc}</span></span>
-              {f.override !== null ? <button type="button" className="text-xs font-semibold text-federal-800 underline" onClick={() => save.mutate({ [f.feature]: null })}>Use plan default</button>
-                : <Badge tone={f.inPlan ? 'neutral' : 'warn'}>{f.inPlan ? 'In plan' : 'Not in plan'}</Badge>}
-              {f.override !== null && <Badge tone="brand">Set by you</Badge>}
-              <Toggle checked={f.enabled} onChange={(v) => save.mutate({ [f.feature]: v })} label={`${name} for ${org.name}`} />
-            </li>);
-        })}</ul>)}
-    </Modal>
-  );
+const COMPANY_STATUSES = [
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'SUSPENDED', label: 'Suspended' },
+  { value: 'DELETED', label: 'Deleted' },
+];
+
+function CompanyStatusFilter({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const label = COMPANY_STATUSES.filter((status) => value.includes(status.value)).map((status) => status.label).join(', ');
+  const toggle = (status: string) => {
+    if (value.includes(status)) {
+      if (value.length > 1) onChange(value.filter((current) => current !== status));
+    } else onChange([...value, status]);
+  };
+  return <div className="relative">
+    <Button variant="secondary" size="sm" type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)}>Status: {label}</Button>
+    {open && <div role="menu" className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-limestone-300 bg-white p-2 shadow-lg">
+      <p className="px-1 pb-1 text-xs font-semibold text-graphite-600">Show companies with status</p>
+      {COMPANY_STATUSES.map((status) => <label key={status.value} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1.5 text-sm text-graphite-800 hover:bg-limestone-100">
+        <input type="checkbox" checked={value.includes(status.value)} onChange={() => toggle(status.value)} className="h-4 w-4 accent-federal-900" />
+        {status.label}
+      </label>)}
+    </div>}
+  </div>;
 }
 
 function CompanyDetails({ org, onClose }: { org: any; onClose: () => void }) {
@@ -58,7 +63,9 @@ function CompanyDetails({ org, onClose }: { org: any; onClose: () => void }) {
           <section><h3 className="text-sm font-extrabold text-graphite-950">Company</h3>
             <dl className="mt-1 divide-y divide-limestone-200">
               {row('Legal name', d.legal_name)}{row('State', d.state)}{row('Plan', d.plan)}
-              {row('Status', d.status === 'ACTIVE' ? 'Active' : `Suspended — ${d.status_reason || 'no reason was recorded'}`)}{d.status !== 'ACTIVE' && d.status_changed_at && row('Suspended on', `${fmt.date(d.status_changed_at)} by ${d.status_changed_by ?? 'PropertyOS'}`)}{row('Created', fmt.date(d.created_at))}
+              {row('Status', d.status === 'ACTIVE' ? 'Active' : d.status === 'SUSPENDED' ? `Suspended — ${d.status_reason || 'no reason was recorded'}` : 'Deleted')}
+              {d.status === 'SUSPENDED' && d.status_changed_at && row('Suspended on', `${fmt.date(d.status_changed_at)} by ${d.status_changed_by ?? 'PropertyOS'}`)}
+              {d.status === 'DELETED' && d.deleted_at && row('Deleted on', `${fmt.date(d.deleted_at)} by ${d.deleted_by ?? 'PropertyOS'}`)}{row('Created', fmt.date(d.created_at))}
               {row('Roles', d.roleCount)}
             </dl></section>
           <section><h3 className="text-sm font-extrabold text-graphite-950">Primary contact</h3>
@@ -83,24 +90,74 @@ function CompanyDetails({ org, onClose }: { org: any; onClose: () => void }) {
     </Modal>);
 }
 
+type FeatureChanges = Record<string, boolean | null>;
+
+function CompanyEditor({ org, plans, saving, onSave, onSuspend, onReactivate, onClose }: { org: any; plans: any[]; saving: boolean; onSave: (changes: any, features: FeatureChanges) => void; onSuspend: () => void; onReactivate: () => void; onClose: () => void }) {
+  const initial = { name: org.name ?? '', legalName: org.legal_name ?? '', state: org.state ?? '', plan: org.plan ?? '' };
+  const [form, setForm] = useState(initial);
+  const [staged, setStaged] = useState<FeatureChanges>({});
+  useEffect(() => { setForm({ name: org.name ?? '', legalName: org.legal_name ?? '', state: org.state ?? '', plan: org.plan ?? '' }); setStaged({}); }, [org]);
+  const { data: features, isLoading } = useApi<any[]>(`/api/identity/platform/orgs/${org.id}/features`);
+  const stage = (feature: string, value: boolean | null) => setStaged((c) => ({ ...c, [feature]: value }));
+  const stateOf = (f: any) => {
+    if (!(f.feature in staged)) return { override: f.override !== null, enabled: f.enabled };
+    const v = staged[f.feature];
+    return v === null ? { override: false, enabled: f.inPlan } : { override: true, enabled: v };
+  };
+  const changed = Object.keys(staged).length;
+  return <Modal open onClose={onClose} size="lg" title={`Edit ${org.name}`} footer={<><Button variant="quiet" onClick={onClose}>Cancel</Button><Button variant="primary" loading={saving} disabled={!form.name.trim() || !form.state || !form.plan} onClick={() => onSave(form, staged)}>Save changes{changed ? ` (${changed} feature${changed > 1 ? 's' : ''})` : ''}</Button></>}>
+    <div className="space-y-6">
+      <section className="space-y-4">
+        <h3 className="text-sm font-extrabold text-graphite-950">Company details</h3>
+        <Field label="Company name" required><Input value={form.name} maxLength={160} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+        <Field label="Legal name"><Input value={form.legalName} maxLength={200} onChange={(e) => setForm({ ...form, legalName: e.target.value })} /></Field>
+        <div className="grid grid-cols-2 gap-3"><Field label="State" required><Select value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })}>{US_STATE_OPTIONS.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}</Select></Field><Field label="Plan" required><Select value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })}>{!plans.some((p) => p.plan_key === org.plan) && org.plan && <option value={org.plan}>{org.plan}</option>}{plans.map((p) => <option key={p.plan_key} value={p.plan_key}>{p.name}</option>)}</Select></Field></div>
+      </section>
+      <section>
+        <h3 className="text-sm font-extrabold text-graphite-950">Features</h3>
+        <p className="mb-3 mt-1 text-sm text-graphite-600">Turn a feature off and its screens disappear and its requests are refused for everyone in this company. Turn on a feature the plan doesn’t include to give it as an add-on. Changes apply when you save.</p>
+        {isLoading || !features ? <Skeleton className="h-64" /> : (
+          <ul className="divide-y divide-limestone-200 rounded border border-limestone-200">{features.map((f) => {
+            const [name, desc] = FEATURE_NAMES[f.feature] ?? [f.feature, ''];
+            const st = stateOf(f);
+            return (
+              <motion.li layout key={f.feature} className={`flex items-center gap-3 px-3 py-2.5 ${f.feature in staged ? 'bg-federal-50' : ''}`}>
+                <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-graphite-900">{name}</span><span className="block text-xs text-graphite-600">{desc}</span></span>
+                {st.override ? <button type="button" className="text-xs font-semibold text-federal-800 underline" onClick={() => stage(f.feature, null)}>Use plan default</button>
+                  : <Badge tone={f.inPlan ? 'neutral' : 'warn'}>{f.inPlan ? 'In plan' : 'Not in plan'}</Badge>}
+                {st.override && <Badge tone="brand">Set by you</Badge>}
+                <Toggle checked={st.enabled} onChange={(v) => stage(f.feature, v)} label={`${name} for ${org.name}`} />
+              </motion.li>);
+          })}</ul>)}
+      </section>
+      <section className="rounded-md border border-limestone-300 bg-limestone-50 p-4"><div className="flex items-center justify-between gap-4"><div><h3 className="text-sm font-bold text-graphite-950">Account access</h3><p className="mt-1 text-sm text-graphite-600">{org.status === 'ACTIVE' ? 'Suspend access for everyone in this company.' : 'Restore access for this company.'}</p></div>{org.status === 'ACTIVE' ? <Button variant="danger" onClick={onSuspend}>Suspend</Button> : <Button variant="secondary" onClick={onReactivate}>Reactivate</Button>}</div></section>
+    </div>
+  </Modal>;
+}
+
 export function Platform() {
   const { data: s } = useApi<any>('/api/identity/platform/summary');
-  const { data: orgs, isLoading } = useApi<any[]>('/api/identity/platform/orgs');
+  const [statuses, setStatuses] = useState<string[]>(['ACTIVE']);
+  const orgQuery = statuses.map((status) => `status=${encodeURIComponent(status)}`).join('&');
+  const { data: orgs, isLoading } = useApi<any[]>(`/api/identity/platform/orgs?${orgQuery}`);
   const { data: planList } = useApi<any[]>('/api/identity/platform/plans');
   const planOptions = (planList ?? []).map((p) => <option key={p.plan_key} value={p.plan_key}>{p.name}</option>);
   const [open, setOpen] = useState(false); const [f, setF] = useState({ name: '', state: 'TX', plan: 'GROWTH', adminName: '', adminEmail: '' });
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const create = useAction(() => api.post<{ temporaryPassword: string }>('/api/identity/platform/orgs', f), { success: 'Organisation created', invalidate: ['/api/identity/platform'], onSuccess: (r) => { setOpen(false); setCreated({ email: f.adminEmail, password: r.temporaryPassword }); setF({ name: '', state: 'TX', plan: 'GROWTH', adminName: '', adminEmail: '' }); } });
-  const [features, setFeatures] = useState<any | null>(null);
   const [details, setDetails] = useState<any | null>(null);
+  const [editing, setEditing] = useState<any | null>(null);
   const [suspend, setSuspend] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState<any | null>(null);
   const [why, setWhy] = useState('');
-  const setOrg = useAction((v: { id: string; plan?: string; status?: string; reason?: string }) => api.put(`/api/identity/platform/orgs/${v.id}`, { plan: v.plan, status: v.status, reason: v.reason }), { success: 'Company updated', invalidate: ['/api/identity/platform'], onSuccess: () => { setSuspend(null); setWhy(''); } });
-  const cols: Column<any>[] = [{ key: 'name', header: 'Organisation' }, { key: 'state', header: 'State' }, { key: 'plan', header: 'Plan', render: (r) => <Select value={r.plan} onChange={(e) => setOrg.mutate({ id: r.id, plan: e.target.value })} aria-label={`Plan for ${r.name}`}>{planOptions}</Select> }, { key: 'status', header: 'Status', render: (r) => <Badge tone={r.status === 'ACTIVE' ? 'good' : 'crit'}>{r.status === 'ACTIVE' ? 'Active' : 'Suspended'}</Badge> }, { key: 'user_count', header: 'Users', align: 'right' }, { key: 'created_at', header: 'Created', render: (r) => fmt.date(r.created_at) },
-    { key: 'manage', header: '', render: (r) => <span className="flex gap-2"><Button variant="secondary" onClick={() => setDetails(r)}>Details</Button><Button variant="secondary" onClick={() => setFeatures(r)}>Features</Button><Button variant="quiet" onClick={() => r.status === 'ACTIVE' ? setSuspend(r) : setOrg.mutate({ id: r.id, status: 'ACTIVE' })}>{r.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}</Button></span> }];
+  const setOrg = useAction((v: { id: string; name?: string; legalName?: string; state?: string; plan?: string; status?: string; reason?: string; features?: Record<string, boolean | null> }) => api.put(`/api/identity/platform/orgs/${v.id}`, { name: v.name, legalName: v.legalName, state: v.state, plan: v.plan, status: v.status, reason: v.reason }).then(async (r) => { if (v.features && Object.keys(v.features).length) await api.put(`/api/identity/platform/orgs/${v.id}/features`, v.features); return r; }), { success: 'Company updated', invalidate: ['/api/identity/platform'], onSuccess: () => { setEditing(null); setSuspend(null); setWhy(''); } });
+  const remove = useAction((id: string) => api.del(`/api/identity/platform/orgs/${id}`), { success: 'Company deleted', invalidate: ['/api/identity/platform'], onSuccess: () => setDeleting(null) });
+  const statusLabel = (status: string) => status === 'ACTIVE' ? 'Active' : status === 'SUSPENDED' ? 'Suspended' : 'Deleted';
+  const cols: Column<any>[] = [{ key: 'name', header: 'Organisation' }, { key: 'state', header: 'State' }, { key: 'plan', header: 'Plan' }, { key: 'status', header: 'Status', filter: false, render: (r) => <Badge tone={r.status === 'ACTIVE' ? 'good' : r.status === 'SUSPENDED' ? 'crit' : 'neutral'}>{statusLabel(r.status)}</Badge> }, { key: 'user_count', header: 'Users', align: 'right' }, { key: 'created_at', header: 'Created', render: (r) => fmt.date(r.created_at) },
+    { key: 'manage', header: '', render: (r) => <RowActions name={r.name} onView={() => setDetails(r)} onEdit={r.status !== 'DELETED' ? () => setEditing(r) : undefined} onDelete={r.status !== 'DELETED' ? () => setDeleting(r) : undefined} /> }];
   return (<><PageHeader title="Platform" description="Every company on PropertyOS. Data stays isolated per company." actions={<Button variant="primary" onClick={() => setOpen(true)}>Onboard company</Button>} />
     {s && <StatStrip className="mb-6"><Stat label="Companies" value={s.organizations} emphasis /><Stat label="Users" value={s.users} /><Stat label="Active, last 7 days" value={s.activeUsers7d} /><Stat label="Config changes, 30 days" value={s.configChanges30d} /></StatStrip>}
-    <Panel padded={false}><DataTable rows={orgs} columns={cols} rowKey={(r) => r.id} loading={isLoading} /></Panel>
+    <Panel padded={false}><DataTable rows={orgs} columns={cols} rowKey={(r) => r.id} loading={isLoading} toolbar={<CompanyStatusFilter value={statuses} onChange={setStatuses} />} /></Panel>
     <Modal open={!!created} onClose={() => setCreated(null)} title="Give this to the administrator" footer={<Button variant="primary" onClick={() => setCreated(null)}>Done</Button>}>
       <p className="text-sm text-graphite-700">They sign in with this email and temporary password, then choose their own. PropertyOS shows the password only now, so copy it before you close this.</p>
       <dl className="mt-3 space-y-2 rounded bg-limestone-100 p-3 text-sm">
@@ -110,7 +167,10 @@ export function Platform() {
       <div className="mt-3"><Button variant="secondary" onClick={() => created && navigator.clipboard?.writeText(`Email: ${created.email}\nTemporary password: ${created.password}`)}>Copy both</Button></div>
     </Modal>
     {details && <CompanyDetails org={details} onClose={() => setDetails(null)} />}
-    {features && <CompanyFeatures org={features} onClose={() => setFeatures(null)} />}
+    {editing && <CompanyEditor org={editing} plans={planList ?? []} saving={setOrg.isPending} onSave={(changes, feats) => setOrg.mutate({ id: editing.id, ...changes, features: feats })} onSuspend={() => { setEditing(null); setSuspend(editing); }} onReactivate={() => setOrg.mutate({ id: editing.id, status: 'ACTIVE' })} onClose={() => setEditing(null)} />}
+    <ConfirmDialog open={!!deleting} title={`Delete ${deleting?.name ?? ''}?`} confirmLabel="Delete company" tone="danger" loading={remove.isPending}
+      body="This removes the company from normal platform use immediately. Its data is retained for audit purposes, but its users can no longer sign in."
+      onConfirm={() => deleting && remove.mutate(deleting.id)} onClose={() => setDeleting(null)} />
     <Modal open={!!suspend} onClose={() => { setSuspend(null); setWhy(''); }} title={`Suspend ${suspend?.name ?? ''}?`}
       footer={<><Button variant="quiet" onClick={() => { setSuspend(null); setWhy(''); }}>Cancel</Button><Button variant="danger" loading={setOrg.isPending} disabled={!why.trim()} onClick={() => suspend && setOrg.mutate({ id: suspend.id, status: 'SUSPENDED', reason: why })}>Suspend company</Button></>}>
       <p className="text-sm text-graphite-700">Everyone in this company, including owners, residents and vendors, is signed out within seconds and can’t sign in again. Their public listings are hidden and scheduled reminders stop. Nothing is deleted, and you can reactivate at any time.</p>

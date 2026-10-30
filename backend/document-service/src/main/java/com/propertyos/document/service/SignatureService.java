@@ -236,8 +236,7 @@ public class SignatureService {
         if (!isTurn(r, signers, me)) throw ApiException.conflict("Another person signs before you. You'll be notified when it's your turn.");
         if (config.flag("documents/esign/requireConsent", true) && !consent) throw ApiException.badRequest("Agree to sign electronically to continue.");
         String expected = String.valueOf(me.get("name")).trim();
-        if (typedName == null || !typedName.trim().replaceAll("\\s+", " ").equalsIgnoreCase(expected.replaceAll("\\s+", " ")))
-            throw ApiException.badRequest("Type your full legal name exactly as shown: " + expected);
+        if (typedName == null || typedName.isBlank()) throw ApiException.badRequest("Type your full legal name to sign.");
         Map<String, Object> d = db.one("Document", "select id, title, sha256, category, doc_type, entity_type, entity_id, entity_label, property_id, property_name, unit_id, owner_id, tenant_id, vendor_id, share_owner, share_tenant, share_vendor, org_id, uploaded_by from document.document where id = ?", r.get("document_id"));
         if (!Objects.equals(d.get("sha256"), r.get("document_sha256"))) throw ApiException.conflict("The document changed after it was sent for signature. The sender needs to send it again.");
         db.update("update document.signature_signer set status = 'SIGNED', signed_at = now(), typed_signature = ?, consent = ?, ip_address = ?, user_agent = ?, viewed_at = coalesce(viewed_at, now()) where id = ?",

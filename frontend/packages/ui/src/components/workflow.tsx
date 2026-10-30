@@ -22,12 +22,12 @@ export function WorkflowTrack({ steps, current, compact }: { steps: { key: strin
   const offPath = idx === -1;
   return (
     <div className="w-full">
-      <ol className="flex items-start pr-8">
+      <ol className="flex items-start">
         {steps.map((s, i) => {
           const done = !offPath && i < idx;
           const active = i === idx;
           return (
-            <li key={s.key} className="relative flex flex-1 flex-col items-center text-center last:flex-none">
+            <li key={s.key} className="relative flex flex-1 flex-col items-center text-center">
               {i < steps.length - 1 && (
                 <span className="absolute left-1/2 top-[11px] h-0.5 w-full bg-limestone-300">
                   <motion.span className="block h-full bg-federal-700" initial={false} animate={{ width: done ? '100%' : '0%' }} transition={{ duration: 0.35 }} />
