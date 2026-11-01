@@ -53,6 +53,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: API reference matches the controllers
+        run: node scripts/generate-api-docs.js --check
+      - name: Links between documents resolve
+        run: node scripts/check-doc-links.js
       - name: Check the diagrams
         working-directory: e2e
         run: |

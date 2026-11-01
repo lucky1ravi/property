@@ -33,6 +33,58 @@ Settings added with ratings, reports, invoices and platform fees. Spring reads e
 | `DEMO_MODE` | `false` in production | Also allows running the rent cycle for a chosen date, and turns platform auto-billing on |
 
 
+Settings for protection, storage and logging.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `RATE_LIMIT_USER_PER_MINUTE` | `600` | Gateway limit per signed-in user |
+| `RATE_LIMIT_PUBLIC_PER_MINUTE` | `120` | Gateway limit per client on public endpoints |
+| `STORAGE_TYPE`, `STORAGE_BUCKET` | `db` | Where uploaded files live: `db` (in the row) or `s3` ([ADR 4](adr/0004-file-storage-in-s3.md)) |
+| `DB_POOL_SIZE` | per service | Database connections per service instance |
+| `LOGGING_STRUCTURED_FORMAT_CONSOLE` | plain text | `ecs` or `logstash` for one JSON object per log line |
+| `PROPERTYOS_EVENTS_POLL_MS` | `1500` | How often each service polls for events |
+
+## How settings resolve
+
+```mermaid
+flowchart LR
+  D["defaults.json<br/>shipped"] --> P["Product defaults<br/>operator, allow-listed sections"] --> C["Company overrides<br/>versioned, audited"] --> G["Plan gating"] --> E["Effective configuration"]
+```
+
+A company changes its settings in *Admin, Configuration*. Every save is validated, stored as a new version (with rollback), audited, and announced so every service refreshes its cache within seconds ([ADR 7](adr/0007-configuration-as-data.md)). The admin screen is generated from the same structure, so a new key appears with no new form once it has a label.
+
 ## Per-company settings
 
-Company administrators change these in Admin, Configuration (stored by identity-service, cached by `ConfigClient`): features, fees, invoicing, approvals, screening, SLA, renewals, AI, notifications, branding, state rules, payments, alerts, chat, documents, moderation, templates, custom fields. Defaults are in `platform-common/src/main/resources/config/defaults.json`.
+Sections of `platform-common/src/main/resources/config/defaults.json`. Services read them through `ConfigClient`.
+
+| Section | Controls | Examples |
+| --- | --- | --- |
+| `features` | Which modules are on, subject to the plan | `LEASING`, `PAYMENTS`, `MAINTENANCE`, `AUTOMATIONS`, `AI_ASSISTANT`, `BROKER_COCKPIT`, `OPPORTUNITIES`, `OWNER_PORTAL`, `VENDOR_PORTAL`, `RENEWALS`, `RECURRING_MAINTENANCE`, `MESSAGING`, `DOCUMENTS`, `ESIGN` |
+| `fees` | What the company charges | `lateFee`, `applicationFee`, `nsfFee`, `managementFeePercent`, `leasingCommissionPercent`, `renewalFee` |
+| `invoicing` | The rent cycle | `dueDay`, `invoiceDaysBeforeDue`, `reminderDaysBefore`, `reminderDaysAfter`, `allocation` |
+| `approvals` | Who must approve what | `maintenanceOwnerLimit`, `ownerApprovesApplications`, `vendorInvoiceApprovalLimit` |
+| `screening` | Application rules | `incomeMultiple`, `minScore`, `minMonthsEmployed`, `requiredDocuments` |
+| `sla` | Response and completion targets | per priority (`EMERGENCY`, `URGENT`, `ROUTINE`), `enquiryResponseMinutes` |
+| `renewals` | Renewal behaviour | `offerDaysBeforeEnd`, `maxIncreasePercent` |
+| `ai` | Which AI features are on | `LISTING_WRITER`, `RENT_SUGGESTION`, `LISTING_INTEGRITY`, `SCREENING`, `LEASE_SUMMARY`, `PAYMENT_RISK`, `MAINTENANCE_TRIAGE`, `ASSISTANT` |
+| `moderation` | Photo review | `autoApproveConfidence`, `autoRejectEnabled`, `maxImageMb`, `maxPhotosPerProperty`, `allowedExtensions` |
+| `notifications` | Channels and quiet hours | `channels`, `quietHours` |
+| `branding` | The company's look and public identity | `companyName`, `primaryColor`, `accentColor`, `logoDataUrl`, `portalDomain`, `emailSender`, `contactPhone`, `contactEmail`, `website` |
+| `payments` | How rent is paid | `methods`, `autopayEnabled`, `allowPartialPayments`, `minimumPayment`, `maximumPayment`, `chargeNsfFee`, `enforceStateFeeCaps`, `convenienceFees`, `invoice` (number prefix, legal name, remit-to, tax id, terms, footer) |
+| `alerts` | Deadline alerts | `leaseExpiry`, `depositRefund`, `vendorInsurance`, `taxFiling`, `form1099`, `w9Missing`, `documentExpiry`, `signatureReminder` |
+| `documents` | The library | `storage`, `categories`, `requirements`, `uploads`, `esign` |
+| `chat` | Messaging rules | `who` can message whom, `allowStaffToStaff`, `maxMessageLength`, `aiAssist`, `guardrails` |
+| `stateRules` | State law | per state (`DEFAULT`, `CA`, `TX`, `NY`, `FL`, `WA`): fee caps, deposit deadlines, convenience-fee limits |
+| `plans` | Plan prices and features | `STARTER`, `GROWTH`, `ENTERPRISE` (operator-managed) |
+
+### Branding keys and what they do
+
+| Key | Where it shows | Validation on save |
+| --- | --- | --- |
+| `companyName` | Menu header, invoices, the public *Listed by* box | |
+| `primaryColor` | Menu, top bar, buttons, links (CSS variables); the default is left unapplied | Six-digit hex such as `#0F3D3E` |
+| `accentColor` | The invoice PDF highlights | Six-digit hex |
+| `logoDataUrl` | Menu header and invoices | PNG or JPEG data URL under 100 KB |
+| `contactPhone` | Public listing page | Digits, spaces and `+ ( ) - .`, 7 to 30 characters |
+| `contactEmail` | Public listing page | A valid email address |
+| `website` | Public listing page | Must start with `http://` or `https://`, at most 200 characters |

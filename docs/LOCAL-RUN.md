@@ -159,3 +159,15 @@ npx playwright show-report                              # HTML report after a ru
 Against a stack you already started with `start-local.ps1` (port 8080 plus `npm run preview` on 4173), skip the Docker and stack lines and set `E2E_BASE_URL=http://localhost:4173`. Tests that create companies or accounts only run in `E2E_MODE=local` (the default).
 
 Every journey and workflow the suite covers is drawn in [e2e/JOURNEYS.md](../e2e/JOURNEYS.md).
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| A service behaves like the old code after you changed shared code | A plain `mvn package` can keep a stale `platform-common` jar inside a service's `app.jar`. Use `mvn -DskipTests clean package`, then restart |
+| `release version 21 not supported` | Maven is using an older JDK. Set `JAVA_HOME` to JDK 21 or newer (see the top of this page) |
+| `invalid value for parameter "TimeZone"` in a test | Set `JAVA_TOOL_OPTIONS=-Duser.timezone=UTC` |
+| System tests test old behaviour | They launch the prebuilt jars: rebuild the changed service first |
+| A page says "This part of PropertyOS couldn't load" | The front-end error boundary caught an exception: open the browser console, and check the matching API call's correlation id in `logs\` |
+| A test fails with a port clash | A leftover service from an earlier run: `.\scripts\stop-local.ps1`, or stop the Java processes, and rerun |
+| `git pull` or `git push` fails with an SSL backend error on Windows | Use `git -c http.sslBackend=schannel ...` |

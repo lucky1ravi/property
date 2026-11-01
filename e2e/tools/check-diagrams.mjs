@@ -2,12 +2,15 @@
 // would not draw (GitHub shows "Unable to render" for those). A semicolon inside a sequence-diagram message is the usual cause: Mermaid
 // reads it as the end of a statement.
 //   node tools/check-diagrams.mjs JOURNEYS.md ../docs/architecture/HLD.md ...
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { chromium } from '@playwright/test';
 
 const require = createRequire(import.meta.url);
-const files = process.argv.slice(2);
+// A folder stands for every Markdown file under it.
+const expand = (p) => (statSync(p).isDirectory() ? readdirSync(p).flatMap((f) => (f === 'node_modules' ? [] : expand(join(p, f)))) : p.endsWith('.md') ? [p] : []);
+const files = process.argv.slice(2).flatMap(expand);
 if (files.length === 0) { console.error('Give at least one Markdown file.'); process.exit(2); }
 const mermaidSource = readFileSync(require.resolve('mermaid/dist/mermaid.min.js'), 'utf8');
 const browser = await chromium.launch();

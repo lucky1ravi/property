@@ -933,5 +933,320 @@
     "id": "JRNY-07",
     "area": "Journeys",
     "text": "Vendor journey: sees job, updates it"
+  },
+  {
+    "id": "AIM-01",
+    "area": "AI with a model",
+    "text": "The assistant uses the model: it chooses a tool, the tool runs as the caller, the model writes the answer"
+  },
+  {
+    "id": "AIM-02",
+    "area": "AI with a model",
+    "text": "A model that fails does not break the assistant: the person still gets an answer from their own data"
+  },
+  {
+    "id": "AIM-03",
+    "area": "AI with a model",
+    "text": "Guardrails still apply when a model is connected"
+  },
+  {
+    "id": "AIM-04",
+    "area": "AI with a model",
+    "text": "A repair photo is read by the model and comes back as a triage"
+  },
+  {
+    "id": "AIM-05",
+    "area": "AI with a model",
+    "text": "A listing is written by the model and the writer can see it was AI-assisted"
+  },
+  {
+    "id": "AIM-06",
+    "area": "AI with a model",
+    "text": "Every call is audited with who asked and what the model was used for"
+  },
+  {
+    "id": "NOTIFY-01",
+    "area": "Notifications",
+    "text": "A demo request on the contact form notifies every platform administrator, with a link to the enquiry inbox"
+  },
+  {
+    "id": "NOTIFY-02",
+    "area": "Notifications",
+    "text": "Other topics read naturally, and a bot or a refused form notifies nobody"
+  },
+  {
+    "id": "NOTIFY-03",
+    "area": "Notifications",
+    "text": "An enquiry on a home notifies the leasing agents, an application notifies the managers, a tour request notifies the managers"
+  },
+  {
+    "id": "FEES-01",
+    "area": "Platform subscription fees",
+    "text": "The monthly run bills each company once: units times the plan price, never under the minimum, and running it again changes nothing"
+  },
+  {
+    "id": "FEES-02",
+    "area": "Platform subscription fees",
+    "text": "A company sees only its own invoices and can pay by card: a declined card changes nothing, a part payment leaves a balance, paying the rest settles it"
+  },
+  {
+    "id": "FEES-03",
+    "area": "Platform subscription fees",
+    "text": "The operator records a wire, a cheque or a credit, raises a one-off charge, and cannot void an invoice that has money against it"
+  },
+  {
+    "id": "FEES-04",
+    "area": "Platform subscription fees",
+    "text": "The operator\\'s summary adds up, and everything is closed to company people"
+  },
+  {
+    "id": "CONSOLE-01",
+    "area": "Platform console",
+    "text": "Every service reports its health, and only the platform administrator can ask"
+  },
+  {
+    "id": "CONSOLE-02",
+    "area": "Platform console",
+    "text": "Company usage lists each customer with who signed in, and can be filtered, sorted and searched"
+  },
+  {
+    "id": "CONSOLE-03",
+    "area": "Platform console",
+    "text": "The delivery log shows messages for every company with the company named, and is closed to everyone else"
+  },
+  {
+    "id": "CONSOLE-09",
+    "area": "Platform console",
+    "text": "For support work one message can be opened in full with a reason, and the company can see in its audit log that it was"
+  },
+  {
+    "id": "RATE-01",
+    "area": "Ratings",
+    "text": "A resident rates their property and unit, can change it, and nobody else can rate for them"
+  },
+  {
+    "id": "RATE-02",
+    "area": "Ratings",
+    "text": "An owner reads the ratings of their own properties only, and a resident reads only their own rating"
+  },
+  {
+    "id": "RATE-03",
+    "area": "Ratings",
+    "text": "Vendors: staff can rate any vendor, an owner only one who worked on their property, a resident only the one who did their finished repair"
+  },
+  {
+    "id": "RATE-04",
+    "area": "Ratings",
+    "text": "Closing a repair with a rating also files it with the vendor\\'s other ratings"
+  },
+  {
+    "id": "REP-01",
+    "area": "Reports",
+    "text": "Every report answers a summary and rows for a manager, in the same shape"
+  },
+  {
+    "id": "REP-02",
+    "area": "Reports",
+    "text": "Portfolio figures add up: the summary matches the rows, occupancy is occupied over units, a gap is market minus rent"
+  },
+  {
+    "id": "REP-03",
+    "area": "Reports",
+    "text": "Tables can be sorted, searched and filtered by column, and the choices are checked"
+  },
+  {
+    "id": "REP-04",
+    "area": "Reports",
+    "text": "Money reports: receivables age correctly, income drills to its transactions, payments and fees agree with the ledger"
+  },
+  {
+    "id": "REP-05",
+    "area": "Reports",
+    "text": "Repair reports: costs group four ways and each line opens its jobs, and the vendor scorecard uses the new ratings"
+  },
+  {
+    "id": "REP-06",
+    "area": "Reports",
+    "text": "Each person gets the reports for their role: owners their own properties, residents and vendors none"
+  },
+  {
+    "id": "JRNY-09",
+    "area": "Journeys",
+    "text": "A declined card changes nothing, says so plainly, and a second card then works"
+  },
+  {
+    "id": "JRNY-10",
+    "area": "Journeys",
+    "text": "A part payment is applied, the rest stays due, and paying more than is owed is refused"
+  },
+  {
+    "id": "JRNY-11",
+    "area": "Journeys",
+    "text": "An autopay that bounces is recorded, the rent stays due, and the accountant can see who to chase"
+  },
+  {
+    "id": "JRNY-12",
+    "area": "Journeys",
+    "text": "An owner says no to a repair and the resident sees why; a repair that was not fixed is reopened with a reason"
+  },
+  {
+    "id": "JRNY-13",
+    "area": "Journeys",
+    "text": "A signature that is declined closes the request, and a new request can still be signed"
+  },
+  {
+    "id": "JRNY-14",
+    "area": "Journeys",
+    "text": "Moving out: the deposit cannot be settled early or over-deducted, then the refund is what is left"
+  },
+  {
+    "id": "JRNY-15",
+    "area": "Journeys",
+    "text": "A link that is wrong, changed or expired shows a clear page, not a blank one"
+  },
+  {
+    "id": "JRNY-08",
+    "area": "Journeys",
+    "text": "From a new company to a resident moving out, with every person signed in"
+  },
+  {
+    "id": "MOB-01",
+    "area": "Resident on a phone",
+    "text": "Sign in, pay rent, report a repair with a photo, read the lease: all at phone size"
+  },
+  {
+    "id": "MOB-02",
+    "area": "Resident on a phone",
+    "text": "Every page a resident can open fits the phone: no sideways scroll, nothing cut off, a visible heading"
+  },
+  {
+    "id": "MOB-03",
+    "area": "Resident on a phone",
+    "text": "Company staff can use every main screen on a phone too: nothing runs past the edge"
+  },
+  {
+    "id": "AIM-07",
+    "area": "AI with a model",
+    "text": "A manager asks about vacant homes: the answer, what was looked up and a way to export it"
+  },
+  {
+    "id": "AIM-08",
+    "area": "AI with a model",
+    "text": "The repair-photo tool shows the triage the model produced"
+  },
+  {
+    "id": "BRAND-01",
+    "area": "Branding and invoices",
+    "text": "The company\\'s primary colour becomes the product\\'s colour, its logo shows in the menu, and a wrong colour or logo is refused"
+  },
+  {
+    "id": "INV-01",
+    "area": "Branding and invoices",
+    "text": "The invoice PDF carries the company\\'s name and logo, who it is for, the amounts, the tax position and how to pay"
+  },
+  {
+    "id": "INV-02",
+    "area": "Branding and invoices",
+    "text": "A charge that carries tax shows the subtotal, the tax and the total, and a paid invoice is stamped paid"
+  },
+  {
+    "id": "LIST-01",
+    "area": "Listing page",
+    "text": "A home shows its facts with icons, its amenities with icons, the costs, and the resident rating"
+  },
+  {
+    "id": "LIST-02",
+    "area": "Listing page",
+    "text": "Amenities are chosen from a searchable list when a property is edited"
+  },
+  {
+    "id": "GUIDE-01",
+    "area": "Guidance and help",
+    "text": "The first sign-in offers a welcome tour, and finishing it means it is never offered again"
+  },
+  {
+    "id": "GUIDE-02",
+    "area": "Guidance and help",
+    "text": "Escape leaves a tour at once, and a person can decline the welcome"
+  },
+  {
+    "id": "GUIDE-03",
+    "area": "Guidance and help",
+    "text": "The first visit to a page offers a short tour; \"Not now\" is remembered"
+  },
+  {
+    "id": "GUIDE-04",
+    "area": "Guidance and help",
+    "text": "The question mark opens help for the page you are on, with plain-language steps and a way back to the tours"
+  },
+  {
+    "id": "GUIDE-05",
+    "area": "Guidance and help",
+    "text": "Ctrl+K finds pages and records by typing, from the server, and opens them"
+  },
+  {
+    "id": "GUIDE-06",
+    "area": "Guidance and help",
+    "text": "The getting-started list ticks itself off from what has really been done, and can be hidden for good"
+  },
+  {
+    "id": "GUIDE-07",
+    "area": "Guidance and help",
+    "text": "A resident is shown where to start, with links for their role"
+  },
+  {
+    "id": "PAGE-01",
+    "area": "Paging",
+    "text": "A long list is shown 20 at a time, with the total, paging, a size choice and server-side search and sort"
+  },
+  {
+    "id": "PAGE-02",
+    "area": "Paging",
+    "text": "Picking a record is a search, not a long list"
+  },
+  {
+    "id": "PAGE-03",
+    "area": "Paging",
+    "text": "Messages: a person finds who to write to by typing, and the inbox can be searched"
+  },
+  {
+    "id": "TOAST-01",
+    "area": "Messages",
+    "text": "Messages come in at the top centre, green when it worked, yellow when it needs attention, red when something broke"
+  },
+  {
+    "id": "ROW-01",
+    "area": "Row actions",
+    "text": "The row buttons say what they do and look different from each other"
+  },
+  {
+    "id": "CONSOLE-04",
+    "area": "Platform console",
+    "text": "The platform home shows what needs attention, including whether every service is up"
+  },
+  {
+    "id": "CONSOLE-05",
+    "area": "Platform console",
+    "text": "Service health lists every part of the product as running and can be checked again"
+  },
+  {
+    "id": "CONSOLE-06",
+    "area": "Platform console",
+    "text": "Company usage shows each company with how active it is, and the filter narrows the list"
+  },
+  {
+    "id": "CONSOLE-07",
+    "area": "Platform console",
+    "text": "The delivery log lists messages with the company, channel and outcome, and can be filtered"
+  },
+  {
+    "id": "CONSOLE-08",
+    "area": "Platform console",
+    "text": "None of the operator pages open for a company administrator"
+  },
+  {
+    "id": "CONSOLE-10",
+    "area": "Platform console",
+    "text": "Details asks why, then shows the whole recipient and the subject, and says it was recorded"
   }
 ]

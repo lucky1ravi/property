@@ -6,16 +6,17 @@ This page is the map of everything around the code: how it is built, proven, shi
 
 | | |
 | --- | --- |
-| Backend | 7 business services + API gateway, Java 21, Spring Boot 3.4, 191 production classes, 215 documented endpoints |
+| Backend | 7 business services + API gateway, Java 21, Spring Boot 3.4, about 170 production classes, 266 documented endpoints (generated from the controllers) |
 | Frontend | React shell + 7 federated micro-frontends (admin, leasing, payments, maintenance, documents, insights, broker) |
-| Database | PostgreSQL 16, schema per service, 24 Flyway migrations, forced row-level security |
-| Tests | 165+ backend test methods across 21 unit-test and 16 integration/system classes, 90% merged-coverage gate (last full run 92.7-92.8%), Vitest, Gatling |
+| Database | PostgreSQL 16, schema per service, 31 Flyway migrations (identity 14, leasing 5, document 4, billing 3, maintenance 2, workflow 2, ai 1), forced row-level security |
+| Tests | 200+ backend test methods (67 of them whole-system), a 90% line and 72% branch merged-coverage gate (last full run 93.3% and 75.2%), 18 Vitest tests, 360 Playwright tests, Gatling |
 | Delivery | GitHub Actions CI on every PR, push-to-deploy CD, OIDC to AWS (no stored keys), changed-units-only rollout |
 | Infrastructure | Terraform: VPC, ALB, ECS Fargate, RDS, S3, CloudFront, ECR, Secrets Manager, IAM, CloudWatch + SNS (about 1,200 lines in `infra/aws`) |
 | Live | https://dtqbmyulhq2jl.cloudfront.net (Mumbai) |
 
 ## 1. Product depth
 * Full company journey, tested from scratch by `NewCompanyJourneyIT`: operator onboards a company -> admin first sign-in and password change -> creates users (one-time temporary passwords) -> adds owners, properties, units, vendors -> lists a unit -> prospect applies from the public site -> approval -> lease -> rent charges -> work orders -> expenses -> archive -> role-permission checks -> suspend and reactivate.
+* Public rental site: a filtered, paged homes search (by property or by home) with photo carousels, the company's contact details and a searchable amenity catalogue with icons ([PRODUCT](PRODUCT.md)).
 * Operator console: company onboarding, plans and feature entitlements, **product defaults** that apply to every company, suspension with a required reason and audit trail.
 * Company admin: roles and permissions per feature and action (create / edit / delete / view), user management, configuration, branding, audit log.
 * Every user has a profile page (name, title, phone, photo; email is fixed).
@@ -35,6 +36,7 @@ Defaults -> operator product defaults -> company overrides -> plan gating, acros
 | Coverage gate | Build fails below 90% line coverage merged across every layer (JaCoCo agent in each process) | `ZCoverageGateIT` |
 | Frontend | Type-check on build, Vitest | `frontend` |
 | Performance | Smoke, load, stress, spike, soak (Gatling) with pass/fail service levels (error rate, p95) | `performance/`, `performance.yml` |
+| Browser | 360 Playwright tests: screens, long journeys, sad paths, two-company isolation, phone layouts, AI with a stand-in model | `e2e/` |
 Details: [TESTING.md](TESTING.md), [performance/README.md](../performance/README.md).
 
 ## 4. True CI/CD
@@ -54,7 +56,7 @@ Defence in depth on every request: gateway JWT + rate limit + security headers -
 Flyway per service, applied at start-up by the rollout that needs it; forward-only, additive migrations; seeders for demo data and for one-time catalog syncs (`catalog_sync` markers) so new permissions reach existing roles safely.
 
 ## 8. API documentation
-springdoc OpenAPI per service; gateway Swagger UI with all seven specs; `OperationDocumenter` generates summaries, tags, required permission and error responses from the code. Static inventory per service in [api/](api/README.md).
+springdoc OpenAPI per service; gateway Swagger UI with all seven specs; `OperationDocumenter` generates summaries, tags, required permission and error responses from the code. Static inventory per service in [api/](api/README.md), generated from the controllers and checked in CI.
 
 ## 9. Observability and alerting
 Correlation id generated at the gateway and carried through every service and every log line; Actuator liveness/readiness and metrics; CloudWatch logs; alarms on ALB 5xx, gateway health, per-service memory and database CPU, all notifying an SNS topic (email subscription via a variable); ADRs [2](adr/0002-liveness-and-readiness.md) and [3](adr/0003-correlation-id.md).
@@ -72,4 +74,4 @@ Layered services with one responsibility per class; design principles mapped to 
 [HLD](architecture/HLD.md) - [LLD](architecture/LLD.md) - [Deployment](architecture/DEPLOYMENT.md) - [SAD](SAD.md) - [Technical design](TECHNICAL-DESIGN.md) - [Security](SECURITY.md) - [API](api/README.md) - [Testing](TESTING.md) - [CI/CD](CI-CD.md) - [AWS](AWS-DEPLOY.md) - [AI](AI.md) - [ADRs](adr/)
 
 ## Known limitations (stated up front)
-See SAD section 8. Notably: demo-grade AWS footprint, some untyped request bodies in Swagger, no browser E2E suite, Bedrock not wired in the demo.
+See SAD section 8. Notably: demo-grade AWS footprint, some untyped request bodies in Swagger, the browser suite is a manual workflow rather than a pull-request gate, Bedrock not wired in the demo.
