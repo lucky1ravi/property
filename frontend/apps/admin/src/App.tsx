@@ -4,8 +4,10 @@ import { Access } from './pages/Access';
 import { Configuration } from './pages/Config';
 import { Automations, Workflows } from './pages/Automation';
 import { Audit, Platform } from './pages/Audit';
-import { Website } from './pages/Website';
+import { Enquiries, Features } from './pages/Website';
 import { Plans } from './pages/Plans';
+import { ServiceHealth, CompanyUsage, DeliveryLog } from './pages/Operations';
+import { PlatformPayments, Subscription } from './pages/PlatformPayments';
 import { ProductDefaults } from './pages/ProductDefaults';
 
 export default function App() {
@@ -22,7 +24,14 @@ export default function App() {
         <Route path="platform" element={<Platform />} />
         <Route path="defaults" element={<ProductDefaults />} />
         <Route path="plans" element={<Plans />} />
-        <Route path="website" element={<Website />} />
+        <Route path="enquiries" element={<Enquiries />} />
+        <Route path="features" element={<Features />} />
+        <Route path="payments" element={<PlatformPayments />} />
+        <Route path="subscription" element={<Subscription />} />
+        <Route path="health" element={<ServiceHealth />} />
+        <Route path="usage" element={<CompanyUsage />} />
+        <Route path="deliveries" element={<DeliveryLog />} />
+        <Route path="website" element={<Navigate to="../enquiries" replace />} />
       </Routes>
     </MicroApp>
   );

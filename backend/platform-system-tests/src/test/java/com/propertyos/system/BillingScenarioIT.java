@@ -88,6 +88,26 @@ class BillingScenarioIT {
         assertEquals(403, billing.post(Flow.token("TENANT"), "/api/billing/run-cycle", Map.of("asOf", later.toString())).status(), "residents cannot run it");
     }
 
+    /** The cycle is a timer, not a button: a rent invoice that goes missing is created again by the schedule alone. */
+    @Test
+    void theScheduleBillsRentWithoutAnyoneAskingTo() throws InterruptedException {
+        String admin = Flow.token("ORG_ADMIN");
+        String period = Flow.ok(billing.post(admin, "/api/billing/run-cycle", Map.of()), "make sure this month's rent exists").body().path("period").asText();
+        JsonNode victim = null;
+        for (JsonNode i : Flow.rows(billing.get(admin, "/api/billing/invoices?kind=RENT&status=OPEN")))
+            if (period.equals(i.path("period").asText()) && i.path("paid").asDouble() == 0) { victim = i; break; }
+        assertTrue(victim != null, "an unpaid rent invoice for " + period + " to take away");
+        String lease = victim.path("lease_id").asText();
+        Flow.ok(billing.post(admin, "/api/billing/invoices/" + victim.path("id").asText() + "/void", Map.of("reason", "Test: the schedule should bring it back")), "void it");
+        boolean back = false;
+        for (int i = 0; i < 40 && !back; i++) {
+            Thread.sleep(1500);
+            for (JsonNode r : Flow.rows(billing.get(admin, "/api/billing/invoices?kind=RENT")))
+                if (lease.equals(r.path("lease_id").asText()) && period.equals(r.path("period").asText()) && !"VOID".equals(r.path("status").asText())) back = true;
+        }
+        assertTrue(back, "the scheduled billing run should have created the rent invoice again within a minute");
+    }
+
     @Test
     void residentManagesTheirOwnAccount() {
         Flow.Soft soft = new Flow.Soft();

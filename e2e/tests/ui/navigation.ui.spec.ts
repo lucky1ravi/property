@@ -22,7 +22,7 @@ const AUTOMATION = ['Automation rules', 'Workflow designer'];
 
 /** What each role is meant to see in the sidebar (the product's menu policy). */
 const MENU: Record<string, string[]> = {
-  platform: ['Home', 'Administration', 'Platform', 'Product defaults', 'Plans', 'Website'],
+  platform: ['Home', 'Administration', 'Platform', 'Product defaults', 'Plans', 'Subscription payments', 'Company usage', 'Service health', 'Delivery log', 'Enquiries', 'Features'],
   admin: ['Home', 'Messages', 'Broker cockpit', ...PORTFOLIO, ...LEASING, 'Overview', 'Invoices', 'Collections', 'Payments received', 'Owner statements', 'Deposits', 'Tax and compliance', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Opportunities', 'Deadlines and alerts', ...AUTOMATION, 'Users and roles', 'Configuration', 'Audit log'],
   broker: ['Home', 'Messages', 'Broker cockpit', ...PORTFOLIO, ...LEASING, 'Overview', 'Invoices', 'Payments received', 'Owner statements', 'Deposits', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Opportunities', 'Deadlines and alerts', ...AUTOMATION],
   agent: ['Home', 'Messages', ...PORTFOLIO, ...LEASING, ...FILES, 'AI tools'],
@@ -32,6 +32,7 @@ const MENU: Record<string, string[]> = {
   vendor: ['Home', 'Messages', 'Work orders', 'Preventive maintenance', ...FILES],
 };
 MENU.manager = [...MENU.admin];
+MENU.admin.push('Subscription'); // only a company administrator sees what the company pays PropertyOS
 MENU.harbor = MENU.admin.filter((l) => !['Broker cockpit', 'Opportunities'].includes(l)); // that company's plan has no cockpit or opportunities
 MENU.broker2 = MENU.broker;
 MENU.owner2 = MENU.owner;
@@ -54,7 +55,7 @@ test.describe('Navigation by role', () => {
     await expect(page.locator('header').first()).toContainText('PropertyOS Platform');
     const labels = await menuLabels(page);
     for (const company of ['Properties', 'Invoices', 'Work orders', 'Leads', 'Users and roles', 'Audit log']) expect(labels).not.toContain(company);
-    for (const op of ['Platform', 'Product defaults', 'Plans', 'Website']) expect(labels).toContain(op);
+    for (const op of ['Platform', 'Product defaults', 'Plans', 'Subscription payments', 'Company usage', 'Service health', 'Delivery log', 'Enquiries', 'Features']) expect(labels).toContain(op);
   });
 
   test('[RBAC-11] a direct address for a page the role cannot use says so and shows no data or buttons', async ({ pageAs }) => {
@@ -89,7 +90,7 @@ test.describe('Every reachable page opens cleanly', () => {
     owner: ['/app', '/app/leasing/properties', '/app/payments/statements', '/app/maintenance', '/app/insights', '/app/broker/opportunities'],
     tenant: ['/app', '/app/leasing/my-lease', '/app/payments/invoices', '/app/maintenance', '/app/documents'],
     vendor: ['/app', '/app/maintenance', '/app/documents'],
-    platform: ['/app', '/app/admin/platform', '/app/admin/defaults', '/app/admin/plans', '/app/admin/website'],
+    platform: ['/app', '/app/admin/platform', '/app/admin/defaults', '/app/admin/plans', '/app/admin/payments', '/app/admin/usage', '/app/admin/health', '/app/admin/deliveries', '/app/admin/enquiries', '/app/admin/features'],
   };
   for (const [who, routes] of Object.entries(ROUTES)) {
     test(`[RBAC-08] ${who}: ${routes.length} pages open without errors`, async ({ pageAs }) => {

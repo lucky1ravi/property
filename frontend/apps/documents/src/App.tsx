@@ -158,7 +158,7 @@ function Detail() {
     {d.review_status === 'REJECTED' && <div className="mb-4 rounded-md border border-crit-600/30 bg-crit-50 px-4 py-3 text-sm text-crit-700">This file was sent back{d.review_note ? `: ${d.review_note}` : '.'} A new file is needed.</div>}
     {open.length > 0 && <div className="mb-4 rounded-md border border-slateblue-600/25 bg-slateblue-50 px-4 py-3 text-sm text-slateblue-800">Out for signature. See who has signed below.</div>}
 
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-6">
         <Panel title="Preview" actions={d.versions?.length > 1 ? (
           <Select value={version ?? ''} onChange={(e) => setVersion(e.target.value ? Number(e.target.value) : undefined)} aria-label="Version">
@@ -341,7 +341,7 @@ function SignaturePage() {
       </div>} />
     {r.message && <p className="mb-4 max-w-[70ch] rounded border border-limestone-200 bg-white px-4 py-3 text-sm text-graphite-700">{r.message}</p>}
     {!r.unchanged && r.status === 'PENDING' && <div className="mb-4 rounded-md border border-crit-600/30 bg-crit-50 px-4 py-3 text-sm text-crit-700">The document changed after this request was sent, so it can’t be signed. Ask for a new request.</div>}
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
       <Panel title="Read before you sign"><DocumentViewer doc={{ id: r.document.id, title: r.document.title, mime_type: r.document.mime_type, previewable: true, restricted: false }} /></Panel>
       <div className="space-y-6">
         {me && r.status === 'PENDING' && me.status === 'PENDING' && (

@@ -34,7 +34,7 @@ export function ProductDefaults() {
   const changed = data.changed.includes(key);
   return (<>
     <PageHeader title="Product defaults" description={`The starting settings for every company on PropertyOS (${data.companies} today). A company can still adjust what its own admins are allowed to; anything it changes stays its own.`} />
-    <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
       <nav aria-label="Product setting sections" className="flex gap-1 overflow-x-auto lg:flex-col">{shown.map(([k, label]) => (
         <button key={k} onClick={() => setSec(k)} className={`whitespace-nowrap rounded px-3 py-2 text-left text-sm font-semibold ${key === k ? 'bg-federal-900 text-white' : 'text-graphite-700 hover:bg-limestone-200/60'}`}>
           {label}{data.changed.includes(k) && <span className="ml-2 text-2xs font-normal opacity-80">changed</span>}</button>))}</nav>

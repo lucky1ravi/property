@@ -35,6 +35,31 @@ jobs:
             bash .github/scripts/changes.sh all
           fi
 
+  migrations:
+    name: Database migrations are numbered without gaps or repeats
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/check-migrations.js
+
+  diagrams:
+    name: Every diagram in the documents draws
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check the diagrams
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run docs:check
+
   backend:
     name: Backend (build, unit, integration and system tests, 90% coverage gate)
     needs: changes
@@ -113,7 +138,7 @@ jobs:
   ci-ok:
     name: CI result
     if: always()
-    needs: [changes, backend, frontend]
+    needs: [changes, migrations, diagrams, backend, frontend]
     runs-on: ubuntu-latest
     steps:
       - run: |

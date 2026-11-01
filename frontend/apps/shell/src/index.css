@@ -3,10 +3,23 @@
 @tailwind utilities;
 
 @layer base {
+  /* The company's colour scale. These are the PropertyOS defaults; a company's own primary colour replaces them at run time (see layout/branding.ts). */
+  :root {
+    --federal-950: 8 36 37;
+    --federal-900: 15 61 62;
+    --federal-800: 22 82 83;
+    --federal-700: 31 104 105;
+    --federal-600: 45 129 131;
+    --federal-300: 156 195 193;
+    --federal-200: 195 220 218;
+    --federal-100: 220 235 234;
+    --federal-50: 238 246 245;
+    --brand-accent: 200 150 62;
+  }
+  :focus-visible { outline-color: rgb(var(--brand-accent-focus, 59 110 156)); }
   html { font-feature-settings: 'ss01' on, 'cv11' on; }
   body { font-variant-numeric: lining-nums; }
-  :focus-visible { outline-color: #3B6E9C; }
-  ::selection { background: #C3DCDA; }
+  ::selection { background: rgb(var(--federal-200)); }
   html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
   /* Phones: 16px form text stops iOS from zooming the page on focus; dvh keeps bottom controls above the browser bar. */
   @media (max-width: 767px) {

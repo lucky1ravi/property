@@ -23,7 +23,7 @@ export interface Session {
   fieldRules: Record<string, string>;
   organization: { id: string; name: string; plan: string; state: string };
   features: Record<string, boolean>;
-  branding: { companyName: string; primaryColor: string; accentColor: string };
+  branding: { companyName: string; primaryColor: string; accentColor: string; logoDataUrl?: string };
 }
 
 /** Re-renders when the token changes (sign-in, sign-out, refresh) in this or another bundle. */
@@ -52,6 +52,12 @@ export function useSession() {
     enabled: !!token,
     staleTime: 60_000,
   });
+  const { refetch } = q;
+  useEffect(() => {
+    const again = () => { void refetch(); };
+    window.addEventListener('pos:refresh-session', again);
+    return () => window.removeEventListener('pos:refresh-session', again);
+  }, [refetch]);
   const s = q.data;
   const can = (perm: string) => {
     if (!s) return false;

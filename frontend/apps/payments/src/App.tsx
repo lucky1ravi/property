@@ -215,7 +215,7 @@ function MyAccount() {
     <PageHeader title="Rent and payments" description="Pay rent, manage autopay and see your payment history." />
     <StatStrip className="mb-6"><Stat label="Balance due" value={fmt.usd(m.balance, true)} emphasis sub={m.nextDue ? `Next due ${fmt.date(m.nextDue.due_date)}` : 'You’re all paid up'} />
       <Stat label="Past due" value={fmt.usd(m.overdue, true)} /><Stat label="Autopay" value={methods.some((x) => x.autopay) ? 'On' : 'Off'} /></StatStrip>
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6">
         <Panel title="Charges" padded={false}><DataTable rows={m.invoices} columns={cols} rowKey={(r) => r.id} searchable={false} /></Panel>
         <Panel title="Payment history" padded={false}><DataTable rows={m.payments} columns={[

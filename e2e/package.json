@@ -10,6 +10,7 @@
     "test:ui": "playwright test --project=chromium",
     "test:readonly": "E2E_ALLOW_WRITES=false playwright test",
     "report": "playwright show-report",
+    "docs:check": "node tools/check-diagrams.mjs JOURNEYS.md ../docs/architecture/DEPLOYMENT.md ../docs/architecture/HLD.md ../docs/architecture/LLD.md",
     "trace": "node tools/trace.mjs",
     "stack:start": "bash tools/local-stack.sh start",
     "stack:stop": "bash tools/local-stack.sh stop"
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "@types/node": "^22.0.0",
+    "mermaid": "^11.4.0",
     "typescript": "^5.6.0"
   }
 }

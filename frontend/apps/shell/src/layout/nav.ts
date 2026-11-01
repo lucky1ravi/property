@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  Home, Gauge, Building2, KeyRound, Receipt, Wrench, BarChart3, Workflow, Settings2, Users, ScrollText, Globe2, LayoutTemplate, Layers3, SlidersHorizontal, FileSignature, CalendarCheck, HandCoins, Sparkles,
+  Home, HeartPulse, Send, Gauge, Building2, KeyRound, Receipt, Wrench, BarChart3, Workflow, Settings2, Users, ScrollText, Globe2, LayoutTemplate, Layers3, SlidersHorizontal, FileSignature, CalendarCheck, HandCoins, Sparkles,
   MessagesSquare, CalendarClock, Landmark, DoorOpen, UserRound, ClipboardList, Truck, Repeat, Inbox, CreditCard, Banknote, FileText, ListChecks, Briefcase, LayoutDashboard, Megaphone, FolderOpen, Camera,
 } from 'lucide-react';
 import type { Session, Persona } from '@propertyos/ui';
@@ -114,13 +114,19 @@ export const NAV: NavGroup[] = [
         children: [
           { to: '/app/admin/access', label: 'Users and roles', icon: Users, perm: 'USER:VIEW' },
           { to: '/app/admin/configuration', label: 'Configuration', icon: Settings2, perm: 'SETTINGS:VIEW', exclude: ['platform'] },
+          { to: '/app/admin/subscription', label: 'Subscription', icon: CreditCard, perm: 'SETTINGS:CONFIGURE', personas: ['admin'] },
           { to: '/app/admin/audit', label: 'Audit log', icon: ScrollText, perm: 'AUDIT:VIEW' },
         ],
       },
       { to: '/app/admin/platform', label: 'Platform', icon: Globe2, perm: 'PLATFORM:VIEW', personas: ['platform'] },
       { to: '/app/admin/defaults', label: 'Product defaults', icon: SlidersHorizontal, perm: 'PLATFORM:VIEW', personas: ['platform'] },
       { to: '/app/admin/plans', label: 'Plans', icon: Layers3, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/website', label: 'Website', icon: LayoutTemplate, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/payments', label: 'Subscription payments', icon: Banknote, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/usage', label: 'Company usage', icon: BarChart3, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/health', label: 'Service health', icon: HeartPulse, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/deliveries', label: 'Delivery log', icon: Send, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/enquiries', label: 'Enquiries', icon: Inbox, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/features', label: 'Features', icon: LayoutTemplate, perm: 'PLATFORM:VIEW', personas: ['platform'] },
     ],
   },
 ];

@@ -200,6 +200,8 @@ public final class SystemEnvironment {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.environment().putAll(env);
         pb.environment().put("PORT", String.valueOf(ports.get(service)));
+        // The daily billing run is brought forward so a test can watch the schedule do its work without waiting for 2 a.m.
+        if ("billing-service".equals(service)) pb.environment().put("PROPERTYOS_BILLING_CYCLE_CRON", "*/10 * * * * *");
         if ("ai-service".equals(service)) {
             // The AI service talks to a stand-in model run by these tests, so every AI code path can be exercised offline.
             pb.environment().put("AI_PROVIDER", "openai");

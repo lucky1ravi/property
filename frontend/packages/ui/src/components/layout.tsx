@@ -72,6 +72,11 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
 /**
  * Message shown when a list has nothing yet; says what to do next.
  */
+/** Shown in place of a record page when the link points at something that does not exist or that this person may not open. It never says which. */
+export function NotFoundState({ what = 'page', back }: { what?: string; back?: ReactNode }) {
+  return <EmptyState title={`We couldn’t find that ${what}`} body="It may have been removed, or the link may be wrong, or it may belong to somebody else. Check the link, or go back and open it from the list." action={back} />;
+}
+
 export function EmptyState({ icon, title, body, action }: { icon?: ReactNode; title: string; body?: ReactNode; action?: ReactNode }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }} className="flex flex-col items-center px-6 py-12 text-center">

@@ -12,6 +12,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -54,6 +55,28 @@ public class ServiceClient {
     public String baseUrl(Service s) {
         String key = "propertyos.services." + s.name().toLowerCase();
         return env.getProperty(key, "http://localhost:8080");
+    }
+
+    /**
+     * Asks a service whether it is up, for the operator's health page. This is a direct call, not one through the circuit breaker,
+     * so a service that is down is reported as down instead of the answer coming from a cached "open circuit".
+     *
+     * @return the service name, {@code UP} or {@code DOWN}, how long the answer took in milliseconds, and the reason when it is down
+     */
+    public Map<String, Object> probe(Service s) {
+        long started = System.nanoTime();
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("service", s.name());
+        try {
+            JsonNode n = fast.get().uri(baseUrl(s) + "/actuator/health").retrieve().body(JsonNode.class);
+            out.put("status", n != null && "UP".equals(n.path("status").asText()) ? "UP" : "DOWN");
+            if (n == null || !"UP".equals(n.path("status").asText())) out.put("detail", "The service answered but reported " + (n == null ? "nothing" : n.path("status").asText("an unknown state")) + ".");
+        } catch (Exception e) {
+            out.put("status", "DOWN");
+            out.put("detail", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+        }
+        out.put("millis", (System.nanoTime() - started) / 1_000_000);
+        return out;
     }
 
     private RestClient client(Service s) {

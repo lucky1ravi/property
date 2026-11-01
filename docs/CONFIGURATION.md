@@ -22,6 +22,17 @@ Defaults are in each service's `application.yml` and `platform-common/src/main/r
 | `SERVICE`, `SERVICE_HEAP` | | Container: run one service; heap per service in all-in-one mode |
 | `VITE_API_URL` | | Frontend build: gateway URL |
 
+Settings added with ratings, reports, invoices and platform fees. Spring reads each from the environment variable shown, or from the property of the same meaning.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PROPERTYOS_PLATFORM_BILLING_AUTO` | on in demo, **off otherwise** | Whether the nightly timer bills companies their PropertyOS subscription by itself. Leave it off in production until the operator has checked plan prices, then set `true`. "Run billing now" on the Subscription payments page works either way |
+| `PROPERTYOS_PLATFORM_BILLING_CRON` | `0 30 2 * * *` | When the platform billing timer runs (America/Chicago) |
+| `PROPERTYOS_BILLING_CYCLE_CRON` | `0 0 2 * * *` | When each company's rent cycle runs (rent invoices, late fees, autopay), America/Chicago. Only one instance runs a company's cycle at a time |
+| `PROPERTYOS_LINKS_TTL_DAYS` | `14` | How long an applicant's document-upload link works |
+| `DEMO_MODE` | `false` in production | Also allows running the rent cycle for a chosen date, and turns platform auto-billing on |
+
+
 ## Per-company settings
 
 Company administrators change these in Admin, Configuration (stored by identity-service, cached by `ConfigClient`): features, fees, invoicing, approvals, screening, SLA, renewals, AI, notifications, branding, state rules, payments, alerts, chat, documents, moderation, templates, custom fields. Defaults are in `platform-common/src/main/resources/config/defaults.json`.

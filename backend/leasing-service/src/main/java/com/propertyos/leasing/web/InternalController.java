@@ -25,6 +25,13 @@ public class InternalController {
         return Map.of("status", applications.screen(id).get("status"));
     }
 
+    /** Service-to-service: how many units the calling company manages, which is what its PropertyOS subscription is priced on. */
+    @GetMapping("/unit-count")
+    @Transactional(readOnly = true)
+    public Map<String, Object> unitCount() {
+        return Map.of("units", db.value(Long.class, "select count(*) from leasing.unit where archived_at is null"));
+    }
+
     /**
      * Service-to-service: active leases with rent, term and parties, for billing to generate charges.
      */

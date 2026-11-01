@@ -53,6 +53,18 @@ jobs:
         run: |
           if [ "${{ inputs.everything }}" = "true" ]; then mode=all; else mode=deployed; fi
           bash .github/scripts/changes.sh "$mode"
+      # A migration that was edited after it had been applied makes the service refuse to start in AWS (Flyway checks a fingerprint of every
+      # migration it has already run). Stop here, before anything is rolled out, rather than find out from a service that will not come up.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Database migrations are safe to apply
+        run: |
+          node scripts/check-migrations.js
+          for tag in $(git tag -l 'deployed/*-service'); do
+            echo "--- against $tag"
+            node scripts/check-migrations.js --base "$tag" | tail -1
+          done
       - name: Summary
         run: |
           {

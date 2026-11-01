@@ -39,4 +39,30 @@ class SignedLinksTest {
         String token = new SignedLinks("a-different-secret").sign("application-upload", id);
         assertThat(links.verify("application-upload", id, token)).isFalse();
     }
+
+    @Test
+    @DisplayName("a link stops working after its lifetime and says so")
+    void expires() {
+        java.time.Instant now = java.time.Instant.parse("2026-01-01T00:00:00Z");
+        SignedLinks early = new SignedLinks("unit-test-internal-token", 14, java.time.Clock.fixed(now, java.time.ZoneOffset.UTC));
+        String token = early.sign("application-upload", id);
+        assertThat(early.check("application-upload", id, token)).isEqualTo(SignedLinks.Check.OK);
+        SignedLinks thirteenDays = new SignedLinks("unit-test-internal-token", 14, java.time.Clock.fixed(now.plus(java.time.Duration.ofDays(13)), java.time.ZoneOffset.UTC));
+        assertThat(thirteenDays.verify("application-upload", id, token)).isTrue();
+        SignedLinks fifteenDays = new SignedLinks("unit-test-internal-token", 14, java.time.Clock.fixed(now.plus(java.time.Duration.ofDays(15)), java.time.ZoneOffset.UTC));
+        assertThat(fifteenDays.check("application-upload", id, token)).isEqualTo(SignedLinks.Check.EXPIRED);
+        assertThat(fifteenDays.verify("application-upload", id, token)).isFalse();
+    }
+
+    @Test
+    @DisplayName("the expiry cannot be extended by editing the link")
+    void expiryIsSigned() {
+        String token = links.sign("application-upload", id, java.time.Instant.now().minusSeconds(60));
+        assertThat(links.check("application-upload", id, token)).isEqualTo(SignedLinks.Check.EXPIRED);
+        String forged = Long.toString(java.time.Instant.now().plusSeconds(86400).getEpochSecond(), 36) + token.substring(token.indexOf('.'));
+        assertThat(links.check("application-upload", id, forged)).isEqualTo(SignedLinks.Check.INVALID);
+        assertThat(links.check("application-upload", id, "nodot")).isEqualTo(SignedLinks.Check.INVALID);
+        assertThat(links.check("application-upload", id, "!!.abc")).isEqualTo(SignedLinks.Check.INVALID);
+        assertThat(links.check("application-upload", id, ".abc")).isEqualTo(SignedLinks.Check.INVALID);
+    }
 }

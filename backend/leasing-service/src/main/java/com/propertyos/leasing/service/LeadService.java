@@ -78,6 +78,11 @@ public class LeadService {
                 id, li.get("org_id"), listingId, li.get("property_id"), li.get("owner_id"), name, email, Req.str(b, "phone"), msg, source, reply, score, intent);
         db.update("update leasing.listing set enquiries = enquiries + 1 where id = ?", listingId);
         events.publish((UUID) li.get("org_id"), "LeadCreated", "Lead", id, Map.of("listingId", listingId.toString(), "score", score, "name", name));
+        // Strong leads already alert the agents through the "hot lead" automation; every other enquiry is announced here so none goes unseen.
+        if (score < 70)
+            events.publish((UUID) li.get("org_id"), "NotificationRequested", "Notification", UUID.randomUUID(), Map.of("audience", "ROLE", "target", "LEASING_AGENT",
+                    "title", "New enquiry: " + name, "body", "Asked about a home on the website: " + (msg.length() > 120 ? msg.substring(0, 117) + "..." : msg),
+                    "link", "/leasing/leads", "priority", "NORMAL", "category", "LEASING"));
         return Map.of("id", id, "reply", reply);
     }
 

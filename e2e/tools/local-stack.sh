@@ -17,6 +17,11 @@ SERVICES="identity-service:8081 leasing-service:8082 billing-service:8083 mainte
 wait_up() { for _ in $(seq 1 120); do curl -fs -o /dev/null "http://localhost:$1/actuator/health" && return 0; sleep 2; done; echo "port $1 did not come up"; return 1; }
 
 start() {
+  # E2E_FAKE_AI=1 connects the AI service to a stand-in model, so the AI features can be tested with real answers.
+  if [ "${E2E_FAKE_AI:-}" = "1" ]; then
+    nohup node "$ROOT/e2e/tools/fake-openai.mjs" > "$RUN/fake-ai.log" 2>&1 & echo $! > "$RUN/fake-ai.pid"
+    export AI_PROVIDER=openai OPENAI_API_KEY=test-key OPENAI_MODEL=fake-model OPENAI_BASE_URL=http://127.0.0.1:4599/v1
+  fi
   [ -f "$ROOT/frontend/dist/index.html" ] || { echo "Build the frontend first: cd frontend && npm run build"; exit 1; }
   for s in $SERVICES; do
     name="${s%%:*}"; port="${s##*:}"

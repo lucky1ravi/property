@@ -31,6 +31,8 @@ S3 (private, encrypted, versioned): uploaded documents and photos, written by th
 
 Everything is in `infra/aws/` (Terraform) and `.github/workflows/deploy.yml` (pipeline).
 
+Database changes are numbered SQL files that each service applies itself as it starts, so a deploy is also the data migration. What a release changes, what to check before and after, and how to go back are in [DATABASE-MIGRATIONS.md](DATABASE-MIGRATIONS.md).
+
 ## What you need
 
 An AWS account with admin rights for the first run, plus [Terraform](https://developer.hashicorp.com/terraform/install) 1.6+,

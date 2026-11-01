@@ -5,6 +5,8 @@ import com.propertyos.common.web.PageParams;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.propertyos.common.audit.AuditService;
 import com.propertyos.common.config.ConfigClient;
+import com.propertyos.common.demo.DemoData;
+import com.propertyos.common.events.Notifier;
 import com.propertyos.common.security.UserContextHolder;
 import com.propertyos.common.web.ApiException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -23,6 +25,7 @@ import java.util.regex.Pattern;
  */
 @Service
 public class SiteService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SiteService.class);
     /** Reasons a visitor can pick on the contact form. */
     public static final Set<String> TOPICS = new LinkedHashSet<>(List.of("DEMO", "PRICING", "SUPPORT", "PARTNERSHIP", "OTHER"));
     /** Where an enquiry stands. */
@@ -34,13 +37,15 @@ public class SiteService {
     private final PlanService plans;
     private final AuditService audit;
     private final TransactionTemplate tx;
+    private final Notifier notifier;
 
-    public SiteService(JdbcTemplate jdbc, ConfigClient config, PlanService plans, AuditService audit, PlatformTransactionManager tm) {
+    public SiteService(JdbcTemplate jdbc, ConfigClient config, PlanService plans, AuditService audit, PlatformTransactionManager tm, Notifier notifier) {
         this.jdbc = jdbc;
         this.plans = plans;
         this.config = config;
         this.audit = audit;
         this.tx = new TransactionTemplate(tm);
+        this.notifier = notifier;
     }
 
     /**
@@ -106,12 +111,33 @@ public class SiteService {
             if (units < 0 || units > 1_000_000) throw ApiException.badRequest("Number of units must be between 0 and 1,000,000.");
         }
         Integer finalUnits = units;
+        UUID id = UUID.randomUUID();
         UserContextHolder.runAsSystem(null, () -> {
             tx.executeWithoutResult(s -> jdbc.update(
                     "insert into identity.contact_request (id, name, email, company, phone, units, topic, message) values (?,?,?,?,?,?,?,?)",
-                    UUID.randomUUID(), name, email, company.isEmpty() ? null : company, phone.isEmpty() ? null : phone, finalUnits, topic, message));
+                    id, name, email, company.isEmpty() ? null : company, phone.isEmpty() ? null : phone, finalUnits, topic, message));
             return null;
         });
+        notifyPlatformAdmins(id, topic, name, company, finalUnits, message);
+    }
+
+    /**
+     * Tells the platform administrators, in their notifications, that somebody wrote in. The enquiry is already saved, so a problem
+     * delivering the alert must never make the visitor's submission fail.
+     */
+    private void notifyPlatformAdmins(UUID id, String topic, String name, String company, Integer units, String message) {
+        try {
+            String what = "DEMO".equals(topic) ? "Demo request" : "PRICING".equals(topic) ? "Pricing question" : "SUPPORT".equals(topic) ? "Support question"
+                    : "PARTNERSHIP".equals(topic) ? "Partnership enquiry" : "New enquiry";
+            String who = name + (company.isEmpty() ? "" : " from " + company) + (units == null ? "" : " (" + units + " units)");
+            String excerpt = message.length() > 140 ? message.substring(0, 137) + "..." : message;
+            UserContextHolder.runAsSystem(DemoData.PLATFORM.id(), () -> {
+                notifier.sendAlert("ROLE", "PLATFORM_ADMIN", what + ": " + name, who + ". " + excerpt, "/admin/enquiries", "HIGH", "GENERAL", "enquiry-" + id);
+                return null;
+            });
+        } catch (RuntimeException e) {
+            log.warn("Could not notify the platform administrators about enquiry {}: {}", id, e.getMessage());
+        }
     }
 
     /** All features for the operator, hidden ones included. */

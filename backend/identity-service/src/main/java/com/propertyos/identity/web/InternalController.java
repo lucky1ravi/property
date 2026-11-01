@@ -78,6 +78,17 @@ public class InternalController {
         return tx.read(store::orgs);
     }
 
+    /** Service-to-service: the names of some companies, for screens that list rows from every company (the operator's delivery log). */
+    @GetMapping("/org-names")
+    public Map<String, String> orgNames(@RequestParam List<UUID> ids) {
+        Map<String, String> out = new java.util.HashMap<>();
+        if (ids.isEmpty()) return out;
+        tx.read(() -> store.orgs(List.of("ACTIVE", "SUSPENDED", "DELETED"))).forEach(o -> {
+            if (ids.contains((UUID) o.get("id"))) out.put(o.get("id").toString(), String.valueOf(o.get("name")));
+        });
+        return out;
+    }
+
     /** Service-to-service: ids of suspended companies, so every service can turn their sessions away. */
     @GetMapping("/suspended-orgs")
     public List<UUID> suspendedOrgs() {

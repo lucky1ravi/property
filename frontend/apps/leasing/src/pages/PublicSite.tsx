@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { BedDouble, Bath, Ruler, MapPin, Search, UploadCloud, CheckCircle2, CircleAlert } from 'lucide-react';
-import { Button, Field, Input, Select, Textarea, Skeleton, Carousel, EmptyState, Panel, useApi, useAction, api, fmt, toastError, errorText } from '@propertyos/ui';
+import { BedDouble, Bath, Ruler, MapPin, Search, UploadCloud, CheckCircle2, CircleAlert, Building2, CalendarDays, CalendarCheck, Car, Waves, Dumbbell, WashingMachine, PawPrint, Snowflake, Flame, Utensils, Sun, Package, ArrowUpDown, Wifi, ShieldCheck, PlugZap, Bike, Layers, Users, Trees, Trash2, Sparkles, DollarSign, Wallet, Home, Sofa, Microwave, Refrigerator, Check, Key, TrendingDown, type LucideIcon } from 'lucide-react';
+import { Button, Field, Input, Select, Textarea, Skeleton, Carousel, EmptyState, Panel, useApi, useAction, api, fmt, toastError, errorText, Stars } from '@propertyos/ui';
 import { useBase } from '../common';
 
 function Hero() {
@@ -61,6 +61,29 @@ function Search_() {
   );
 }
 
+/** An icon for an amenity, found by the words in its name, so a new amenity still gets a sensible picture. */
+const AMENITY_ICONS: [RegExp, LucideIcon][] = [
+  [/park|garage|carport/i, Car], [/pool|swim|spa|hot tub/i, Waves], [/gym|fitness|workout/i, Dumbbell], [/laundry|washer|dryer/i, WashingMachine],
+  [/pet|dog|cat/i, PawPrint], [/air|a\/c|\bac\b|cool/i, Snowflake], [/heat|fireplace|furnace/i, Flame], [/dishwasher|kitchen|stove|oven/i, Utensils],
+  [/microwave/i, Microwave], [/fridge|refrigerator/i, Refrigerator], [/balcon|patio|deck|terrace|sun/i, Sun], [/storage|closet|pantry/i, Package],
+  [/elevator|lift/i, ArrowUpDown], [/wi-?fi|internet|fiber|cable/i, Wifi], [/secur|gated|camera|doorman|concierge|key/i, ShieldCheck], [/\bev\b|charging|electric/i, PlugZap],
+  [/bike|bicycle/i, Bike], [/hardwood|floor|carpet|tile/i, Layers], [/club|lounge|community|party|rooftop/i, Users], [/garden|yard|lawn|park\b|trail|green|tree/i, Trees],
+  [/furnish|sofa/i, Sofa], [/trash|waste|recycl/i, Trash2],
+];
+function amenityIcon(name: string): LucideIcon {
+  return AMENITY_ICONS.find(([re]) => re.test(name))?.[1] ?? Check;
+}
+
+/** One fact about the home with its icon: "2 bedrooms", "Built 2005". */
+function Fact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 rounded-md border border-limestone-200 bg-white p-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-federal-50 text-federal-800"><Icon size={20} aria-hidden /></span>
+      <span className="min-w-0"><span className="block text-xs text-graphite-500">{label}</span><span className="block truncate text-sm font-bold text-graphite-950">{value}</span></span>
+    </div>
+  );
+}
+
 function Detail() {
   const { id } = useParams();
   const base = useBase();
@@ -73,20 +96,60 @@ function Detail() {
   const tour = useAction(() => api.post<any>(`/api/leasing/public/listings/${id}/showings`, { name: f.name, email: f.email, type: 'SELF_GUIDED', scheduledAt: new Date(f.scheduledAt).toISOString() }), { silent: true, onSuccess: () => setDone('Tour requested. We’ll confirm the time by email.') });
   if (isLoading) return <Skeleton className="h-96" />;
   if (!l) return <EmptyState title="This home is no longer available" action={<Link to={base}><Button>See other homes</Button></Link>} />;
+  const amenities: string[] = Array.isArray(l.amenities) ? l.amenities : [];
+  const perSqft = Number(l.sqft) > 0 ? Number(l.rent) / Number(l.sqft) : null;
+  const type = l.property_type ? String(l.property_type).charAt(0) + String(l.property_type).slice(1).toLowerCase().replace(/_/g, ' ') : null;
+  const bedsLabel = Number(l.beds) === 0 ? 'Studio' : `${l.beds} bedroom${Number(l.beds) === 1 ? '' : 's'}`;
   return (
     <div>
       <Link to={base} className="mb-4 inline-block text-sm font-semibold text-federal-900 hover:underline">All homes</Link>
-      <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]">
         <div>
           <Carousel images={l.photos ?? []} alt={l.title} />
-          <h1 className="mt-5 text-2xl font-extrabold text-graphite-950">{l.title}</h1>
-          <p className="mt-1 flex items-center gap-1 text-graphite-600"><MapPin size={14} />{l.street}, {l.city}, {l.state} {l.zip}</p>
-          <div className="mt-4 flex gap-6 text-graphite-800"><span>{l.beds} bed</span><span>{l.baths} bath</span><span>{l.sqft} sqft</span></div>
-          <p className="mt-5 max-w-[68ch] leading-relaxed text-graphite-700">{l.description}</p>
-          <ul className="mt-5 flex flex-wrap gap-2">{(l.highlights ?? []).map((h: string) => <li key={h} className="rounded-full border border-limestone-300 bg-white px-3 py-1 text-sm text-graphite-700">{h}</li>)}</ul>
+          <div className="mt-5 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-extrabold text-graphite-950">{l.title}</h1>
+              <p className="mt-1 flex items-center gap-1 text-graphite-600"><MapPin size={14} />{l.street}, {l.city}, {l.state} {l.zip}</p>
+            </div>
+            {Number(l.property_rating_count) > 0 && <div className="rounded-md border border-limestone-200 bg-white px-3 py-2 text-right" aria-label="Resident rating of this property">
+              <Stars value={l.property_rating} count={l.property_rating_count} size={15} /><div className="mt-0.5 text-2xs text-graphite-500">rated by residents</div></div>}
+          </div>
+
+          <h2 className="mb-3 mt-6 text-lg font-bold text-graphite-950">The home</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="home-facts">
+            <Fact icon={BedDouble} label="Bedrooms" value={bedsLabel} />
+            <Fact icon={Bath} label="Bathrooms" value={`${l.baths} bath${Number(l.baths) === 1 ? '' : 's'}`} />
+            <Fact icon={Ruler} label="Size" value={`${Number(l.sqft).toLocaleString('en-US')} sq ft`} />
+            {type && <Fact icon={Building2} label="Property type" value={type} />}
+            {l.year_built ? <Fact icon={CalendarDays} label="Built" value={l.year_built} /> : null}
+            <Fact icon={CalendarCheck} label="Available" value={fmt.date(l.available_date)} />
+            {l.unit_number && <Fact icon={Key} label="Unit" value={l.unit_number} />}
+            <Fact icon={Wallet} label="Security deposit" value={fmt.usd(l.deposit)} />
+            {perSqft && <Fact icon={TrendingDown} label="Rent per sq ft" value={`$${perSqft.toFixed(2)}`} />}
+          </div>
+
+          <h2 className="mb-2 mt-7 text-lg font-bold text-graphite-950">About this home</h2>
+          <p className="max-w-[68ch] leading-relaxed text-graphite-700">{l.description}</p>
+          {(l.highlights ?? []).length > 0 && <ul className="mt-4 flex flex-wrap gap-2">{(l.highlights ?? []).map((h: string) => <li key={h} className="inline-flex items-center gap-1.5 rounded-full border border-limestone-300 bg-white px-3 py-1 text-sm text-graphite-700"><Sparkles size={13} className="text-[#C8963E]" aria-hidden />{h}</li>)}</ul>}
+
+          {amenities.length > 0 && <>
+            <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">Amenities</h2>
+            <ul className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3" data-testid="amenities">
+              {amenities.map((a) => { const Icon = amenityIcon(a); return <li key={a} className="flex items-center gap-2.5 text-sm text-graphite-800"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-federal-50 text-federal-800"><Icon size={16} aria-hidden /></span>{a}</li>; })}
+            </ul>
+          </>}
+
+          <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">Costs</h2>
+          <dl className="max-w-md divide-y divide-limestone-200 rounded-md border border-limestone-200 bg-white text-sm">
+            <div className="flex justify-between px-4 py-2.5"><dt className="flex items-center gap-2 text-graphite-600"><DollarSign size={15} aria-hidden />Monthly rent</dt><dd className="font-bold text-graphite-950">{fmt.usd(l.rent)}</dd></div>
+            <div className="flex justify-between px-4 py-2.5"><dt className="flex items-center gap-2 text-graphite-600"><Wallet size={15} aria-hidden />Security deposit</dt><dd className="font-bold text-graphite-950">{fmt.usd(l.deposit)}</dd></div>
+            <div className="flex justify-between px-4 py-2.5"><dt className="flex items-center gap-2 text-graphite-600"><Home size={15} aria-hidden />Due to move in</dt><dd className="font-bold text-graphite-950">{fmt.usd(Number(l.rent) + Number(l.deposit))}</dd></div>
+          </dl>
+          <p className="mt-2 text-xs text-graphite-500">The first month’s rent may be reduced if you move in part-way through a month. Applicable taxes and fees are shown on your lease.</p>
         </div>
         <aside className="h-fit rounded-md border border-limestone-200 bg-white p-5 shadow-panel lg:sticky lg:top-6">
           <div className="text-3xl font-extrabold text-graphite-950">{fmt.usd(l.rent)}<span className="text-base font-medium text-graphite-500"> /mo</span></div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-graphite-600"><span className="inline-flex items-center gap-1"><BedDouble size={14} aria-hidden />{Number(l.beds) === 0 ? 'Studio' : `${l.beds} bd`}</span><span className="inline-flex items-center gap-1"><Bath size={14} aria-hidden />{l.baths} ba</span><span className="inline-flex items-center gap-1"><Ruler size={14} aria-hidden />{Number(l.sqft).toLocaleString('en-US')} sqft</span></div>
           <div className="mt-1 text-sm text-graphite-600">Deposit {fmt.usd(l.deposit)} · Available {fmt.date(l.available_date)}</div>
           {done ? <div className="mt-4 rounded bg-good-50 p-3 text-sm text-graphite-800">{done}</div> : mode ? (
             <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); mode === 'enquire' ? enquire.mutate(undefined) : tour.mutate(undefined); }}>

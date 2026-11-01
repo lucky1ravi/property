@@ -146,7 +146,7 @@ function Roles({ roles }: { roles: any[] }) {
   const remove = useAction(() => api.del(`/api/identity/roles/${role.id}`), { success: 'Role deleted', invalidate: inv, onSuccess: () => { setDel(false); setId(''); } });
   if (!catalog || !role) return <Skeleton className="h-96" />;
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
       <Panel title="Roles" padded={false} actions={can('ROLE:CONFIGURE') && <Button size="sm" onClick={() => setCreating(true)}>New role</Button>}>
         <ul>{roles.map((r) => (
           <li key={r.id}><button onClick={() => setId(r.id)} className={clsx('flex w-full items-center gap-3 border-l-2 px-4 py-2.5 text-left text-sm', r.id === role.id ? 'border-federal-900 bg-federal-50' : 'border-transparent hover:bg-limestone-50')}>
