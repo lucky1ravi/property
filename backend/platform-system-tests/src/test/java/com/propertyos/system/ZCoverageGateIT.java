@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The coverage gate. It runs last (the class name sorts after the other system tests), gathers what the unit tests,
  * the per-service integration tests and these system tests exercised, writes an HTML report and fails the build when
- * line coverage over all production code is below {@code coverage.minimum} percent (default 90).
+ * line coverage over all production code is below {@code coverage.minimum} percent (default 90), or branch coverage is below {@code coverage.branch.minimum}.
  * <p>
  * Report: {@code backend/platform-system-tests/target/system/coverage/index.html}.
  */
@@ -44,6 +44,7 @@ class ZCoverageGateIT {
         data.save(env.workDir().resolve("jacoco-merged.exec").toFile(), false);
 
         double minimum = Double.parseDouble(System.getProperty("coverage.minimum", "90"));
+        double branchMinimum = Double.parseDouble(System.getProperty("coverage.branch.minimum", "0"));
         long coveredTotal = 0, missedTotal = 0, branchCovered = 0, branchMissed = 0;
         IBundleCoverage whole = null;
         CoverageBuilder all = new CoverageBuilder();
@@ -81,5 +82,7 @@ class ZCoverageGateIT {
         System.out.println(table);
         Files.writeString(env.workDir().resolve("coverage-summary.txt"), table.toString());
         assertTrue(percent >= minimum, String.format("Line coverage is %.1f%%, below the required %.0f%%. See %s", percent, minimum, report.resolve("index.html")));
+        double branchPercent = 100.0 * branchCovered / (branchCovered + branchMissed);
+        assertTrue(branchPercent >= branchMinimum, String.format("Branch coverage is %.1f%%, below the required %.0f%%. See %s", branchPercent, branchMinimum, report.resolve("index.html")));
     }
 }

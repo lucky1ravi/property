@@ -96,7 +96,7 @@ const LABELS: Record<string, [string, string?]> = {
   allowStaffToStaff: ['Staff can message each other'], maxMessageLength: ['Longest message (characters)'],
   aiAssist: ['AI help in conversations'], summaries: ['Offer a catch-up summary'], suggestedReplies: ['Offer a suggested reply to staff'],
   guardrails: ['Message guardrails'], fairHousingCheck: ['Check staff messages for fair-housing wording', 'Blocks a message that contains a flagged phrase until it is reworded.'], flaggedPhrases: ['Flagged phrases', 'One per line'],
-  companyName: ['Company name'], primaryColor: ['Primary colour'], accentColor: ['Accent colour'], portalDomain: ['Resident portal domain'], emailSender: ['Email sender address'],
+  companyName: ['Company name'], primaryColor: ['Primary colour'], accentColor: ['Accent colour', 'Used for highlights on your invoices.'], logoDataUrl: ['Company logo', 'Shown at the top of the menu and on every invoice. PNG or JPEG, under 100 KB.'], portalDomain: ['Resident portal domain'], emailSender: ['Email sender address'],
 };
 const STATES: Record<string, string> = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
 export const human = (k: string) => {
@@ -142,7 +142,7 @@ function ColourField({ label, hint, value, onChange }: { label: string; hint?: s
     if (HEX_COLOUR.test(t)) onChange(t.toUpperCase());
   };
   return (
-    <Field label={label} hint={hint ?? 'Pick a colour, or type a code such as #0B2545'} error={HEX_COLOUR.test(text) ? undefined : 'Enter a six-digit code, like #0B2545'}>
+    <Field label={label} hint={hint ?? 'Pick a colour, or type a code such as #0F3D3E'} error={HEX_COLOUR.test(text) ? undefined : 'Enter a six-digit code, like #0B2545'}>
       <div className="flex items-center gap-2">
         <input type="color" aria-label={`${label} picker`} value={HEX_COLOUR.test(text) ? text.toLowerCase() : '#000000'} onChange={(e) => type(e.target.value)}
           className="h-9 w-12 cursor-pointer rounded border border-limestone-200 bg-white p-1" />
@@ -152,7 +152,32 @@ function ColourField({ label, hint, value, onChange }: { label: string; hint?: s
   );
 }
 
-export function Node({ label, hint, value, onChange, depth = 0 }: { label: string; hint?: string; value: any; onChange: (v: any) => void; depth?: number }) {
+/** The company logo: a small picture kept inside the Branding setting. */
+function LogoField({ label, hint, value, onChange }: { label: string; hint?: string; value: string; onChange: (v: string) => void }) {
+  const [problem, setProblem] = useState('');
+  const pick = (file?: File) => {
+    setProblem('');
+    if (!file) return;
+    if (!/^image\/(png|jpeg)$/.test(file.type)) { setProblem('Choose a PNG or JPEG picture.'); return; }
+    if (file.size > 100 * 1024) { setProblem('That picture is over 100 KB. Use a smaller one.'); return; }
+    const r = new FileReader();
+    r.onload = () => onChange(String(r.result));
+    r.readAsDataURL(file);
+  };
+  return (
+    <Field label={label} hint={hint} error={problem || undefined}>
+      <div className="flex items-center gap-3">
+        <div className="flex h-14 w-24 items-center justify-center rounded border border-limestone-200 bg-white p-1">
+          {value ? <img src={value} alt="Company logo" className="max-h-full max-w-full object-contain" /> : <span className="text-2xs text-graphite-500">No logo</span>}
+        </div>
+        <input type="file" accept="image/png,image/jpeg" aria-label="Choose a logo" onChange={(e) => pick(e.target.files?.[0])} className="text-xs" />
+        {value && <Button size="sm" variant="quiet" onClick={() => onChange('')}>Remove</Button>}
+      </div>
+    </Field>
+  );
+}
+
+export function Node({ label, hint, value, onChange, depth = 0, name }: { label: string; hint?: string; value: any; onChange: (v: any) => void; depth?: number; name?: string }) {
   if (typeof value === 'boolean') return (
     <div className="flex items-start justify-between gap-4 rounded-md border border-limestone-200 bg-white px-4 py-3">
       <span className="min-w-0"><span className="block text-sm font-semibold text-graphite-900">{label}</span>{hint && <span className="mt-0.5 block text-xs text-graphite-500">{hint}</span>}</span>
@@ -160,6 +185,7 @@ export function Node({ label, hint, value, onChange, depth = 0 }: { label: strin
     </div>
   );
   if (typeof value === 'number') return <Field label={label} hint={hint}><Input type="number" step="any" value={value} onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))} /></Field>;
+  if (name === 'logoDataUrl' && typeof value === 'string') return <LogoField label={label} hint={hint} value={value} onChange={onChange} />;
   if (typeof value === 'string' && HEX_COLOUR.test(value)) return <ColourField label={label} hint={hint} value={value} onChange={onChange} />;
   if (typeof value === 'string') return <Field label={label} hint={hint}><Input value={value} onChange={(e) => onChange(e.target.value)} /></Field>;
   if (Array.isArray(value)) return <Field label={label} hint="One per line"><Textarea rows={Math.min(Math.max(value.length, 2), 6)} value={value.join('\n')} onChange={(e) => onChange(e.target.value.split('\n').map((x) => x.trim()).filter(Boolean).map((x) => (typeof value[0] === 'number' ? Number(x) : x)))} /></Field>;
@@ -171,7 +197,7 @@ export function Node({ label, hint, value, onChange, depth = 0 }: { label: strin
         <div className="grid gap-4 sm:grid-cols-2">
           {leaves.map(([k, v]) => (typeof v === 'object' && !Array.isArray(v) && v !== null
             ? <div key={k} className="sm:col-span-2"><Node label={human(k)} hint={hintFor(k)} value={v} depth={depth + 1} onChange={(nv) => onChange({ ...value, [k]: nv })} /></div>
-            : <div key={k} className={Array.isArray(v) ? 'sm:col-span-2' : ''}><Node label={human(k)} hint={hintFor(k)} value={v} depth={depth + 1} onChange={(nv) => onChange({ ...value, [k]: nv })} /></div>))}
+            : <div key={k} className={Array.isArray(v) ? 'sm:col-span-2' : ''}><Node name={k} label={human(k)} hint={hintFor(k)} value={v} depth={depth + 1} onChange={(nv) => onChange({ ...value, [k]: nv })} /></div>))}
         </div>
       </div>
     );
@@ -186,8 +212,8 @@ export function Configuration() {
   const { data: cfg } = useApi<any>('/api/identity/config');
   const { data: hist } = useApi<any[]>('/api/identity/config/history');
   const [sec, setSec] = useState('features'); const [draft, setDraft] = useState<Record<string, any>>({}); const [reset, setReset] = useState(false);
-  const save = useAction(() => api.put(`/api/identity/config/${sec}?summary=${encodeURIComponent('Updated ' + sec + ' in the admin console')}`, draft[sec]), { success: 'Saved. The change applies immediately.', invalidate: ['/api/identity', '/api/billing', '/api/leasing'], onSuccess: () => setDraft((d) => { const n = { ...d }; delete n[sec]; return n; }) });
-  const rollback = useAction((v: number) => api.post(`/api/identity/config/rollback/${v}`), { success: 'Rolled back', invalidate: ['/api/identity'] });
+  const save = useAction(() => api.put(`/api/identity/config/${sec}?summary=${encodeURIComponent('Updated ' + sec + ' in the admin console')}`, draft[sec]), { success: 'Saved. The change applies immediately.', invalidate: ['session', '/api/identity', '/api/billing', '/api/leasing'], onSuccess: () => setDraft((d) => { const n = { ...d }; delete n[sec]; return n; }) });
+  const rollback = useAction((v: number) => api.post(`/api/identity/config/rollback/${v}`), { success: 'Rolled back', invalidate: ['session', '/api/identity'] });
   const resetDemo = useAction(() => api.post<any>('/api/identity/demo/reset'), { success: (r) => r.message, onSuccess: () => setReset(false) });
   if (!cfg) return <Skeleton className="h-96" />;
   const value = draft[sec] ?? cfg[sec];
@@ -195,7 +221,7 @@ export function Configuration() {
   const meta = SECTIONS.find((s) => s[0] === sec)!;
   return (<>
     <PageHeader title="Configuration" description="Fees, approvals, screening, service levels, AI and branding. Changes apply immediately and are versioned." />
-    <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
       <nav aria-label="Settings sections" className="flex gap-1 overflow-x-auto lg:flex-col">{SECTIONS.filter((s) => cfg[s[0]]).map(([k, label]) => (
         <button key={k} onClick={() => setSec(k)} className={`whitespace-nowrap rounded px-3 py-2 text-left text-sm font-semibold ${sec === k ? 'bg-federal-900 text-white' : 'text-graphite-700 hover:bg-limestone-200/60'}`}>{label}</button>))}</nav>
       <div className="space-y-6">

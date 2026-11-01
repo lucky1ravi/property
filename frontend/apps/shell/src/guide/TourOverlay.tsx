@@ -15,7 +15,7 @@ export function findTarget(selector?: string): HTMLElement | null {
   // The same anchor can appear twice (a wide and a compact version of one button); use the one that is actually showing.
   for (const el of document.querySelectorAll<HTMLElement>(selector)) {
     const r = el.getBoundingClientRect();
-    if (r.width > 0 && r.height > 0) return el;
+    if (r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden') return el;
   }
   return null;
 }

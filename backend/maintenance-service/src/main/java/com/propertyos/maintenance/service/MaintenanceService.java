@@ -220,7 +220,8 @@ public class MaintenanceService {
     public List<Map<String, Object>> rank(String category, UUID propertyId) {
         String city = cityOf(propertyId);
         List<Map<String, Object>> vendors = db.list("""
-                select v.*, (select count(*) from maintenance.work_order w where w.vendor_id = v.id and w.status in ('ASSIGNED','SCHEDULED','IN_PROGRESS')) as open_jobs
+                select v.*, (select count(*) from maintenance.work_order w where w.vendor_id = v.id and w.status in ('ASSIGNED','SCHEDULED','IN_PROGRESS')) as open_jobs,
+                       (select avg(stars) from maintenance.vendor_review r where r.vendor_id = v.id) as review_avg
                 from maintenance.vendor v where v.active and (insurance_expires is null or insurance_expires > current_date)""");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> v : vendors) {
@@ -229,7 +230,7 @@ public class MaintenanceService {
             for (JsonNode t : trades) if (t.asText().equals(category) || "GENERAL".equals(category) && t.asText().equals("GENERAL")) trade = true;
             for (JsonNode c : cities) if (city != null && c.asText().equalsIgnoreCase(city)) serves = true;
             if (!trade || !serves) continue;
-            double rating = ((BigDecimal) v.get("rating")).doubleValue();
+            double rating = v.get("review_avg") != null ? ((Number) v.get("review_avg")).doubleValue() : ((BigDecimal) v.get("rating")).doubleValue();
             double resp = ((BigDecimal) v.get("avg_response_hours")).doubleValue();
             double cost = ((BigDecimal) v.get("avg_job_cost")).doubleValue();
             int open = ((Number) v.get("open_jobs")).intValue();
@@ -266,7 +267,9 @@ public class MaintenanceService {
     public List<Map<String, Object>> vendors(boolean activeOnly) {
         return db.page("""
                 select v.*, (select count(*) from maintenance.work_order w where w.vendor_id = v.id and w.status in ('ASSIGNED','SCHEDULED','IN_PROGRESS')) as open_jobs,
-                       (select round(avg(rating), 2) from maintenance.work_order w where w.vendor_id = v.id and w.rating is not null) as recent_rating
+                       (select round(avg(rating), 2) from maintenance.work_order w where w.vendor_id = v.id and w.rating is not null) as recent_rating,
+                       (select count(*) from maintenance.vendor_review r where r.vendor_id = v.id) as review_count,
+                       coalesce((select round(avg(stars), 2) from maintenance.vendor_review r where r.vendor_id = v.id), v.rating) as rating_overall
                 from maintenance.vendor v""" + (activeOnly ? " where v.active" : "") + " order by v.name");
     }
 
@@ -332,9 +335,26 @@ public class MaintenanceService {
                         db.update("""
                                 update maintenance.vendor set jobs_completed = jobs_completed + 1,
                                   rating = round(((rating * jobs_completed) + ?) / (jobs_completed + 1), 2) where id = ?""", rating, w.get("vendor_id"));
+                    // The rating given when closing a job is also kept as that person's review, so it shows with the others.
+                    if (w.get("vendor_id") != null) {
+                        UserContext rater = UserContextHolder.require();
+                        db.update("""
+                                insert into maintenance.vendor_review (id, org_id, vendor_id, work_order_id, property_id, owner_id, tenant_id, rater_user_id, rater_name, rater_role, stars, comment)
+                                values (?,?,?,?,?,?,?,?,?,'STAFF',?,?)
+                                on conflict (vendor_id, rater_user_id, coalesce(work_order_id, '00000000-0000-0000-0000-000000000000'::uuid))
+                                do update set stars = excluded.stars, comment = excluded.comment, updated_at = now()""",
+                                UUID.randomUUID(), rater.orgId(), w.get("vendor_id"), id, w.get("property_id"), null, null, rater.userId(), rater.name(), rating, Req.str(body, "comment"));
+                    }
                 }
             }
             default -> sm.apply("WorkOrder", "maintenance.work_order", id, WF, action, reason, null, null);
+        }
+        // The history is only open to company staff, so the reason for a "no" is also left where the resident, owner and vendor can read it.
+        if (reason != null && !reason.isBlank() && ("DECLINE".equals(action) || "REOPEN".equals(action))) {
+            UserContext ctx = UserContextHolder.require();
+            db.update("insert into maintenance.work_order_comment (id, org_id, work_order_id, property_id, owner_id, tenant_id, vendor_id, author, body, internal) values (?,?,?,?,?,?,?,?,?,false)",
+                    UUID.randomUUID(), ctx.orgId(), id, w.get("property_id"), w.get("owner_id"), w.get("tenant_id"), w.get("vendor_id"), ctx.name(),
+                    ("DECLINE".equals(action) ? "Declined: " : "Reopened: ") + reason);
         }
         return get(id);
     }

@@ -1,5 +1,6 @@
 import { Link, Route, Routes, useNavigate } from 'react-router-dom';
 import { AiTools } from './AiTools';
+import { ReportHub, ReportPage } from './Reports';
 import { motion } from 'framer-motion';
 import {
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, AiInsight, DataTable, type Column, TrendChart, CompareChart, RankBars, EmptyState, Skeleton,
@@ -108,9 +109,39 @@ function VendorHome() {
 
 function PlatformHome() {
   const { data: s } = useApi<any>('/api/identity/platform/summary');
-  return (<><PageHeader title="Platform overview" description="Companies and usage across PropertyOS." />
-    {s && <StatStrip className="mb-6"><Stat label="Companies" value={s.organizations} emphasis /><Stat label="Users" value={s.users} /><Stat label="Active, 7 days" value={s.activeUsers7d} /></StatStrip>}
-    <Link to="/app/admin/platform"><Button variant="primary">Manage companies</Button></Link></>);
+  const { data: enq } = useApi<any>('/api/identity/platform/site/contact-requests?status=NEW&page=1&size=5&sort=created_at&dir=desc');
+  const { data: recent } = useApi<any>('/api/identity/platform/orgs?status=ACTIVE&page=1&size=5&sort=created_at&dir=desc');
+  const { data: suspended } = useApi<any>('/api/identity/platform/orgs?status=SUSPENDED&page=1&size=5');
+  const { data: health } = useApi<any>('/api/identity/platform/health', { refetchInterval: 60_000, staleTime: 0 });
+  const newEnquiries: any[] = enq?.rows ?? enq ?? [];
+  const recentOrgs: any[] = recent?.rows ?? recent ?? [];
+  const suspendedOrgs: any[] = suspended?.rows ?? suspended ?? [];
+  const nEnq = typeof enq?.total === 'number' ? enq.total : newEnquiries.length;
+  const nSusp = typeof suspended?.total === 'number' ? suspended.total : suspendedOrgs.length;
+  return (<><PageHeader title="Platform overview" description="Companies, usage and what needs your attention across PropertyOS."
+    actions={<Link to="/app/admin/platform"><Button variant="primary">Manage companies</Button></Link>} />
+    {s && <StatStrip className="mb-6"><Stat label="Companies" value={s.organizations} emphasis /><Stat label="Users" value={s.users} /><Stat label="Active, 7 days" value={s.activeUsers7d} />
+      <Stat label="New enquiries" value={nEnq} sub={nEnq > 0 ? 'Waiting for a reply' : 'All answered'} /><Stat label="Suspended" value={nSusp} />
+      <Stat label="Services" value={health ? `${health.up} of ${health.total} up` : '–'} sub={health?.overall === 'UP' ? 'All running' : health ? 'Needs attention' : undefined} /></StatStrip>}
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <Panel title="New enquiries" description="Demo requests and questions from the website." actions={<Link to="/app/admin/enquiries"><Button size="sm">Open inbox</Button></Link>} padded={false}>
+        {newEnquiries.length === 0 ? <p className="p-5 text-sm text-graphite-600">Nothing waiting. New demo requests appear here and in your notifications.</p> : <ul className="divide-y divide-limestone-200">
+          {newEnquiries.map((e) => <li key={e.id}><Link to="/app/admin/enquiries" className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-limestone-50">
+            <span><span className="block text-sm font-semibold text-graphite-900">{e.name}{e.company ? ` · ${e.company}` : ''}</span><span className="block text-xs text-graphite-600">{String(e.message).slice(0, 90)}</span></span>
+            <span className="shrink-0 text-right"><Badge>{String(e.topic).charAt(0) + String(e.topic).slice(1).toLowerCase()}</Badge><span className="mt-1 block text-2xs text-graphite-500">{fmt.relative(e.created_at)}</span></span></Link></li>)}
+        </ul>}
+      </Panel>
+      <Panel title="Recently onboarded" description="The newest companies on the platform." actions={<Link to="/app/admin/platform"><Button size="sm">All companies</Button></Link>} padded={false}>
+        {recentOrgs.length === 0 ? <p className="p-5 text-sm text-graphite-600">No companies yet.</p> : <ul className="divide-y divide-limestone-200">
+          {recentOrgs.map((o) => <li key={o.id} className="flex items-center justify-between gap-3 px-5 py-3"><span><span className="block text-sm font-semibold text-graphite-900">{o.name}</span>
+            <span className="block text-xs text-graphite-600">{o.plan} · {o.user_count ?? 0} {Number(o.user_count) === 1 ? 'user' : 'users'}</span></span><span className="text-2xs text-graphite-500">{fmt.relative(o.created_at)}</span></li>)}
+        </ul>}
+      </Panel>
+      {suspendedOrgs.length > 0 && <Panel title="Suspended companies" description="Their people cannot sign in until the company is reactivated." padded={false} className="lg:col-span-2">
+        <ul className="divide-y divide-limestone-200">{suspendedOrgs.map((o) => <li key={o.id} className="flex items-center justify-between gap-3 px-5 py-3"><span><span className="block text-sm font-semibold text-graphite-900">{o.name}</span>
+          <span className="block text-xs text-graphite-600">{o.status_reason ?? 'No reason recorded'}</span></span><Link to="/app/admin/platform"><Button size="sm">Review</Button></Link></li>)}</ul>
+      </Panel>}
+    </div></>);
 }
 
 function Home() {
@@ -124,25 +155,6 @@ function Home() {
   return <Portfolio persona={p} />;
 }
 
-function Reports() {
-  const { data: props } = useApi<any[]>('/api/leasing/properties');
-  const { data: bill } = useApi<any>('/api/billing/summary');
-  const { data: mt } = useApi<any>('/api/maintenance/stats');
-  const { data: vendors } = useApi<any[]>('/api/maintenance/vendors', { retry: false });
-  const trend = (bill?.trend ?? []).map((t: any) => ({ month: t.month, collected: Number(t.collected) }));
-  const byProp = (props ?? []).map((p) => ({ name: p.name, rent: Number(p.rent_roll), vacancy: p.units ? Math.round((p.vacant / p.units) * 100) : 0 }));
-  return (<><PageHeader title="Reports" description="Every table can be downloaded as a CSV file." />
-    <div className="grid gap-6 lg:grid-cols-2">
-      <Panel title="Rent roll by property"><RankBars data={byProp} label="name" value="rent" format="usd" /></Panel>
-      <Panel title="Collections by month"><TrendChart data={trend} x="month" y="collected" /></Panel>
-      <Panel title="Repair cost by category"><RankBars data={mt?.by_category ?? []} label="category" value="cost" format="usd" /></Panel>
-      <Panel title="Repairs by property"><RankBars data={mt?.by_property ?? []} label="property_name" value="count" /></Panel>
-    </div>
-    <Panel className="mt-6" title="Vendor performance" padded={false}><DataTable rows={vendors} rowKey={(v) => v.id} exportName="vendors" columns={[
-      { key: 'name', header: 'Vendor' }, { key: 'rating', header: 'Rating', align: 'right', value: (v: any) => Number(v.rating), render: (v: any) => `${v.rating} ★` }, { key: 'jobs_completed', header: 'Jobs', align: 'right' },
-      { key: 'avg_job_cost', header: 'Avg. cost', align: 'right', value: (v: any) => Number(v.avg_job_cost), render: (v: any) => fmt.usd(v.avg_job_cost) }, { key: 'avg_response_hours', header: 'Response (h)', align: 'right' }]} /></Panel></>);
-}
-
 export default function App({ view }: { view?: 'home' | 'reports' }) {
-  return <MicroApp name="insights">{view === 'reports' ? <Routes><Route path="ai" element={<AiTools />} /><Route path="*" element={<Reports />} /></Routes> : <Home />}</MicroApp>;
+  return <MicroApp name="insights">{view === 'reports' ? <Routes><Route path="ai" element={<AiTools />} /><Route path=":key" element={<ReportPage />} /><Route index element={<ReportHub />} /></Routes> : <Home />}</MicroApp>;
 }

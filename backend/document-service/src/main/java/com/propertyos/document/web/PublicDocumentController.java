@@ -43,7 +43,9 @@ public class PublicDocumentController {
     }
 
     private JsonNode application(UUID id, String token) {
-        if (!links.verify("application-upload", id, token)) throw ApiException.forbidden("This upload link isn't valid. Use the link from your application confirmation.");
+        var check = links.check("application-upload", id, token);
+        if (check == SignedLinks.Check.EXPIRED) throw ApiException.forbidden("This upload link has expired. Ask the leasing team to send you a new one.");
+        if (check != SignedLinks.Check.OK) throw ApiException.forbidden("This upload link isn't valid. Use the link from your application confirmation.");
         JsonNode a = UserContextHolder.runAsSystem(null, () -> client.get(ServiceClient.Service.LEASING, "/internal/leasing/applications/" + id + "/brief"));
         if (a == null || a.isEmpty()) throw ApiException.notFound("Application");
         if (List.of("REJECTED", "WITHDRAWN", "LEASED").contains(a.path("status").asText()))

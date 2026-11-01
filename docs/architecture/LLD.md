@@ -28,7 +28,7 @@ sequenceDiagram
   G->>S: forward (same JWT)
   S->>S: AuthFilter re-verifies JWT, rejects suspended company (403 ORG_SUSPENDED)
   S->>S: FeatureGateFilter, PermissionInterceptor
-  S->>D: BEGIN; set org/role; SET LOCAL ROLE propertyos_app
+  S->>D: BEGIN, set org/role, SET LOCAL ROLE propertyos_app
   D-->>S: only rows passing rls_ok(org_id)
   S-->>B: JSON or application/problem+json
 ```

@@ -69,9 +69,17 @@ export function useAction<TVars = any, TRes = any>(
       (opts.invalidate ?? []).forEach((prefix) =>
         qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? '').startsWith(prefix) }),
       );
+      // Every micro-front-end has its own cache, so a change to who you are or how the company is set up is announced to all of them.
+      if ((opts.invalidate ?? []).includes('session') && typeof window !== 'undefined') window.dispatchEvent(new Event('pos:refresh-session'));
       opts.onSuccess?.(r);
     },
-    onError: (e) => toastError(e),
+    onError: (e) => {
+      toastError(e);
+      // A refused action can still have left a mark (a declined payment is recorded, a conflict means the screen was stale), so show what is now true.
+      (opts.invalidate ?? []).forEach((prefix) =>
+        qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? '').startsWith(prefix) }),
+      );
+    },
   });
 }
 

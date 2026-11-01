@@ -50,6 +50,7 @@
                         <sys.modules.dir>${project.basedir}/..</sys.modules.dir>
                         <sys.jacoco.agent>${settings.localRepository}/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}-runtime.jar</sys.jacoco.agent>
                         <coverage.minimum>${coverage.minimum}</coverage.minimum>
+                        <coverage.branch.minimum>${coverage.branch.minimum}</coverage.branch.minimum>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

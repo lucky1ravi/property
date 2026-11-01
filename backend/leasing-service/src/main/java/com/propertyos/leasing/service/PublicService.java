@@ -96,7 +96,12 @@ public class PublicService {
     Map<String, Object> findLive(UUID id) {
         return db.one("Listing", """
                 select l.id, l.title, l.description, l.rent, l.deposit, l.available_date, l.photos, l.highlights,
-                       p.name as property_name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.amenities, u.beds, u.baths, u.sqft
+                       p.name as property_name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.amenities, u.beds, u.baths, u.sqft,
+                       p.type as property_type, p.year_built, u.number as unit_number, u.features,
+                       (select round(avg(r.stars), 1) from leasing.review r where r.subject_type = 'PROPERTY' and r.subject_id = p.id) as property_rating,
+                       (select count(*) from leasing.review r where r.subject_type = 'PROPERTY' and r.subject_id = p.id) as property_rating_count,
+                       (select round(avg(r.stars), 1) from leasing.review r where r.subject_type = 'UNIT' and r.subject_id = u.id) as unit_rating,
+                       (select count(*) from leasing.review r where r.subject_type = 'UNIT' and r.subject_id = u.id) as unit_rating_count
                 from leasing.listing l join leasing.property p on p.id = l.property_id join leasing.unit u on u.id = l.unit_id
                 where l.id = ? and l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))""", id, suspendedCsv());
     }
@@ -155,6 +160,10 @@ public class PublicService {
                 Req.str(b, "pets"), Req.date(b, "moveInDate"), db.json(Req.strings(b, "documents")));
         events.publish(orgId, "ApplicationSubmitted", "Application", id,
                 Map.of("listingId", listingId.toString(), "applicantName", first + " " + last, "applicantEmail", email, "unit", li.get("number").toString()));
+        // The leasing team hears about it straight away; the applicant has no account, so this is the only way staff learn of a new application.
+        events.publish(orgId, "NotificationRequested", "Notification", UUID.randomUUID(), Map.of("audience", "ROLE", "target", "PROPERTY_MANAGER",
+                "title", "New application: " + first + " " + last, "body", "Applied for " + li.get("pname") + " " + li.get("number") + ". Screening starts automatically.",
+                "link", "/leasing/applications/" + id, "priority", "NORMAL", "category", "LEASING"));
         // A signed link lets the applicant (who has no account) add documents to this one application.
         return Map.of("id", id, "status", "SUBMITTED", "uploadToken", links.sign("application-upload", id),
                 "message", "Application received. Upload your documents now so screening isn't held up. We'll email you as soon as screening is complete.");

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { applyBranding } from './branding';
 import { UserCircle, Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast, QuickViewHost, PageTransition } from '@propertyos/ui';
@@ -29,6 +30,17 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('pos.navCollapsed') === '1'; } catch { return false; } });
   const toggleCollapsed = () => setCollapsed((c) => { const n = !c; try { localStorage.setItem('pos.navCollapsed', n ? '1' : '0'); } catch { /* storage unavailable */ } return n; });
   useEffect(() => setMobileNav(false), [loc.pathname]);
+  // The company's own colours (Configuration > Branding) become the product's colours while it is signed in; the operator keeps the PropertyOS look.
+  const operator = !!session && personaOf(session) === 'platform';
+  const brandPrimary = operator ? undefined : session?.branding?.primaryColor, brandAccent = operator ? undefined : session?.branding?.accentColor;
+  useEffect(() => { applyBranding({ primaryColor: brandPrimary, accentColor: brandAccent }); return () => applyBranding(null); }, [brandPrimary, brandAccent]);
+  // Mounted while open and for the moment it takes to slide away.
+  const [drawerShown, setDrawerShown] = useState(false);
+  useEffect(() => {
+    if (mobileNav) { setDrawerShown(true); return; }
+    const t = setTimeout(() => setDrawerShown(false), 250);
+    return () => clearTimeout(t);
+  }, [mobileNav]);
   useEffect(() => { const open = () => setAssistant(true); window.addEventListener('pos:open-assistant', open); return () => window.removeEventListener('pos:open-assistant', open); }, []);
 
   if (!token) return <Navigate to="/signin" replace />;
@@ -49,6 +61,7 @@ export function AppLayout() {
       </div>
       {slim && <button onClick={toggleCollapsed} aria-label="Expand menu" title="Expand menu" className="mx-auto mb-2 rounded p-1.5 text-federal-300 hover:bg-federal-800 hover:text-white"><PanelLeftOpen className="h-[18px] w-[18px]" /></button>}
       {!slim && <div className="mx-3 mb-3 rounded bg-federal-950/50 px-3 py-2.5">
+        {persona !== 'platform' && session.branding?.logoDataUrl && <img src={session.branding.logoDataUrl} alt={`${session.branding.companyName || session.organization.name} logo`} className="mb-1.5 max-h-8 max-w-[140px] object-contain" />}
         <div className="truncate text-sm font-bold text-white">{persona === 'platform' ? session.organization.name : (session.branding?.companyName || session.organization.name)}</div>
         <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-federal-300">
           {persona !== 'platform' && session.organization.plan && <><span>{session.organization.plan} plan</span><span aria-hidden>·</span></>}<span>{PERSONA_LABEL[persona]}</span>
@@ -71,14 +84,13 @@ export function AppLayout() {
     <GuideProvider groups={groups} persona={persona} aiEnabled={aiEnabled}>
     <div className="flex h-screen overflow-hidden">
       <aside className={clsx('hidden shrink-0 transition-[width] duration-200 lg:block', collapsed ? 'w-[68px]' : 'w-[248px]')}>{renderSidebar(collapsed)}</aside>
-      <AnimatePresence>
-        {mobileNav && (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <motion.div className="absolute inset-0 bg-graphite-950/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMobileNav(false)} />
-            <motion.aside className="absolute inset-y-0 left-0 w-[260px]" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }} transition={{ type: 'spring', stiffness: 400, damping: 40 }}>{renderSidebar(false)}</motion.aside>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* The phone menu is taken out of the page a moment after it closes by an ordinary timer, not by an exit animation, so it can never be left half-removed over the screen and block taps. */}
+      {drawerShown && (
+        <div className={clsx('fixed inset-0 z-40 lg:hidden', !mobileNav && 'pointer-events-none')} aria-hidden={!mobileNav}>
+          <div className={clsx('absolute inset-0 bg-graphite-950/40 transition-opacity duration-200', mobileNav ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={() => setMobileNav(false)} />
+          <aside className={clsx('absolute inset-y-0 left-0 w-[260px] transition-transform duration-200 ease-out', mobileNav ? 'translate-x-0' : 'pointer-events-none -translate-x-full')}>{renderSidebar(false)}</aside>
+        </div>
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-limestone-200 bg-white px-4 lg:px-8">
@@ -89,7 +101,7 @@ export function AppLayout() {
           <UserMenu name={session.name} email={session.email} photo={session.photo} subtitle={session.roles.join(', ')} />
         </header>
         <main className="scrollbar-thin flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1360px] px-4 py-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-[1360px] px-4 pb-28 pt-6 lg:px-8 lg:py-8">
             <Breadcrumbs pathname={loc.pathname} groups={groups} />
             <SectionTabs pathname={loc.pathname} groups={groups} />
             {loc.pathname === '/app' && <GettingStarted persona={persona} groups={groups} />}

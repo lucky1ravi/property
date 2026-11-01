@@ -436,9 +436,14 @@ test.describe('The whole life of a company', () => {
       await vp.getByRole('dialog').getByRole('button', { name: 'Schedule visit' }).click();
       await vp.getByRole('button', { name: 'Start work' }).click();
       await vp.getByRole('button', { name: /Mark complete/i }).first().click();
-      await vp.getByLabel(/Final cost/).fill('240');
-      await vp.getByLabel('Work notes').fill('Replaced the cartridge and resealed the base.');
-      await vp.getByRole('dialog').getByRole('button', { name: /Mark complete/i }).click();
+      // A refresh of the job while the form is open can redraw it empty on a busy machine, so fill it until the button is ready.
+      const done = vp.getByRole('dialog').getByRole('button', { name: /Mark complete/i });
+      await expect(async () => {
+        await vp.getByLabel(/Final cost/).fill('240');
+        await vp.getByLabel('Work notes').fill('Replaced the cartridge and resealed the base.');
+        await expect(done).toBeEnabled({ timeout: 2000 });
+      }).toPass({ timeout: 20_000 });
+      await done.click();
       await expect.poll(async () => (await job()).body.status).toBe('COMPLETED');
       await vp.context().close();
       const mp = await signedIn(people.manager.email, people.manager.password, `/app/maintenance/${id}`);

@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-rout
 import { Sparkles } from 'lucide-react';
 import {
   PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Tabs, KeyValues, ActionBar, WorkflowTrack, Timeline, Field, Input,
-  Modal, Select, ConfirmDialog, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge, EntityPicker, errorText, QuickLink, PersonCell, DocumentsPanel, toast, usePagedApi
+  Modal, Select, ConfirmDialog, AiInsight, ConfidenceMeter, EmptyState, NotFoundState, Skeleton, Section, Stars, ReviewsDrawer, RatingForm, useApi, useAction, api, fmt, useSession, Textarea, Badge, EntityPicker, errorText, QuickLink, PersonCell, DocumentsPanel, toast, usePagedApi
 } from '@propertyos/ui';
 import { useBase, APPLICATION_STEPS, LEASE_STEPS, LISTING_STEPS, labelOf } from '../common';
 
@@ -91,15 +91,18 @@ Temporary password: ${issued.password}`)}>Copy both</Button></div>
   <ConfirmDialog open={confirm} title={`Archive ${existing?.name ?? 'this owner'}?`} body="The owner is hidden from lists and pickers. Past statements and records are kept. An owner with properties can’t be archived." confirmLabel="Archive" tone="danger" loading={archive.isPending} onClose={() => setConfirm(false)} onConfirm={() => archive.mutate(undefined as never)} /></>);
 }
 
+/** One entry per non-empty line. */
+const lines = (s: string) => String(s ?? '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+
 function AddProperty({ open, onClose, onNeedOwner, existing }: { open: boolean; onClose: () => void; onNeedOwner: () => void; existing?: any }) {
   const { can: canDo } = useSession();
   // Only whether any owner exists is needed here; the owner is chosen by searching, never from a full list.
   const { data: ownerCount } = useApi<any>(canDo('OWNER:VIEW') ? '/api/leasing/owners?page=1&size=1' : null);
   const noOwners = !!ownerCount && ownerCount.total === 0;
-  const blank = { ownerId: '', name: '', street: '', city: '', state: 'TX', zip: '', type: 'MULTIFAMILY', yearBuilt: '' };
+  const blank = { ownerId: '', name: '', street: '', city: '', state: 'TX', zip: '', type: 'MULTIFAMILY', yearBuilt: '', amenities: '' };
   const [f, setF] = useState<any>(blank);
-  useEffect(() => { if (open) setF(existing ? { ownerId: existing.owner_id, name: existing.name ?? '', street: existing.street ?? '', city: existing.city ?? '', state: existing.state ?? 'TX', zip: existing.zip ?? '', type: existing.type ?? 'MULTIFAMILY', yearBuilt: existing.year_built ? String(existing.year_built) : '' } : blank); }, [open, existing?.id]);
-  const save = useAction(() => (existing ? api.put(`/api/leasing/properties/${existing.id}`, { name: f.name, street: f.street, city: f.city, state: f.state, zip: f.zip, type: f.type, yearBuilt: num(f.yearBuilt) }) : api.post('/api/leasing/properties', { ...f, yearBuilt: num(f.yearBuilt) })),
+  useEffect(() => { if (open) setF(existing ? { ownerId: existing.owner_id, name: existing.name ?? '', street: existing.street ?? '', city: existing.city ?? '', state: existing.state ?? 'TX', zip: existing.zip ?? '', type: existing.type ?? 'MULTIFAMILY', yearBuilt: existing.year_built ? String(existing.year_built) : '', amenities: (Array.isArray(existing.amenities) ? existing.amenities : []).join('\n') } : blank); }, [open, existing?.id]);
+  const save = useAction(() => (existing ? api.put(`/api/leasing/properties/${existing.id}`, { name: f.name, street: f.street, city: f.city, state: f.state, zip: f.zip, type: f.type, yearBuilt: num(f.yearBuilt), amenities: lines(f.amenities) }) : api.post('/api/leasing/properties', { ...f, yearBuilt: num(f.yearBuilt), amenities: lines(f.amenities) })),
     { success: existing ? 'Property updated' : 'Property added', invalidate: ['/api/leasing/properties', '/api/leasing/owners'], onSuccess: () => { setF(blank); onClose(); } });
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const ready = f.ownerId && f.name.trim() && f.street.trim() && f.city.trim() && f.zip.trim();
@@ -120,6 +123,7 @@ function AddProperty({ open, onClose, onNeedOwner, existing }: { open: boolean; 
     <Field label="ZIP code" required><Input value={f.zip} maxLength={10} onChange={set('zip')} /></Field>
     <Field label="Type"><Select value={f.type} onChange={set('type')}><option value="MULTIFAMILY">Multifamily</option><option value="SINGLE_FAMILY">Single family</option><option value="CONDO">Condo</option><option value="TOWNHOME">Townhome</option><option value="COMMERCIAL">Commercial</option></Select></Field>
     <Field label="Year built"><Input type="number" value={f.yearBuilt} onChange={set('yearBuilt')} /></Field>
+    <div className="sm:col-span-2"><Field label="Amenities" hint="One per line, for example Covered parking, Pool, Pets welcome. They show with an icon on the public listing."><Textarea rows={3} value={f.amenities} onChange={set('amenities')} /></Field></div>
   </AddDialog>
   <ConfirmDialog open={confirm} title={`Archive ${existing?.name ?? 'this property'}?`} body="The property and its vacant units are hidden. Leases, invoices and history are kept. It can’t be archived while a unit is occupied or has an open listing." confirmLabel="Archive" tone="danger" loading={archive.isPending} onClose={() => setConfirm(false)} onConfirm={() => archive.mutate(undefined as never)} /></>);
 }
@@ -176,10 +180,12 @@ function Properties({ embedded }: { embedded?: boolean }) {
   const { can } = useSession();
   const [adding, setAdding] = useState<'property' | 'owner' | 'unit' | null>(null);
   const [editing, setEditing] = useState<any>(null);
+  const [reviewing, setReviewing] = useState<any>(null);
   const cols: Column<any>[] = [
     { key: 'name', header: 'Property', render: (p) => (<div><QuickLink kind="property" id={p.id}>{p.name}</QuickLink><div className="text-xs text-graphite-500">{p.street}, {p.city}, {p.state}</div></div>) },
     { key: 'owner_name', header: 'Owner', hideOnMobile: true, render: (p) => <QuickLink kind="owner" id={p.owner_id} className="font-medium">{p.owner_name}</QuickLink> },
     { key: 'units', header: 'Units', align: 'right' },
+    { key: 'rating_avg', header: 'Resident rating', hideOnMobile: true, value: (p) => Number(p.rating_avg ?? 0), render: (p) => <button type="button" aria-label="Show resident ratings" title={`Resident ratings for ${p.name}`} className="rounded hover:bg-limestone-100" onClick={(e) => { e.stopPropagation(); setReviewing(p); }}><Stars value={p.rating_avg} count={p.rating_count} /></button> },
     { key: 'vacant', header: 'Vacant', align: 'right', render: (p) => (p.vacant ? <Badge tone="warn">{p.vacant}</Badge> : '0') },
     { key: 'rent_roll', header: 'Rent roll', align: 'right', value: (p) => Number(p.rent_roll), render: (p) => fmt.usd(p.rent_roll) },
     { key: 'live_listings', header: 'Live listings', align: 'right', hideOnMobile: true },
@@ -190,7 +196,8 @@ function Properties({ embedded }: { embedded?: boolean }) {
       empty={{ title: 'No properties yet', body: add ? 'Add the owner, then the property, then its units.' : undefined, action: add ? <Button variant="primary" onClick={() => setAdding('property')}>Add your first property</Button> : undefined } as any} />
     <ArchivedList kind="property" perm="PROPERTY:DELETE" />
     {add && <><AddProperty open={adding === 'property'} onClose={() => setAdding(null)} onNeedOwner={() => setAdding('owner')} />{can('OWNER:CREATE') && <AddOwner open={adding === 'owner'} onClose={() => setAdding(null)} />}<AddUnit open={adding === 'unit'} onClose={() => setAdding(null)} />
-      <AddProperty open={!!editing} existing={editing} onClose={() => setEditing(null)} onNeedOwner={() => undefined} /></>}</Panel>);
+      <AddProperty open={!!editing} existing={editing} onClose={() => setEditing(null)} onNeedOwner={() => undefined} /></>}
+    {reviewing && <ReviewsDrawer title={reviewing.name} subtitle="What residents say about this property" endpoint={`/api/leasing/reviews/PROPERTY/${reviewing.id}`} onClose={() => setReviewing(null)} />}</Panel>);
   return embedded ? t : <><PageHeader title="Properties" /><SubNav />{t}</>;
 }
 
@@ -199,10 +206,12 @@ function Units() {
   const { can } = useSession();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [reviewing, setReviewing] = useState<any>(null);
   const cols: Column<any>[] = [
     { key: 'property_name', header: 'Property', render: (u) => <QuickLink kind="property" id={u.property_id}>{u.property_name}</QuickLink> },
     { key: 'number', header: 'Unit', render: (u) => <QuickLink kind="unit" id={u.id}>{u.number}</QuickLink> },
     { key: 'status', header: 'Status', render: (u) => <StatusPill status={u.status} /> },
+    { key: 'rating_avg', header: 'Resident rating', hideOnMobile: true, value: (u) => Number(u.rating_avg ?? 0), render: (u) => <button type="button" aria-label="Show resident ratings" title={`Resident ratings for ${u.property_name} ${u.number}`} className="rounded hover:bg-limestone-100" onClick={(e) => { e.stopPropagation(); setReviewing(u); }}><Stars value={u.rating_avg} count={u.rating_count} /></button> },
     { key: 'beds', header: 'Beds', align: 'right' },
     { key: 'baths', header: 'Baths', align: 'right', hideOnMobile: true },
     { key: 'sqft', header: 'Sq ft', align: 'right', hideOnMobile: true },
@@ -215,7 +224,8 @@ function Units() {
       <DataTable rows={data} server={server} columns={cols} rowKey={(u) => u.id} loading={isLoading} exportName="units" onRowClick={(u) => can('PROPERTY:EDIT') && setEditing(u)} empty={{ title: 'No units yet', body: can('PROPERTY:CREATE') ? 'Add a property first, then its units.' : undefined } as any} />
       <ArchivedList kind="unit" perm="PROPERTY:DELETE" />
       {can('PROPERTY:CREATE') && <AddUnit open={adding} onClose={() => setAdding(false)} />}
-      {can('PROPERTY:EDIT') && <AddUnit open={!!editing} existing={editing} onClose={() => setEditing(null)} />}</Panel></>);
+      {can('PROPERTY:EDIT') && <AddUnit open={!!editing} existing={editing} onClose={() => setEditing(null)} />}
+      {reviewing && <ReviewsDrawer title={`${reviewing.property_name} · ${reviewing.number}`} subtitle="What residents say about this unit" endpoint={`/api/leasing/reviews/UNIT/${reviewing.id}`} onClose={() => setReviewing(null)} />}</Panel></>);
 }
 
 function Owners() {
@@ -273,7 +283,7 @@ function Listings() {
 
 function ListingDetail() {
   const { id } = useParams(); const base = useBase(); const nav = useNavigate();
-  const { data: l, isLoading } = useApi<any>(`/api/leasing/listings/${id}`);
+  const { data: l, isLoading, error } = useApi<any>(`/api/leasing/listings/${id}`, { retry: false });
   const [rent, setRent] = useState('');
   const refresh = ['/api/leasing/listings'];
   const assist = useAction(() => api.post<any>(`/api/leasing/listings/${id}/ai-assist`, {}), { success: 'AI draft applied', invalidate: refresh });
@@ -282,6 +292,7 @@ function ListingDetail() {
   const [delAsk, setDelAsk] = useState(false);
   const remove = useAction(() => api.del(`/api/leasing/listings/${id}`), { success: 'Draft deleted', invalidate: refresh, onSuccess: () => { setDelAsk(false); nav(`${base}/listings`); } });
   const { can } = useSession();
+  if (error) return <NotFoundState what="listing" back={<Link to={`${base}/listings`}><Button>Back to listings</Button></Link>} />;
   if (isLoading || !l) return <Skeleton className="h-96" />;
   const rs = l.rent_suggestion;
   return (<>
@@ -289,7 +300,7 @@ function ListingDetail() {
       meta={<><StatusPill status={l.status} /><span><QuickLink kind="property" id={l.property_id}>{l.property_name}</QuickLink> · Unit {l.unit_number}</span></>}
       actions={<>{l.status === 'DRAFT' && can('LISTING:DELETE') && <Button variant="quiet" onClick={() => setDelAsk(true)}>Delete draft</Button>}<Button icon={<Sparkles size={14} />} loading={assist.isPending} onClick={() => assist.mutate(undefined)}>Draft with AI</Button><ActionBar actions={l.actions} loading={act.isPending} primary={['PUBLISH', 'APPROVE']} onAction={(a, reason) => act.mutate({ a, reason })} /></>} />
     <div className="mb-6"><WorkflowTrack steps={LISTING_STEPS} current={l.status} /></div>
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6">
         <Panel title="Description"><p className="max-w-[70ch] leading-relaxed text-graphite-800">{l.description}</p>{l.ai_written && <p className="mt-3 text-xs text-graphite-500">Written with AI and reviewed by your team before publishing.</p>}</Panel>
         <Panel title="Unit"><KeyValues cols={3} items={[{ label: 'Bedrooms', value: l.beds }, { label: 'Bathrooms', value: l.baths }, { label: 'Size', value: `${l.sqft} sqft` }, { label: 'Rent', value: fmt.usd(l.rent) }, { label: 'Market rent', value: fmt.usd(l.market_rent) }, { label: 'Views / enquiries', value: `${l.views} / ${l.enquiries}` }]} /></Panel>
@@ -353,7 +364,7 @@ function Applications() {
 
 function ApplicationDetail() {
   const { id } = useParams(); const base = useBase(); const nav = useNavigate();
-  const { data: a, isLoading } = useApi<any>(`/api/leasing/applications/${id}`);
+  const { data: a, isLoading, error } = useApi<any>(`/api/leasing/applications/${id}`, { retry: false });
   const inv = ['/api/leasing/applications'];
   const screen = useAction(() => api.post(`/api/leasing/applications/${id}/screen`, {}), { success: 'Screening complete', invalidate: inv });
   const act = useAction((v: { a: string; reason?: string }) => api.post(`/api/leasing/applications/${id}/actions/${v.a}`, { reason: v.reason }), { success: 'Application updated', invalidate: inv });
@@ -372,6 +383,7 @@ function ApplicationDetail() {
       const url = `${window.location.origin}${r.path}`;
       try { await navigator.clipboard.writeText(url); toast('Upload link copied. Send it to the applicant.'); } catch { window.prompt('Copy this link and send it to the applicant', url); }
     } });
+  if (error) return <NotFoundState what="application" back={<Link to={`${base}/applications`}><Button>Back to applications</Button></Link>} />;
   if (isLoading || !a) return <Skeleton className="h-96" />;
   const s = a.screening;
   const canScreen = ['SUBMITTED', 'DOCS_PENDING'].includes(a.status);
@@ -383,7 +395,7 @@ function ApplicationDetail() {
         {a.status === 'APPROVED' && !a.lease && <Button variant="primary" onClick={openLease}>Create lease</Button>}
         {a.lease && <Link to={`${base}/leases/${a.lease.id}`}><Button>Open lease</Button></Link>}</>} />
     <div className="mb-6"><WorkflowTrack steps={APPLICATION_STEPS} current={a.status} /></div>
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
       <div className="space-y-6">
         <Panel title="Applicant"><KeyValues cols={3} items={[
           { label: 'Email', value: a.applicant_email }, { label: 'Monthly income', value: fmt.usd(a.monthly_income) }, { label: 'Employer', value: a.employer },
@@ -426,6 +438,21 @@ function Leases() {
   return (<><PageHeader title="Leases" /><SubNav /><Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(l) => l.id} loading={isLoading} onRowClick={(l) => nav(`${base}/leases/${l.id}`)} initialSort={{ key: 'end_date', dir: 'asc' }} /></Panel></>);
 }
 
+/** A resident rates the property and the unit they live in, and can change it later. */
+function RateYourHome() {
+  const { data, refetch } = useApi<any>('/api/leasing/reviews/mine');
+  const save = useAction((v: { subjectType: string; subjectId: string; stars: number; comment: string }) => api.put('/api/leasing/reviews', v), { success: 'Thank you. Your rating is saved.', onSuccess: () => refetch() });
+  if (!data || (!data.property && !data.unit)) return null;
+  return (<Panel title="Rate your home" description="Tell us how it is to live here. Your property team and the owner read this to make the place better.">
+    <div className="space-y-5">
+      {[data.property, data.unit].filter(Boolean).map((s: any) => (
+        <RatingForm key={`${s.type}-${s.id}-${s.review?.updated_at ?? 'new'}`} label={`Rate ${s.name}`} prompt={s.type === 'PROPERTY' ? `The property: ${s.name}` : `Your home: ${s.name}`} initial={s.review} saving={save.isPending}
+          onSave={(stars, comment) => save.mutate({ subjectType: s.type, subjectId: s.id, stars, comment })} />
+      ))}
+    </div>
+  </Panel>);
+}
+
 function LeaseView({ mine }: { mine?: boolean }) {
   const params = useParams(); const base = useBase();
   const path = mine ? '/api/leasing/leases/mine' : `/api/leasing/leases/${params.id}`;
@@ -445,7 +472,7 @@ function LeaseView({ mine }: { mine?: boolean }) {
       actions={!mine ? <>{l.status === 'ACTIVE' && <Button loading={renew.isPending} onClick={() => renew.mutate(undefined)}>Prepare renewal</Button>}
         <ActionBar actions={l.actions} loading={act.isPending} primary={['SEND', 'COUNTERSIGN']} onAction={(a, reason) => (a === 'TENANT_SIGN' ? setSignFor(true) : act.mutate({ a, reason }))} /></> : undefined} />
     <div className="mb-6"><WorkflowTrack steps={LEASE_STEPS} current={l.status} /></div>
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
       <div className="space-y-6">
         <Panel title="Lease agreement"><pre className="max-h-[560px] overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed text-graphite-800">{l.document_text}</pre></Panel>
         <DocumentsPanel entityType="LEASE" entityId={l.id} title="Lease documents" description="The signed lease, addenda, insurance and inspections." />
@@ -453,6 +480,7 @@ function LeaseView({ mine }: { mine?: boolean }) {
       <div className="space-y-6">
         <Panel title="Terms"><KeyValues cols={1} items={[{ label: 'Rent', value: fmt.usd(l.rent) }, { label: 'Deposit', value: fmt.usd(l.deposit) }, { label: 'Term', value: `${fmt.date(l.start_date)} to ${fmt.date(l.end_date)}` }, { label: 'State', value: l.state },
           { label: 'Tenant signed', value: l.tenant_signed_at ? fmt.date(l.tenant_signed_at) : 'Not yet' }, { label: 'Countersigned', value: l.manager_signed_at ? fmt.date(l.manager_signed_at) : 'Not yet' }]} /></Panel>
+        {mine && !canSign && l.status !== 'DRAFT' && l.status !== 'SENT' && <RateYourHome />}
         {canSign && <Panel title="Sign your lease" tone="tinted"><Field label={`Type your full legal name: ${l.tenant_name}`}><Input value={sig} onChange={(e) => setSig(e.target.value)} /></Field>
           <Button className="mt-3 w-full" variant="primary" disabled={!sig} loading={act.isPending} onClick={() => act.mutate({ a: 'TENANT_SIGN', body: { signature: sig } })}>Sign lease</Button></Panel>}
         {rn && <AiInsight title="Renewal offer" confidence={0.8}>{typeof rn === 'string' ? rn : JSON.stringify(rn)}</AiInsight>}
@@ -466,6 +494,7 @@ function LeaseView({ mine }: { mine?: boolean }) {
 }
 
 export function Staff() {
+  const base = useBase();
   return (
     <Routes>
       <Route index element={<Overview />} />
@@ -481,6 +510,7 @@ export function Staff() {
       <Route path="leases" element={<Leases />} />
       <Route path="leases/:id" element={<LeaseView />} />
       <Route path="my-lease" element={<LeaseView mine />} />
+      <Route path="*" element={<NotFoundState what="page" back={<Link to={base}><Button>Back to leasing</Button></Link>} />} />
     </Routes>
   );
 }

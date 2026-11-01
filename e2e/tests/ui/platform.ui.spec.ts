@@ -19,9 +19,12 @@ test.describe('Platform administrator screens', () => {
     await expect(page.getByRole('heading', { name: 'Plans' }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'New plan' })).toBeVisible();
     for (const name of ['Starter', 'Growth', 'Enterprise']) await expect(page.getByText(name).first()).toBeVisible();
-    await page.goto('/app/admin/website');
-    await expect(page.getByRole('heading', { name: 'Website' }).first()).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Enquiries' })).toBeVisible();
+    await page.goto('/app/admin/enquiries');
+    await expect(page.getByRole('heading', { name: 'Enquiries' }).first()).toBeVisible();
+    await page.goto('/app/admin/features');
+    await expect(page.getByRole('heading', { name: 'Features' }).first()).toBeVisible();
+    await page.goto('/app/admin/website'); // the old address still lands on the enquiries
+    await expect(page).toHaveURL(/\/app\/admin\/enquiries/);
     await page.goto('/app/admin/audit');
     await expect(page.getByRole('heading', { name: 'Audit log' }).first()).toBeVisible();
     expect(problems).toEqual([]);

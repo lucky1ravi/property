@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-rout
 import {
   DocumentsPanel,
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Modal, Field, Input, Select, Textarea, KeyValues, Timeline,
-  AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction, QuickLink, ConfirmDialog, usePagedApi, EntityPicker } from '@propertyos/ui';
+  AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, NotFoundState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction, QuickLink, ConfirmDialog, usePagedApi, Stars, ReviewsDrawer, RatingForm, EntityPicker } from '@propertyos/ui';
 
 const BASE = '/app/maintenance';
 const inv = ['/api/maintenance'];
@@ -22,7 +22,7 @@ function List() {
   const cols: Column<any>[] = [
     { key: 'priority', header: 'Priority', width: '110px', render: (w) => <Badge tone={prioTone(w.priority) as any}>{w.priority}</Badge> },
     { key: 'title', header: 'Request', render: (w) => (<div><div className="font-semibold">{w.title}</div><div className="text-xs text-graphite-500"><QuickLink kind="property" id={w.property_id}>{w.property_name}</QuickLink> · <QuickLink kind="unit" id={w.unit_id}>{w.unit_label}</QuickLink></div></div>) },
-    { key: 'status', header: 'Status', render: (w) => <StatusPill status={w.status} /> },
+    { key: 'status', header: 'Status', render: (w) => <StatusPill status={w.status} label={w.status === 'REJECTED' ? 'Declined' : undefined} /> },
     { key: 'vendor_name', header: 'Vendor', hideOnMobile: true, render: (w) => (w.vendor_id ? <QuickLink kind="vendor" id={w.vendor_id}>{w.vendor_name}</QuickLink> : '—') },
     { key: 'sla', header: 'Due', render: (w) => <SlaClock dueAt={w.sla_due_at} done={['COMPLETED', 'VERIFIED', 'CLOSED', 'CANCELLED'].includes(w.status)} /> },
   ];
@@ -55,15 +55,24 @@ function NewRequest({ open, onClose }: { open: boolean; onClose: () => void }) {
     </div></Modal>);
 }
 
+/** A resident or owner rates the vendor who did a finished repair. */
+function RateVendor({ w }: { w: any }) {
+  const save = useAction((v: { stars: number; comment: string }) => api.post(`/api/maintenance/vendors/${w.vendor_id}/reviews`, { workOrderId: w.id, ...v }), { success: 'Thank you. Your rating is saved.' });
+  return (<Panel title="Rate this repair" description={`How was the work by ${w.vendor_name ?? 'the vendor'}?`}>
+    <RatingForm label="Rate this repair" saving={save.isPending} onSave={(stars, comment) => save.mutate({ stars, comment })} saveLabel="Send rating" />
+  </Panel>);
+}
+
 type Dlg = null | { action: WorkflowAction };
 
 function Detail() {
   const { id } = useParams(); const { session } = useSession();
   const staff = personaOf(session) !== 'tenant';
-  const { data: w, isLoading } = useApi<any>(`/api/maintenance/work-orders/${id}`);
+  const { data: w, isLoading, error } = useApi<any>(`/api/maintenance/work-orders/${id}`, { retry: false });
   const [dlg, setDlg] = useState<Dlg>(null); const [v, setV] = useState<any>({}); const [msg, setMsg] = useState(''); const [internal, setInternal] = useState(false);
   const act = useAction((x: { a: string; body: any }) => api.post(`/api/maintenance/work-orders/${id}/actions/${x.a}`, x.body), { success: 'Updated', invalidate: inv, onSuccess: () => { setDlg(null); setV({}); } });
   const post = useAction(() => api.post(`/api/maintenance/work-orders/${id}/comments`, { body: msg, internal }), { success: 'Comment added', invalidate: inv, onSuccess: () => setMsg('') });
+  if (error) return <NotFoundState what="request" back={<Link to={BASE}><Button>Back to requests</Button></Link>} />;
   if (isLoading || !w) return <Skeleton className="h-96" />;
   const t = w.ai_triage;
   const needsForm = ['ASSIGN', 'SCHEDULE', 'COMPLETE', 'VERIFY', 'APPROVE'];
@@ -79,12 +88,12 @@ function Detail() {
   const A = dlg?.action.action;
   return (<>
     <PageHeader title={w.title} back={<Link to={BASE} className="text-sm font-semibold text-federal-900">All requests</Link>}
-      meta={<><Badge tone={prioTone(w.priority) as any}>{w.priority}</Badge><StatusPill status={w.status} /><span><QuickLink kind="property" id={w.property_id}>{w.property_name}</QuickLink> · <QuickLink kind="unit" id={w.unit_id}>{w.unit_label}</QuickLink></span></>}
+      meta={<><Badge tone={prioTone(w.priority) as any}>{w.priority}</Badge><StatusPill status={w.status} label={w.status === 'REJECTED' ? 'Declined' : undefined} /><span><QuickLink kind="property" id={w.property_id}>{w.property_name}</QuickLink> · <QuickLink kind="unit" id={w.unit_id}>{w.unit_label}</QuickLink></span></>}
       actions={<>{(w.actions as WorkflowAction[] ?? []).map((a) => (
         <Button key={a.action} size="sm" variant={/CANCEL|REJECT|DECLINE/.test(a.action) ? 'danger' : ['APPROVE', 'ASSIGN', 'COMPLETE', 'VERIFY'].includes(a.action) ? 'primary' : 'secondary'}
           onClick={() => (needsForm.includes(a.action) || a.requiresReason ? setDlg({ action: a }) : act.mutate({ a: a.action, body: {} }))}>{a.label}</Button>))}</>} />
     <div className="mb-6"><WorkflowTrack steps={STEPS} current={w.status} /></div>
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
       <div className="space-y-6">
         <Panel title="Details"><p className="mb-4 max-w-[70ch] text-graphite-800">{w.description || 'No description provided.'}</p>
           <KeyValues cols={3} items={[{ label: 'Resident', value: <QuickLink kind="tenant" id={w.tenant_id} name={w.tenant_name}>{w.tenant_name}</QuickLink> }, { label: 'Category', value: w.category }, { label: 'Vendor', value: w.vendor_id ? <QuickLink kind="vendor" id={w.vendor_id}>{w.vendor_name}</QuickLink> : 'Not assigned' }, { label: 'Estimate', value: w.estimate ? fmt.usd(w.estimate) : '—' }, { label: 'Permission to enter', value: w.permission_to_enter ? 'Yes' : 'No' }, { label: 'Response due', value: <SlaClock dueAt={w.sla_due_at} done={['COMPLETED', 'VERIFIED', 'CLOSED'].includes(w.status)} /> }]} /></Panel>
@@ -97,6 +106,7 @@ function Detail() {
       <div className="space-y-6">
         {t && <AiInsight title="AI triage" confidence={t.confidence} tone={t.safetyRisk ? 'crit' : 'neutral'} reasons={t.tips}><p>{t.summary}</p><p className="mt-2 text-xs text-graphite-500">{t.guardrail}</p></AiInsight>}
         <DocumentsPanel entityType="WORK_ORDER" entityId={w.id} title="Photos and files" description="Photos, quotes and invoices for this job." compact />
+        {(['tenant', 'owner'] as string[]).includes(personaOf(session)) && ['COMPLETED', 'CLOSED'].includes(w.status) && w.vendor_id && <RateVendor w={w} />}
         <Panel title="History"><Timeline items={w.timeline} /></Panel>
       </div>
     </div>
@@ -150,17 +160,20 @@ function Vendors() {
   const { can } = useSession();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [reviewing, setReviewing] = useState<any>(null);
   const cols: Column<any>[] = [
     { key: 'name', header: 'Vendor', render: (r) => (<div><div className="font-semibold"><QuickLink kind="vendor" id={r.id}>{r.name}</QuickLink></div><div className="text-xs text-graphite-500">{r.contact} · {r.phone}</div></div>) },
     { key: 'active', header: 'Status', render: (r) => (r.active ? <Badge tone="good">Active</Badge> : <Badge tone="neutral">Archived</Badge>) },
     { key: 'trades', header: 'Trades', value: (r) => (r.trades ?? []).join(', ') },
-    { key: 'rating', header: 'Rating', align: 'right', value: (r) => Number(r.rating), render: (r) => `${r.rating} ★` },
+    { key: 'rating_overall', header: 'Rating', value: (r) => Number(r.rating_overall ?? r.rating), render: (r) => <button type="button" aria-label="Show ratings" title={`Ratings for ${r.name}`} className="rounded hover:bg-limestone-100" onClick={(e) => { e.stopPropagation(); setReviewing(r); }}><Stars value={r.rating_overall ?? r.rating} count={r.review_count} /></button> },
     { key: 'jobs_completed', header: 'Jobs', align: 'right', hideOnMobile: true },
     { key: 'avg_job_cost', header: 'Avg. cost', align: 'right', hideOnMobile: true, value: (r) => Number(r.avg_job_cost), render: (r) => fmt.usd(r.avg_job_cost) },
     { key: 'open_jobs', header: 'Open', align: 'right' },
     { key: 'insurance_expires', header: 'Insurance to', hideOnMobile: true, render: (r) => fmt.date(r.insurance_expires) },
   ];
-  return (<><PageHeader title="Vendors" description="Ranked automatically on rating, price, response time and current workload." /><SubNav /><Panel padded={false} actions={can('VENDOR:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add vendor</Button>}><AddVendor open={adding} onClose={() => setAdding(false)} /><AddVendor open={!!editing} existing={editing} onClose={() => setEditing(null)} /><DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => can('VENDOR:EDIT') && setEditing(r)} exportName="vendors" /></Panel></>);
+  return (<><PageHeader title="Vendors" description="Ranked automatically on rating, price, response time and current workload." /><SubNav /><Panel padded={false} actions={can('VENDOR:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add vendor</Button>}><AddVendor open={adding} onClose={() => setAdding(false)} /><AddVendor open={!!editing} existing={editing} onClose={() => setEditing(null)} /><DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => can('VENDOR:EDIT') && setEditing(r)} exportName="vendors" />
+    {reviewing && <ReviewsDrawer title={reviewing.name} subtitle="Ratings from staff, owners and residents" endpoint={`/api/maintenance/vendors/${reviewing.id}/reviews`} onClose={() => setReviewing(null)}
+      rate={{ prompt: `Rate ${reviewing.name}`, send: (stars, comment) => api.post(`/api/maintenance/vendors/${reviewing.id}/reviews`, { stars, comment }) }} />}</Panel></>);
 }
 
 function Recurring() {
@@ -198,6 +211,7 @@ export default function App() {
         <Route path="vendors" element={<Vendors />} />
         <Route path="recurring" element={<Recurring />} />
         <Route path=":id" element={<Detail />} />
+        <Route path="*" element={<NotFoundState what="page" back={<Link to={BASE}><Button>Back to requests</Button></Link>} />} />
       </Routes>
     </MicroApp>
   );

@@ -3,7 +3,8 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        federal: { 950: '#082425', 900: '#0F3D3E', 800: '#165253', 700: '#1F6869', 600: '#2D8183', 300: '#9CC3C1', 200: '#C3DCDA', 100: '#DCEBEA', 50: '#EEF6F5' },
+        // The company's own colour scale: set as CSS variables at run time from its branding, defaults in the shell's index.css.
+        federal: { 950: 'rgb(var(--federal-950) / <alpha-value>)', 900: 'rgb(var(--federal-900) / <alpha-value>)', 800: 'rgb(var(--federal-800) / <alpha-value>)', 700: 'rgb(var(--federal-700) / <alpha-value>)', 600: 'rgb(var(--federal-600) / <alpha-value>)', 300: 'rgb(var(--federal-300) / <alpha-value>)', 200: 'rgb(var(--federal-200) / <alpha-value>)', 100: 'rgb(var(--federal-100) / <alpha-value>)', 50: 'rgb(var(--federal-50) / <alpha-value>)' },
         brick: { 800: '#6E2619', 700: '#842F20', 600: '#A23E2B', 500: '#BC5440', 200: '#EDC3B8', 100: '#F6E2DC', 50: '#FBF1EE' },
         limestone: { 50: '#FAFBFA', 100: '#F5F7F6', 200: '#E8ECEA', 300: '#D5DCD9', 400: '#BCC6C2' },
         graphite: { 950: '#121817', 900: '#1D2524', 800: '#2B3533', 700: '#3A4644', 600: '#4F5B59', 500: '#66726F', 400: '#8A9592', 300: '#B4BDBA' },

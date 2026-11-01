@@ -27,7 +27,7 @@ export function WorkflowTrack({ steps, current, compact }: { steps: { key: strin
           const done = !offPath && i < idx;
           const active = i === idx;
           return (
-            <li key={s.key} className="relative flex flex-1 flex-col items-center text-center">
+            <li key={s.key} className="relative flex min-w-0 flex-1 flex-col items-center text-center">
               {i < steps.length - 1 && (
                 <span className="absolute left-1/2 top-[11px] h-0.5 w-full bg-limestone-300">
                   <motion.span className="block h-full bg-federal-700" initial={false} animate={{ width: done ? '100%' : '0%' }} transition={{ duration: 0.35 }} />
@@ -39,7 +39,7 @@ export function WorkflowTrack({ steps, current, compact }: { steps: { key: strin
                 !done && !active && 'border-limestone-300 bg-white text-graphite-400')}>
                 {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
               </span>
-              {!compact && <span className={clsx('mt-1.5 px-1 text-[11px] font-semibold leading-tight', active ? 'text-federal-900' : done ? 'text-graphite-700' : 'text-graphite-400')}>{s.label}</span>}
+              {!compact && <span className={clsx('mt-1.5 max-w-full break-words px-0 text-[10px] font-semibold leading-tight sm:px-1 sm:text-[11px]', active ? 'text-federal-900' : done ? 'text-graphite-700' : 'text-graphite-400')}>{s.label}</span>}
             </li>
           );
         })}

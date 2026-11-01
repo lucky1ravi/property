@@ -36,7 +36,9 @@ public class PortfolioService {
                        count(u.id) filter (where u.status = 'VACANT') as vacant,
                        coalesce(sum(u.current_rent) filter (where u.status = 'OCCUPIED'), 0) as rent_roll,
                        coalesce(sum(u.market_rent), 0) as market_rent_total,
-                       (select count(*) from leasing.listing l where l.property_id = p.id and l.status = 'LIVE') as live_listings
+                       (select count(*) from leasing.listing l where l.property_id = p.id and l.status = 'LIVE') as live_listings,
+                       (select round(avg(r.stars), 1) from leasing.review r where r.subject_type = 'PROPERTY' and r.subject_id = p.id) as rating_avg,
+                       (select count(*) from leasing.review r where r.subject_type = 'PROPERTY' and r.subject_id = p.id) as rating_count
                 from leasing.property p
                 left join leasing.owner o on o.id = p.owner_id
                 left join leasing.unit u on u.property_id = p.id and u.archived_at is null
@@ -80,7 +82,10 @@ public class PortfolioService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> units(String status, boolean unlisted) {
-        StringBuilder sql = new StringBuilder("select u.*, p.name as property_name, p.street, p.city, p.state from leasing.unit u join leasing.property p on p.id = u.property_id where u.archived_at is null and p.archived_at is null");
+        StringBuilder sql = new StringBuilder("select u.*, p.name as property_name, p.street, p.city, p.state, "
+                + "(select round(avg(r.stars), 1) from leasing.review r where r.subject_type = 'UNIT' and r.subject_id = u.id) as rating_avg, "
+                + "(select count(*) from leasing.review r where r.subject_type = 'UNIT' and r.subject_id = u.id) as rating_count "
+                + "from leasing.unit u join leasing.property p on p.id = u.property_id where u.archived_at is null and p.archived_at is null");
         List<Object> args = new ArrayList<>();
         if (status != null) { sql.append(" and u.status = ?"); args.add(status); }
         if (unlisted) sql.append(" and not exists (select 1 from leasing.listing l where l.unit_id = u.id and l.status <> 'LEASED')");
@@ -207,9 +212,10 @@ public class PortfolioService {
         if (state != null && state.trim().length() != 2) throw ApiException.badRequest("State must be a two-letter code, for example TX.");
         if (db.update("""
                 update leasing.property set name = coalesce(?, name), street = coalesce(?, street), city = coalesce(?, city), state = coalesce(?, state),
-                       zip = coalesce(?, zip), type = coalesce(?, type), year_built = coalesce(?, year_built), updated_at = now() where id = ?""",
+                       zip = coalesce(?, zip), type = coalesce(?, type), year_built = coalesce(?, year_built),
+                       amenities = case when ? then ?::jsonb else amenities end, updated_at = now() where id = ?""",
                 Req.str(b, "name"), Req.str(b, "street"), Req.str(b, "city"), state == null ? null : state.trim().toUpperCase(), Req.str(b, "zip"),
-                Req.str(b, "type"), Req.integer(b, "yearBuilt"), id) == 0)
+                Req.str(b, "type"), Req.integer(b, "yearBuilt"), b.containsKey("amenities"), db.json(Req.strings(b, "amenities")), id) == 0)
             throw ApiException.notFound("Property");
         audit.record("Property", id, "UPDATED", null, null, Map.of("fields", b.keySet().toString()));
     }

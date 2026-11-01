@@ -7,6 +7,7 @@ export * from './lib/toast';
 export * from './lib/hooks';
 export * from './components/primitives';
 export * from './components/layout';
+export * from './components/rating';
 export * from './components/DataTable';
 export * from './components/overlay';
 export * from './components/workflow';

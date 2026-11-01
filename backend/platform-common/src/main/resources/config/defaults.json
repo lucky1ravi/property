@@ -85,8 +85,9 @@
   },
   "branding": {
     "companyName": "",
-    "primaryColor": "#0B2545",
+    "primaryColor": "#0F3D3E",
     "accentColor": "#C8963E",
+    "logoDataUrl": "",
     "portalDomain": "",
     "emailSender": ""
   },

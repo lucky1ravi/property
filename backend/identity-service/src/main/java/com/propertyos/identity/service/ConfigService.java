@@ -154,6 +154,7 @@ public class ConfigService {
     @Transactional
     public ObjectNode updateSection(String section, JsonNode value, String summary) {
         if (!SECTIONS.contains(section)) throw ApiException.badRequest("Unknown configuration section: " + section);
+        if ("branding".equals(section)) checkBranding(value);
         UUID orgId = UserContextHolder.orgId();
         ObjectNode over = overrides(orgId);
         JsonNode before = over.get(section);
@@ -162,10 +163,32 @@ public class ConfigService {
         int version = store.saveConfig(orgId, over.toString(), section,
                 summary == null || summary.isBlank() ? "Updated " + section : summary, by);
         audit.record("Configuration", orgId, "CONFIG_UPDATED", "v" + (version - 1), "v" + version,
-                Map.of("section", section, "before", before == null ? "default" : before.toString(), "after", value.toString()));
+                Map.of("section", section, "before", before == null ? "default" : forAudit(before), "after", forAudit(value)));
         events.publish("ConfigurationChanged", "Organization", orgId, Map.of("section", section, "version", version));
         configClient.invalidate(orgId);
         return effective(orgId);
+    }
+
+    /** The logo is an image stored inside the setting; it is checked here so a wrong file or a huge one never reaches every page of the product. */
+    private static void checkBranding(JsonNode b) {
+        for (String colour : List.of("primaryColor", "accentColor")) {
+            String c = b.path(colour).asText("");
+            if (!c.isEmpty() && !c.matches("#[0-9a-fA-F]{6}")) throw ApiException.badRequest("The " + (colour.startsWith("primary") ? "primary" : "accent") + " colour must be a six-digit code such as #0F3D3E.");
+        }
+        String logo = b.path("logoDataUrl").asText("");
+        if (logo.isEmpty()) return;
+        if (!logo.matches("data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+")) throw ApiException.badRequest("The logo must be a PNG or JPEG picture.");
+        if (logo.length() > 140_000) throw ApiException.badRequest("The logo is too large. Use a PNG or JPEG under 100 KB.");
+    }
+
+    /** Settings history keeps what changed, but not the logo's picture data. */
+    private static String forAudit(JsonNode v) {
+        if (v.isObject() && v.hasNonNull("logoDataUrl") && !v.get("logoDataUrl").asText().isEmpty()) {
+            ObjectNode copy = v.deepCopy();
+            copy.put("logoDataUrl", "(logo picture)");
+            return copy.toString();
+        }
+        return v.toString();
     }
 
     /**
