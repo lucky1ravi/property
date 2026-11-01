@@ -42,9 +42,9 @@ public class FeatureGateFilter extends OncePerRequestFilter {
         this.mapper = mapper;
     }
 
-    /** The only APIs a PropertyOS operator may call: accounts, companies, configuration, audit, their own alerts, and the delivery log (counts and outcomes only, no message text). Never a company's business data. */
+    /** The only APIs a PropertyOS operator may call: accounts, companies, configuration, audit, their own alerts, the delivery log (counts and outcomes only, no message text) and the platform's amenity list. Never a company's business data. */
     private static boolean operatorPath(String p) {
-        return p.startsWith("/api/identity/") || p.startsWith("/api/workflow/notifications") || p.startsWith("/api/workflow/platform/") || p.equals("/api/ai/status");
+        return p.startsWith("/api/identity/") || p.startsWith("/api/workflow/notifications") || p.startsWith("/api/workflow/platform/") || p.startsWith("/api/leasing/platform/") || p.equals("/api/ai/status");
     }
 
     @Override

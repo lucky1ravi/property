@@ -31,6 +31,8 @@ export interface PickerSource<T> {
   tag?: (item: T) => string | null | undefined;
   /** Show a photo/initials avatar, for people. */
   avatar?: boolean;
+  /** A small picture before the label, such as an amenity's icon. */
+  icon?: (item: T) => ReactNode;
   /** Text under the search box before anything is typed. */
   hint?: string;
   /** Search over this text in the browser when the endpoint returns a plain array. Defaults to label + sub. */
@@ -103,6 +105,7 @@ function Results<T>({ src, found, q, picked, onPick, active, setActive, listId }
               onMouseEnter={() => setActive(i)} onClick={() => onPick(item)}
               className={clsx('flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm', i === active ? 'bg-federal-50' : '')}>
               {src.avatar && <Avatar name={src.label(item)} size={28} seed={id} />}
+              {src.icon && <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-federal-50 text-federal-800">{src.icon(item)}</span>}
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold text-graphite-900">{src.label(item)}</span>
                 {sub && <span className="block truncate text-xs text-graphite-500">{sub}</span>}
@@ -212,6 +215,7 @@ export function MultiEntityPicker<T>({ value, onChange, selected, placeholder = 
           {value.map((id) => { const item = known.current.get(id); return (
             <li key={id} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-limestone-300 bg-limestone-50 py-0.5 pl-1 pr-1.5 text-sm">
               {src.avatar && item && <Avatar name={src.label(item)} size={20} seed={id} />}
+              {src.icon && item && <span className="text-federal-800">{src.icon(item)}</span>}
               <span className="truncate font-medium">{item ? src.label(item) : id}</span>
               {item && src.tag?.(item) && <span className="text-xs text-graphite-500">{src.tag(item)}</span>}
               {!disabled && <button type="button" aria-label={`Remove ${item ? src.label(item) : 'this one'}`} className="rounded-full p-0.5 text-graphite-400 hover:bg-limestone-200 hover:text-graphite-900" onClick={() => remove(id)}><X className="h-3.5 w-3.5" /></button>}

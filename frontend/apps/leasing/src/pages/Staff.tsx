@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-rout
 import { Sparkles } from 'lucide-react';
 import {
   PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Tabs, KeyValues, ActionBar, WorkflowTrack, Timeline, Field, Input,
-  Modal, Select, ConfirmDialog, AiInsight, ConfidenceMeter, EmptyState, NotFoundState, Skeleton, Section, Stars, ReviewsDrawer, RatingForm, useApi, useAction, api, fmt, useSession, Textarea, Badge, EntityPicker, errorText, QuickLink, PersonCell, DocumentsPanel, toast, usePagedApi
+  Modal, Select, ConfirmDialog, AiInsight, ConfidenceMeter, EmptyState, NotFoundState, Skeleton, Section, Stars, ReviewsDrawer, RatingForm, useApi, useAction, api, fmt, useSession, Textarea, Badge, EntityPicker, AmenityPicker, AmenityManager, errorText, QuickLink, PersonCell, DocumentsPanel, toast, usePagedApi
 } from '@propertyos/ui';
 import { useBase, APPLICATION_STEPS, LEASE_STEPS, LISTING_STEPS, labelOf } from '../common';
 
@@ -92,17 +92,16 @@ Temporary password: ${issued.password}`)}>Copy both</Button></div>
 }
 
 /** One entry per non-empty line. */
-const lines = (s: string) => String(s ?? '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
 
 function AddProperty({ open, onClose, onNeedOwner, existing }: { open: boolean; onClose: () => void; onNeedOwner: () => void; existing?: any }) {
   const { can: canDo } = useSession();
   // Only whether any owner exists is needed here; the owner is chosen by searching, never from a full list.
   const { data: ownerCount } = useApi<any>(canDo('OWNER:VIEW') ? '/api/leasing/owners?page=1&size=1' : null);
   const noOwners = !!ownerCount && ownerCount.total === 0;
-  const blank = { ownerId: '', name: '', street: '', city: '', state: 'TX', zip: '', type: 'MULTIFAMILY', yearBuilt: '', amenities: '' };
+  const blank = { ownerId: '', name: '', street: '', city: '', state: 'TX', zip: '', type: 'MULTIFAMILY', yearBuilt: '', amenities: [] as string[] };
   const [f, setF] = useState<any>(blank);
-  useEffect(() => { if (open) setF(existing ? { ownerId: existing.owner_id, name: existing.name ?? '', street: existing.street ?? '', city: existing.city ?? '', state: existing.state ?? 'TX', zip: existing.zip ?? '', type: existing.type ?? 'MULTIFAMILY', yearBuilt: existing.year_built ? String(existing.year_built) : '', amenities: (Array.isArray(existing.amenities) ? existing.amenities : []).join('\n') } : blank); }, [open, existing?.id]);
-  const save = useAction(() => (existing ? api.put(`/api/leasing/properties/${existing.id}`, { name: f.name, street: f.street, city: f.city, state: f.state, zip: f.zip, type: f.type, yearBuilt: num(f.yearBuilt), amenities: lines(f.amenities) }) : api.post('/api/leasing/properties', { ...f, yearBuilt: num(f.yearBuilt), amenities: lines(f.amenities) })),
+  useEffect(() => { if (open) setF(existing ? { ownerId: existing.owner_id, name: existing.name ?? '', street: existing.street ?? '', city: existing.city ?? '', state: existing.state ?? 'TX', zip: existing.zip ?? '', type: existing.type ?? 'MULTIFAMILY', yearBuilt: existing.year_built ? String(existing.year_built) : '', amenities: Array.isArray(existing.amenities) ? existing.amenities : [] } : blank); }, [open, existing?.id]);
+  const save = useAction(() => (existing ? api.put(`/api/leasing/properties/${existing.id}`, { name: f.name, street: f.street, city: f.city, state: f.state, zip: f.zip, type: f.type, yearBuilt: num(f.yearBuilt), amenities: f.amenities }) : api.post('/api/leasing/properties', { ...f, yearBuilt: num(f.yearBuilt), amenities: f.amenities })),
     { success: existing ? 'Property updated' : 'Property added', invalidate: ['/api/leasing/properties', '/api/leasing/owners'], onSuccess: () => { setF(blank); onClose(); } });
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const ready = f.ownerId && f.name.trim() && f.street.trim() && f.city.trim() && f.zip.trim();
@@ -123,7 +122,7 @@ function AddProperty({ open, onClose, onNeedOwner, existing }: { open: boolean; 
     <Field label="ZIP code" required><Input value={f.zip} maxLength={10} onChange={set('zip')} /></Field>
     <Field label="Type"><Select value={f.type} onChange={set('type')}><option value="MULTIFAMILY">Multifamily</option><option value="SINGLE_FAMILY">Single family</option><option value="CONDO">Condo</option><option value="TOWNHOME">Townhome</option><option value="COMMERCIAL">Commercial</option></Select></Field>
     <Field label="Year built"><Input type="number" value={f.yearBuilt} onChange={set('yearBuilt')} /></Field>
-    <div className="sm:col-span-2"><Field label="Amenities" hint="One per line, for example Covered parking, Pool, Pets welcome. They show with an icon on the public listing."><Textarea rows={3} value={f.amenities} onChange={set('amenities')} /></Field></div>
+    <div className="sm:col-span-2"><Field label="Amenities" hint="Search and pick. Each shows with its icon on the public listing."><AmenityPicker value={f.amenities} onChange={(a) => setF({ ...f, amenities: a })} canAdd={can('PROPERTY:EDIT')} /></Field></div>
   </AddDialog>
   <ConfirmDialog open={confirm} title={`Archive ${existing?.name ?? 'this property'}?`} body="The property and its vacant units are hidden. Leases, invoices and history are kept. It can’t be archived while a unit is occupied or has an open listing." confirmLabel="Archive" tone="danger" loading={archive.isPending} onClose={() => setConfirm(false)} onConfirm={() => archive.mutate(undefined as never)} /></>);
 }
@@ -501,6 +500,7 @@ export function Staff() {
       <Route path="properties" element={<Properties />} />
       <Route path="units" element={<Units />} />
       <Route path="owners" element={<Owners />} />
+      <Route path="amenities" element={<AmenityManager />} />
       <Route path="listings" element={<Listings />} />
       <Route path="listings/:id" element={<ListingDetail />} />
       <Route path="leads" element={<Leads />} />

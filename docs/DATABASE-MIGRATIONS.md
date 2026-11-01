@@ -25,9 +25,10 @@ of every service keeps working against the new database. That makes a rollback o
 | identity | `V13__platform_billing.sql` | Creates `platform_invoice`, `platform_payment` and the invoice number sequence: what companies pay PropertyOS | New tables only |
 | identity | `V14__branding_placeholder_colour.sql` | Removes the old placeholder primary colour `#0B2545` from `org_config` and `config_history`, so no company is recoloured navy overnight by the new "the product takes the company's colour" feature. A company that chose another colour is untouched | Updates only the companies that still hold the placeholder |
 | leasing | `V4__reviews.sql` | Creates `review` (residents' ratings of their property and unit) with row-level security: staff see their properties' ratings, owners their own properties', a resident only their own | New table only |
+| leasing | `V5__amenities.sql` | Creates `amenity` (the catalogue of amenities with icons: the platform's shared list and each company's own) with row-level security, and seeds 26 platform-wide amenities. Properties keep storing amenity names, so existing properties and listings are unchanged | New table, 26 seeded rows |
 | maintenance | `V2__vendor_reviews.sql` | Creates `vendor_review` (ratings of vendors by staff, owners and residents) with row-level security | New table only |
 
-No other service has a new migration in this release. The reports are queries over existing tables.
+No other service has a new migration in this release. The reports are queries over existing tables. The amenity migration changes no existing rows; the public search reads the existing listing, property and unit tables.
 
 ### Settings with a data effect
 
@@ -55,10 +56,14 @@ union all select 'maintenance', version, description, success from maintenance.f
 order by 1, 2;
 
 -- the new tables exist, are protected by row-level security, and the application role can use them
-select schemaname, tablename, rowsecurity from pg_tables where tablename in ('review', 'vendor_review');
+select schemaname, tablename, rowsecurity from pg_tables where tablename in ('review', 'vendor_review', 'amenity');
 select has_table_privilege('propertyos_app', 'leasing.review', 'insert') as leasing_review,
+       has_table_privilege('propertyos_app', 'leasing.amenity', 'insert') as leasing_amenity,
        has_table_privilege('propertyos_app', 'maintenance.vendor_review', 'insert') as maintenance_vendor_review,
        has_table_privilege('propertyos_app', 'identity.platform_invoice', 'insert') as platform_invoice;
+
+-- the platform amenity list was seeded
+select count(*) as platform_amenities from leasing.amenity where org_id is null;   -- expect 26 or more
 
 -- the placeholder colour is gone
 select count(*) as still_navy from identity.org_config where config -> 'branding' ->> 'primaryColor' = '#0B2545';   -- expect 0
@@ -77,7 +82,7 @@ Then, as the platform administrator, open **Service health** (all eight lines ru
 node scripts/check-migrations.js
 ```
 
-prints the inventory. At the time of writing: identity 14, billing 3, document 4, leasing 4, maintenance 2, workflow 2, ai 1.
+prints the inventory. At the time of writing: identity 14, billing 3, document 4, leasing 5, maintenance 2, workflow 2, ai 1.
 
 ## Multiple instances
 

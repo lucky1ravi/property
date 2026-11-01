@@ -1,5 +1,6 @@
 package com.propertyos.leasing.web;
 
+import com.propertyos.leasing.service.PublicCatalog;
 import com.propertyos.leasing.service.PublicService;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,19 +12,31 @@ import java.util.UUID;
 @RequestMapping("/api/leasing/public")
 public class PublicController {
     private final PublicService service;
+    private final PublicCatalog catalog;
 
-    public PublicController(PublicService service) {
+    public PublicController(PublicService service, PublicCatalog catalog) {
         this.service = service;
+        this.catalog = catalog;
     }
 
     /**
-     * Public: lists live rentals, filtered by city, bedrooms and maximum rent.
+     * Public: lists live rentals one home at a time. Filters: keyword, city, state, type, beds, baths, minRent, maxRent, minSqft, maxSqft,
+     * availableBy and amenities (comma separated, all required). Pass page, size, sort and dir to get a page.
      */
     @GetMapping("/listings")
-    public Object listings(@RequestParam(required = false) String city, @RequestParam(required = false) Integer beds,
-                           @RequestParam(required = false) Integer maxRent) {
-        return service.listings(city, beds, maxRent);
-    }
+    public Object listings(@RequestParam Map<String, String> q) { return catalog.homes(q); }
+
+    /**
+     * Public: lists properties that have matching homes available, each with those homes inside it. Same filters and paging as the homes list.
+     */
+    @GetMapping("/properties")
+    public Object properties(@RequestParam Map<String, String> q) { return catalog.properties(q); }
+
+    /**
+     * Public: the choices worth offering in the filters (cities, types, amenities with icons, rent and size ranges).
+     */
+    @GetMapping("/facets")
+    public Object facets() { return catalog.facets(); }
 
     /**
      * Public: returns one live rental.
