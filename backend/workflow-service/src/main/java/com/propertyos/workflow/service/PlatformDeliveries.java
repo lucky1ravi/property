@@ -35,7 +35,7 @@ public class PlatformDeliveries {
     public List<Map<String, Object>> list(UUID orgId) {
         List<Map<String, Object>> rows = db.page("""
                 select id, org_id, channel,
-                       case when recipient like '%@%' then regexp_replace(recipient, '^(.)[^@]*@', '\1***@') else regexp_replace(recipient, '.(?=.{2}$)', '*', 'g') end as recipient,
+                       case when recipient like '%@%' then regexp_replace(recipient, '^(.)[^@]*@', '\\1***@') else regexp_replace(recipient, '.(?=.{2}$)', '*', 'g') end as recipient,
                        status, note, created_at
                 from workflow.delivery""" + (orgId == null ? "" : " where org_id = ?") + " order by created_at desc", orgId == null ? new Object[0] : new Object[]{orgId});
         Map<String, String> names = names(rows);

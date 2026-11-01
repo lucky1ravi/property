@@ -94,7 +94,7 @@ class PlatformConsoleIT {
         assertTrue(mine != null, "the message about the enquiry appears in the delivery log");
         assertEquals("PropertyOS Platform", mine.path("org_name").asText(), "the log names the company each message was sent for");
         assertTrue(Set.of("EMAIL", "SMS").contains(mine.path("channel").asText()));
-        assertTrue(mine.path("recipient").asText().contains("*"), "recipients are masked: " + mine.path("recipient").asText());
+        assertTrue(mine.path("recipient").asText().matches("^[A-Za-z0-9]\\*\\*\\*@[^*]+$|^\\*+\\d{2}$"), "recipients are masked to the first letter and the domain: " + mine.path("recipient").asText());
         assertTrue(!mine.has("subject") && !mine.has("body"), "what a message said is never shown to the operator");
 
         // For support work the whole recipient and the subject can be opened with a reason, which the company can read in its audit log.

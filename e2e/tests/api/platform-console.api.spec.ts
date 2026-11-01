@@ -50,7 +50,7 @@ test.describe('Platform operator console', () => {
     const d = rows(found).find((x: any) => new Date(x.created_at).getTime() >= startedAt);
     expect(d.org_name).toBe('PropertyOS Platform');
     expect(['EMAIL', 'SMS']).toContain(d.channel);
-    expect(d.recipient, 'recipients are masked').toContain('*');
+    expect(d.recipient, 'masked to the first letter and the domain, with no stray characters').toMatch(/^[A-Za-z0-9]\*\*\*@[^*]+$|^\*+\d{2}$/);
     expect(d.subject, 'the operator never sees what a message said').toBeUndefined();
     expect(d.body).toBeUndefined();
     const page = (await platform.get('/api/workflow/platform/deliveries?page=1&size=2')).body;
