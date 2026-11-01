@@ -216,15 +216,19 @@ test.describe('The listing page', () => {
     expect(over).toBeLessThanOrEqual(1);
   });
 
-  test('[LIST-02] the amenities can be entered when a property is added or edited', async ({ pageWithToken }) => {
+  test('[LIST-02] amenities are chosen from a searchable list when a property is edited', async ({ pageWithToken }) => {
     const c = await onboardCompany();
     const p = await buildPortfolio(c);
     const page = await pageWithToken(c.token, '/app/leasing/properties');
     await page.getByRole('row', { name: new RegExp(`Court ${p.sfx}`) }).click();
     const d = page.getByRole('dialog');
-    await d.getByLabel('Amenities').fill('Pool\nGym\n\nPets welcome');
+    const search = d.getByPlaceholder(/Search amenities/);
+    await search.fill('pool');
+    await page.getByRole('option', { name: /Swimming pool/ }).click();
+    await search.fill('pets');
+    await page.getByRole('option', { name: /Pets welcome/ }).click();
     await d.getByRole('button', { name: 'Save' }).click();
-    await expect.poll(async () => (await c.api.get(`/api/leasing/properties/${p.propertyId}`)).body.amenities).toEqual(['Pool', 'Gym', 'Pets welcome']);
+    await expect.poll(async () => (await c.api.get(`/api/leasing/properties/${p.propertyId}`)).body.amenities).toEqual(['Swimming pool', 'Pets welcome']);
   });
 });
 

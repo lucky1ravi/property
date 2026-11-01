@@ -25,8 +25,8 @@ export function Features() {
     { key: 'title', header: 'Feature', render: (r) => <span className="font-semibold">{r.title}</span> },
     { key: 'product', header: 'Product', render: (r) => <Badge>{r.product.charAt(0) + r.product.slice(1).toLowerCase()}</Badge> },
     { key: 'summary', header: 'Summary', hideOnMobile: true },
-    { key: 'visible', header: 'Shown', render: (r) => <Toggle checked={r.visible} onChange={(v) => changeFeature.mutate({ key: r.feature_key, body: { visible: v } })} label={`Show ${r.title} on the website`} /> },
-    { key: 'edit', header: '', render: (r) => <RowActions name={r.title ?? r.feature_key} onEdit={() => setFeature(r)} /> },
+    { key: 'visible', header: 'Shown', width: '5.5rem', filter: false, value: (r) => (r.visible ? 1 : 0), render: (r) => <Toggle checked={r.visible} onChange={(v) => changeFeature.mutate({ key: r.feature_key, body: { visible: v } })} label={`Show ${r.title} on the website`} /> },
+    { key: 'edit', header: '', width: '3.5rem', filter: false, render: (r) => <RowActions name={r.title ?? r.feature_key} onEdit={() => setFeature(r)} /> },
   ];
   return (<>
     <PageHeader title="Features" description="How each feature is described on the public website. Hidden features disappear from the Features, Products and Plans pages. Plans and prices are managed under Plans." />

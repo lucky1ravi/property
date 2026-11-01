@@ -41,6 +41,7 @@ export const NAV: NavGroup[] = [
           { to: '/app/leasing/properties', label: 'Properties', icon: Building2, perm: 'PROPERTY:VIEW', exclude: ['tenant', 'vendor'] },
           { to: '/app/leasing/units', label: 'Units', icon: DoorOpen, perm: 'PROPERTY:VIEW', exclude: ['tenant', 'vendor'] },
           { to: '/app/leasing/owners', label: 'Owners', icon: Landmark, perm: 'OWNER:VIEW', exclude: ['tenant', 'vendor', 'owner'] },
+          { to: '/app/leasing/amenities', label: 'Amenities', icon: Sparkles, perm: 'PROPERTY:EDIT', exclude: ['tenant', 'vendor', 'owner', 'platform'] },
         ],
       },
       { to: '/app/leasing/my-lease', label: 'My lease', icon: FileSignature, personas: ['tenant'] },
@@ -127,6 +128,7 @@ export const NAV: NavGroup[] = [
       { to: '/app/admin/deliveries', label: 'Delivery log', icon: Send, perm: 'PLATFORM:VIEW', personas: ['platform'] },
       { to: '/app/admin/enquiries', label: 'Enquiries', icon: Inbox, perm: 'PLATFORM:VIEW', personas: ['platform'] },
       { to: '/app/admin/features', label: 'Features', icon: LayoutTemplate, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      { to: '/app/admin/amenities', label: 'Amenities', icon: Sparkles, perm: 'PLATFORM:VIEW', personas: ['platform'] },
     ],
   },
 ];

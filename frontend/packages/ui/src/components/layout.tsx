@@ -8,12 +8,12 @@ import { CountUp, EASE, Float, withDelays } from './motion';
  */
 export function PageHeader({ title, description, actions, meta, back }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; meta?: ReactNode; back?: ReactNode }) {
   return (
-    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: EASE }} className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-      <div className="min-w-0" data-tour="page-title">
-        {back && <div className="mb-2">{back}</div>}
-        <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em] text-graphite-950">{title}</h1>
-        {description && <p className="mt-1 max-w-[68ch] text-[15px] text-graphite-600">{description}</p>}
-        {meta && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-graphite-600">{meta}</div>}
+    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: EASE }} className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between md:gap-4">
+      <div className="min-w-0 md:flex-1" data-tour="page-title">
+        {back && <div className="mb-1">{back}</div>}
+        <h1 className="text-2xl font-extrabold leading-tight tracking-[-0.015em] text-graphite-950">{title}</h1>
+        {description && <p className="mt-0.5 text-sm leading-snug text-graphite-600">{description}</p>}
+        {meta && <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-graphite-600">{meta}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2" data-tour="page-actions">{actions}</div>}
     </motion.div>
@@ -93,21 +93,21 @@ export function Stat({ label, value, sub, trend, emphasis, onClick, delay = 0 }:
   const Comp: any = onClick ? motion.button : motion.div;
   return (
     <Comp initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay, ease: EASE }} onClick={onClick} className={clsx('min-w-0 text-left', onClick && 'rounded transition-colors hover:bg-limestone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slateblue-600')}>
-      <div className="text-[13px] font-medium text-graphite-500">{label}</div>
-      <div className={clsx('mt-1 font-extrabold tabular-nums tracking-[-0.02em] text-graphite-950', emphasis ? 'text-[34px] leading-none' : 'text-[22px] leading-tight')}>{typeof value === 'string' || typeof value === 'number' ? <CountUp value={value} /> : value}</div>
-      {(sub || trend) && (
-        <div className="mt-1 flex items-center gap-2 text-xs text-graphite-500">
+      <div className="truncate text-xs font-semibold uppercase tracking-wide text-graphite-500">{label}</div>
+      <div className={clsx('mt-1 font-extrabold tabular-nums tracking-[-0.02em] text-graphite-950', 'text-[26px] leading-8', emphasis && 'text-federal-900')}>{typeof value === 'string' || typeof value === 'number' ? <CountUp value={value} /> : value}</div>
+      {(sub || trend) ? (
+        <div className="mt-0.5 flex min-h-4 items-center gap-2 truncate text-xs text-graphite-500">
           {trend && <span className={clsx('font-semibold', trend.good ? 'text-good-700' : 'text-crit-700')}>{trend.value}</span>}
           {sub}
         </div>
-      )}
+      ) : <div className="mt-0.5 min-h-4" aria-hidden />}
     </Comp>
   );
 }
 
 /** A horizontal strip of figures separated by rules (instead of a grid of identical cards). */
 export function StatStrip({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={clsx('grid grid-cols-2 divide-limestone-200 rounded-md border border-limestone-200 bg-white shadow-panel md:flex md:divide-x [&>*]:px-5 [&>*]:py-4 md:[&>*]:flex-1', className)}>{withDelays(children, 0.07)}</div>;
+  return <div className={clsx('grid grid-cols-2 divide-limestone-200 rounded-md border border-limestone-200 bg-white shadow-panel md:flex md:divide-x [&>*]:px-5 [&>*]:py-3 md:[&>*]:flex-1 max-md:[&>*:nth-child(n+3)]:border-t max-md:[&>*:nth-child(even)]:border-l max-md:[&>*]:border-limestone-200', className)}>{withDelays(children, 0.07)}</div>;
 }
 
 /**

@@ -285,26 +285,30 @@ test.describe('Marketing website', () => {
 });
 
 test.describe('Public rental site', () => {
-  test('[SITE-21] the search filters by city, bedrooms and rent and says so when nothing matches', async ({ page, publicApi }) => {
+  test('[SITE-21] the search filters by words, bedrooms and rent, keeps the choices in the address, and says so when nothing matches', async ({ page, publicApi }) => {
     const live = rows(await (await publicApi()).get('/api/leasing/public/listings'));
     await page.goto('/homes');
     await expect(page.getByRole('heading', { name: /Find a home you.ll want to stay in/ })).toBeVisible();
-    await page.getByLabel('City').fill('Nowhereville-xyz');
+    const box = page.getByLabel('Search by property, street, city or ZIP');
+    await box.fill('Nowhereville-xyz');
     await expect(page.getByText('No homes match your search')).toBeVisible();
-    await page.getByLabel('City').fill('');
-    for (const b of ['Any', '1+', '2+', '3+']) {
+    await expect(page).toHaveURL(/keyword=Nowhereville-xyz/);
+    await expect(page.getByRole('button', { name: /Remove filter/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Clear all filters' }).click();
+    await expect(page).not.toHaveURL(/keyword=/);
+    for (const b of ['Any', 'Studio+', '1+', '2+', '3+', '4+']) {
       await page.getByLabel('Bedrooms').click();
       await expect(page.getByRole('option', { name: b, exact: true })).toBeVisible();
       await page.keyboard.press('Escape');
     }
     if (live.length) {
       const l = live[0];
-      await expect(page.getByRole('link', { name: new RegExp(l.property_name) }).first()).toBeVisible();
-      await page.getByLabel('City').fill(l.city);
-      await expect(page.getByRole('link', { name: new RegExp(l.property_name) }).first()).toBeVisible();
-      await pick(page, page.getByLabel('Max rent'), '$1,500');
-      const cheap = rows(await (await publicApi()).get('/api/leasing/public/listings?maxRent=1500'));
-      if (!cheap.some((x: any) => x.id === l.id)) await expect(page.getByRole('link', { name: new RegExp(`/homes/${l.id}$`) })).toHaveCount(0);
+      await box.fill(l.city);
+      await expect(page.getByTestId('property-card').filter({ hasText: l.property_name }).first()).toBeVisible();
+      await pick(page, page.getByLabel('Max rent'), '$1,000');
+      await expect(page).toHaveURL(/maxRent=1000/);
+      const cheap = rows(await (await publicApi()).get('/api/leasing/public/listings?maxRent=1000'));
+      await expect(page.getByTestId('result-count')).toContainText(cheap.length ? /Showing/ : /No (properties|homes) found/);
     }
   });
 

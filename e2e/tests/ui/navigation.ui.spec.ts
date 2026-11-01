@@ -17,14 +17,15 @@ export async function menuLabels(page: Page): Promise<string[]> {
 const FILES = ['All files', 'Photos and review', 'E-signatures'];
 const LEASING = ['Overview', 'Listings', 'Leads', 'Showings', 'Applications', 'Leases'];
 const PORTFOLIO = ['Properties', 'Units', 'Owners'];
+const PORTFOLIO_EDIT = [...PORTFOLIO, 'Amenities']; // those who can edit properties also keep the amenity list
 const MAINT = ['Work orders', 'Vendors', 'Preventive maintenance'];
 const AUTOMATION = ['Automation rules', 'Workflow designer'];
 
 /** What each role is meant to see in the sidebar (the product's menu policy). */
 const MENU: Record<string, string[]> = {
-  platform: ['Home', 'Administration', 'Platform', 'Product defaults', 'Plans', 'Subscription payments', 'Company usage', 'Service health', 'Delivery log', 'Enquiries', 'Features'],
-  admin: ['Home', 'Messages', 'Broker cockpit', ...PORTFOLIO, ...LEASING, 'Overview', 'Invoices', 'Collections', 'Payments received', 'Owner statements', 'Deposits', 'Tax and compliance', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Opportunities', 'Deadlines and alerts', ...AUTOMATION, 'Users and roles', 'Configuration', 'Audit log'],
-  broker: ['Home', 'Messages', 'Broker cockpit', ...PORTFOLIO, ...LEASING, 'Overview', 'Invoices', 'Payments received', 'Owner statements', 'Deposits', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Opportunities', 'Deadlines and alerts', ...AUTOMATION],
+  platform: ['Home', 'Administration', 'Platform', 'Product defaults', 'Plans', 'Subscription payments', 'Company usage', 'Service health', 'Delivery log', 'Enquiries', 'Features', 'Amenities'],
+  admin: ['Home', 'Messages', 'Broker cockpit', ...PORTFOLIO_EDIT, ...LEASING, 'Overview', 'Invoices', 'Collections', 'Payments received', 'Owner statements', 'Deposits', 'Tax and compliance', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Opportunities', 'Deadlines and alerts', ...AUTOMATION, 'Users and roles', 'Configuration', 'Audit log'],
+  broker: ['Home', 'Messages', 'Broker cockpit', ...PORTFOLIO_EDIT, ...LEASING, 'Overview', 'Invoices', 'Payments received', 'Owner statements', 'Deposits', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Opportunities', 'Deadlines and alerts', ...AUTOMATION],
   agent: ['Home', 'Messages', ...PORTFOLIO, ...LEASING, ...FILES, 'AI tools'],
   accountant: ['Home', 'Messages', ...PORTFOLIO, 'Leasing', 'Overview', 'Invoices', 'Collections', 'Payments received', 'Owner statements', 'Deposits', 'Tax and compliance', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Deadlines and alerts', 'Administration'],
   owner: ['Home', 'Messages', 'Properties', 'Units', 'Leasing', 'Overview', 'Invoices', 'Payments received', 'Owner statements', 'Deposits', 'Work orders', 'Preventive maintenance', ...FILES, 'Reports', 'Opportunities'],
@@ -55,7 +56,7 @@ test.describe('Navigation by role', () => {
     await expect(page.locator('header').first()).toContainText('PropertyOS Platform');
     const labels = await menuLabels(page);
     for (const company of ['Properties', 'Invoices', 'Work orders', 'Leads', 'Users and roles', 'Audit log']) expect(labels).not.toContain(company);
-    for (const op of ['Platform', 'Product defaults', 'Plans', 'Subscription payments', 'Company usage', 'Service health', 'Delivery log', 'Enquiries', 'Features']) expect(labels).toContain(op);
+    for (const op of ['Platform', 'Product defaults', 'Plans', 'Subscription payments', 'Company usage', 'Service health', 'Delivery log', 'Enquiries', 'Features', 'Amenities']) expect(labels).toContain(op);
   });
 
   test('[RBAC-11] a direct address for a page the role cannot use says so and shows no data or buttons', async ({ pageAs }) => {

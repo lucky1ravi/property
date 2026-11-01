@@ -1,78 +1,10 @@
 import { useState, type ReactNode } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { BedDouble, Bath, Ruler, MapPin, Search, UploadCloud, CheckCircle2, CircleAlert, Building2, CalendarDays, CalendarCheck, Car, Waves, Dumbbell, WashingMachine, PawPrint, Snowflake, Flame, Utensils, Sun, Package, ArrowUpDown, Wifi, ShieldCheck, PlugZap, Bike, Layers, Users, Trees, Trash2, Sparkles, DollarSign, Wallet, Home, Sofa, Microwave, Refrigerator, Check, Key, TrendingDown, type LucideIcon } from 'lucide-react';
-import { Button, Field, Input, Select, Textarea, Skeleton, Carousel, EmptyState, Panel, useApi, useAction, api, fmt, toastError, errorText, Stars } from '@propertyos/ui';
+import { BedDouble, Bath, Ruler, MapPin, Search, UploadCloud, CheckCircle2, CircleAlert, Building2, CalendarDays, CalendarCheck, Car, Waves, Dumbbell, WashingMachine, PawPrint, Snowflake, Flame, Utensils, Sun, Package, ArrowUpDown, Wifi, ShieldCheck, PlugZap, Bike, Layers, Users, Trees, Trash2, Sparkles, DollarSign, Wallet, Home, Sofa, Microwave, Refrigerator, Check, Key, TrendingDown, Phone, Mail, Globe, type LucideIcon } from 'lucide-react';
+import { Button, Field, Input, Select, Textarea, Skeleton, Carousel, EmptyState, Panel, AmenityIcon, useApi, useAction, api, fmt, toastError, errorText, Stars } from '@propertyos/ui';
 import { useBase } from '../common';
-
-function Hero() {
-  const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 400], [0, 90]);
-  const o = useTransform(scrollY, [0, 300], [1, 0.3]);
-  return (
-    <div className="relative mb-8 overflow-hidden rounded-lg bg-federal-950">
-      <motion.img style={{ y }} src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1800&q=70" alt="" className="absolute inset-0 h-[130%] w-full object-cover opacity-35" />
-      <motion.div style={{ opacity: o }} className="relative px-8 py-14 md:py-20">
-        <motion.h1 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="max-w-[18ch] text-[40px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white md:text-[56px]">
-          Find a home you’ll want to stay in
-        </motion.h1>
-        <p className="mt-4 max-w-[52ch] text-lg text-federal-100">Browse available rentals, tour in person or virtually, and apply online. Most applicants hear back within a day.</p>
-      </motion.div>
-    </div>
-  );
-}
-
-function Search_() {
-  const base = useBase();
-  const [city, setCity] = useState('');
-  const [beds, setBeds] = useState('');
-  const [max, setMax] = useState('');
-  const qs = new URLSearchParams({ ...(city && { city }), ...(beds && { beds }), ...(max && { maxRent: max }) }).toString();
-  const { data, isLoading } = useApi<any[]>(`/api/leasing/public/listings${qs ? '?' + qs : ''}`);
-  return (
-    <>
-      <Hero />
-      <form className="mb-6 grid gap-3 rounded-md border border-limestone-200 bg-white p-4 shadow-panel md:grid-cols-[1fr_160px_160px_auto]" onSubmit={(e) => e.preventDefault()}>
-        <Field label="City"><Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Austin, San Francisco…" /></Field>
-        <Field label="Bedrooms"><Select value={beds} onChange={(e) => setBeds(e.target.value)}><option value="">Any</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option></Select></Field>
-        <Field label="Max rent"><Select value={max} onChange={(e) => setMax(e.target.value)}><option value="">Any</option>{[1500, 2000, 2500, 3500, 5000].map((m) => <option key={m} value={m}>{fmt.usd(m)}</option>)}</Select></Field>
-        <div className="flex items-end"><Button variant="primary" icon={<Search size={14} />} type="submit">Search</Button></div>
-      </form>
-      {isLoading ? <div className="grid gap-5 md:grid-cols-3"><Skeleton className="h-72" /><Skeleton className="h-72" /><Skeleton className="h-72" /></div>
-        : !data?.length ? <EmptyState title="No homes match your search" body="Try a different city or a higher rent." />
-        : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {data.map((l, i) => (
-              <motion.div key={l.id} initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: (i % 3) * 0.06 }}>
-                <Link to={`${base}/${l.id}`} className="group block overflow-hidden rounded-md border border-limestone-200 bg-white shadow-panel transition-shadow hover:shadow-lg">
-                  <div className="aspect-[4/3] overflow-hidden bg-limestone-200"><img src={l.photos?.[0]} alt={l.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
-                  <div className="p-4">
-                    <div className="flex items-baseline justify-between"><span className="text-xl font-extrabold text-graphite-950">{fmt.usd(l.rent)}<span className="text-sm font-medium text-graphite-500"> /mo</span></span><span className="text-xs text-graphite-500">Available {fmt.shortDate(l.available_date)}</span></div>
-                    <div className="mt-1 text-sm font-semibold text-graphite-800">{l.property_name}</div>
-                    <div className="mt-0.5 flex items-center gap-1 text-xs text-graphite-500"><MapPin size={12} />{l.street}, {l.city}, {l.state}</div>
-                    <div className="mt-3 flex gap-4 text-sm text-graphite-700"><span className="flex items-center gap-1"><BedDouble size={14} />{l.beds} bd</span><span className="flex items-center gap-1"><Bath size={14} />{l.baths} ba</span><span className="flex items-center gap-1"><Ruler size={14} />{l.sqft} sqft</span></div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-        )}
-    </>
-  );
-}
-
-/** An icon for an amenity, found by the words in its name, so a new amenity still gets a sensible picture. */
-const AMENITY_ICONS: [RegExp, LucideIcon][] = [
-  [/park|garage|carport/i, Car], [/pool|swim|spa|hot tub/i, Waves], [/gym|fitness|workout/i, Dumbbell], [/laundry|washer|dryer/i, WashingMachine],
-  [/pet|dog|cat/i, PawPrint], [/air|a\/c|\bac\b|cool/i, Snowflake], [/heat|fireplace|furnace/i, Flame], [/dishwasher|kitchen|stove|oven/i, Utensils],
-  [/microwave/i, Microwave], [/fridge|refrigerator/i, Refrigerator], [/balcon|patio|deck|terrace|sun/i, Sun], [/storage|closet|pantry/i, Package],
-  [/elevator|lift/i, ArrowUpDown], [/wi-?fi|internet|fiber|cable/i, Wifi], [/secur|gated|camera|doorman|concierge|key/i, ShieldCheck], [/\bev\b|charging|electric/i, PlugZap],
-  [/bike|bicycle/i, Bike], [/hardwood|floor|carpet|tile/i, Layers], [/club|lounge|community|party|rooftop/i, Users], [/garden|yard|lawn|park\b|trail|green|tree/i, Trees],
-  [/furnish|sofa/i, Sofa], [/trash|waste|recycl/i, Trash2],
-];
-function amenityIcon(name: string): LucideIcon {
-  return AMENITY_ICONS.find(([re]) => re.test(name))?.[1] ?? Check;
-}
+import { SearchPage } from './PublicSearch';
 
 /** One fact about the home with its icon: "2 bedrooms", "Built 2005". */
 function Fact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: ReactNode }) {
@@ -135,7 +67,19 @@ function Detail() {
           {amenities.length > 0 && <>
             <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">Amenities</h2>
             <ul className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3" data-testid="amenities">
-              {amenities.map((a) => { const Icon = amenityIcon(a); return <li key={a} className="flex items-center gap-2.5 text-sm text-graphite-800"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-federal-50 text-federal-800"><Icon size={16} aria-hidden /></span>{a}</li>; })}
+              {amenities.map((a) => { return <li key={a} className="flex items-center gap-2.5 text-sm text-graphite-800"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-federal-50 text-federal-800"><AmenityIcon icon={l.amenity_icons?.[a]} name={a} size={16} /></span>{a}</li>; })}
+            </ul>
+          </>}
+
+          {(l.other_homes ?? []).length > 0 && <>
+            <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">Other homes at {l.property_name}</h2>
+            <ul className="divide-y divide-limestone-200 rounded-md border border-limestone-200 bg-white text-sm" data-testid="other-homes">
+              {(l.other_homes as any[]).map((o) => (
+                <li key={o.id}><Link to={`${base}/${o.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-federal-50">
+                  <span className="flex items-center gap-4 text-graphite-700"><span className="w-14 font-semibold text-graphite-900">{o.unit_number ? `#${o.unit_number}` : 'Home'}</span><span className="inline-flex items-center gap-1"><BedDouble size={14} aria-hidden />{Number(o.beds) === 0 ? 'Studio' : `${o.beds} bd`}</span><span className="inline-flex items-center gap-1"><Bath size={14} aria-hidden />{o.baths} ba</span><span className="inline-flex items-center gap-1"><Ruler size={14} aria-hidden />{Number(o.sqft).toLocaleString('en-US')} sqft</span></span>
+                  <span className="flex items-baseline gap-3"><span className="font-bold text-graphite-950">{fmt.usd(o.rent)}</span><span className="text-xs text-graphite-500">{o.available_date ? fmt.shortDate(o.available_date) : 'Now'}</span></span>
+                </Link></li>
+              ))}
             </ul>
           </>}
 
@@ -166,6 +110,20 @@ function Detail() {
               <Link to={`${base}/${id}/apply`}><Button variant="primary" className="w-full" size="lg">Apply now</Button></Link>
               <Button className="w-full" onClick={() => setMode('tour')}>Request a tour</Button>
               <Button variant="ghost" className="w-full" onClick={() => setMode('enquire')}>Ask a question</Button>
+            </div>
+          )}
+          {l.company && (
+            <div className="mt-5 border-t border-limestone-200 pt-4" data-testid="listed-by">
+              <div className="text-xs font-semibold uppercase tracking-wide text-graphite-500">Listed by</div>
+              <div className="mt-2 flex items-center gap-3">
+                {l.company.logo ? <img src={l.company.logo} alt="" className="h-10 w-10 shrink-0 rounded object-contain" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-federal-50 text-federal-800"><Building2 size={20} aria-hidden /></span>}
+                <span className="min-w-0 font-bold text-graphite-950">{l.company.name}</span>
+              </div>
+              <ul className="mt-3 space-y-1.5 text-sm">
+                {l.company.contactPhone && <li className="flex items-center gap-2"><Phone size={14} aria-hidden className="text-graphite-500" /><a className="text-federal-900 hover:underline" href={`tel:${String(l.company.contactPhone).replace(/[^+\d]/g, '')}`}>{l.company.contactPhone}</a></li>}
+                {l.company.contactEmail && <li className="flex items-center gap-2"><Mail size={14} aria-hidden className="text-graphite-500" /><a className="break-all text-federal-900 hover:underline" href={`mailto:${l.company.contactEmail}`}>{l.company.contactEmail}</a></li>}
+                {l.company.website && /^https?:\/\//i.test(l.company.website) && <li className="flex items-center gap-2"><Globe size={14} aria-hidden className="text-graphite-500" /><a className="break-all text-federal-900 hover:underline" href={l.company.website} target="_blank" rel="noopener noreferrer">{String(l.company.website).replace(/^https?:\/\//i, '')}</a></li>}
+              </ul>
             </div>
           )}
         </aside>
@@ -283,7 +241,7 @@ function ApplicantDocuments() {
 export function PublicSite() {
   return (
     <Routes>
-      <Route index element={<Search_ />} />
+      <Route index element={<SearchPage />} />
       <Route path="applications/:id/documents" element={<ApplicantDocuments />} />
       <Route path=":id" element={<Detail />} />
       <Route path=":id/apply" element={<Apply />} />

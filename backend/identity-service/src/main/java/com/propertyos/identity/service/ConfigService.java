@@ -175,6 +175,11 @@ public class ConfigService {
             String c = b.path(colour).asText("");
             if (!c.isEmpty() && !c.matches("#[0-9a-fA-F]{6}")) throw ApiException.badRequest("The " + (colour.startsWith("primary") ? "primary" : "accent") + " colour must be a six-digit code such as #0F3D3E.");
         }
+        // Shown to anyone looking at a listing, so they must be what they say they are.
+        String phone = b.path("contactPhone").asText(""), email = b.path("contactEmail").asText(""), site = b.path("website").asText("");
+        if (!phone.isEmpty() && !phone.matches("[0-9 ()+.\\-]{7,30}")) throw ApiException.badRequest("The phone number can have digits, spaces and + ( ) - . only.");
+        if (!email.isEmpty() && !email.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) throw ApiException.badRequest("The listing email is not a valid address.");
+        if (!site.isEmpty() && (!site.matches("https?://[^\\s<>\"']+") || site.length() > 200)) throw ApiException.badRequest("The website must start with http:// or https://.");
         String logo = b.path("logoDataUrl").asText("");
         if (logo.isEmpty()) return;
         if (!logo.matches("data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+")) throw ApiException.badRequest("The logo must be a PNG or JPEG picture.");

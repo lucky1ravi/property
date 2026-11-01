@@ -20,7 +20,10 @@ public class PublicService {
     private final TransactionTemplate tx;
     private final com.propertyos.common.security.SignedLinks links;
 
-    public PublicService(Db db, EventPublisher events, LeadService leads, PlatformTransactionManager tm, com.propertyos.common.security.SignedLinks links) {
+    private final PublicCatalog catalog;
+
+    public PublicService(Db db, EventPublisher events, LeadService leads, PlatformTransactionManager tm, com.propertyos.common.security.SignedLinks links, PublicCatalog catalog) {
+        this.catalog = catalog;
         this.links = links;
         this.tx = new TransactionTemplate(tm);
         this.db = db;
@@ -45,42 +48,6 @@ public class PublicService {
     }
 
     /**
-     * Public: lists live listings matching the filters. Runs as the system because visitors are not signed in.
-     *
-     * @param city    city filter, or null
-     * @param beds    minimum bedrooms, or null
-     * @param maxRent maximum monthly rent, or null
-     */
-    public List<Map<String, Object>> listings(String city, Integer beds, Integer maxRent) {
-        return asSystem(() -> queryListings(city, beds, maxRent));
-    }
-
-    List<Map<String, Object>> queryListings(String city, Integer beds, Integer maxRent) {
-        StringBuilder sql = new StringBuilder("""
-                select l.id, l.title, l.description, l.rent, l.available_date, l.photos, l.highlights,
-                       p.name as property_name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.amenities,
-                       u.beds, u.baths, u.sqft
-                from leasing.listing l join leasing.property p on p.id = l.property_id join leasing.unit u on u.id = l.unit_id
-                where l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))""");
-        List<Object> args = new ArrayList<>();
-        args.add(suspendedCsv());
-        if (city != null && !city.isBlank()) {
-            sql.append(" and lower(p.city) like ?");
-            args.add("%" + city.toLowerCase() + "%");
-        }
-        if (beds != null) {
-            sql.append(" and u.beds >= ?");
-            args.add(beds);
-        }
-        if (maxRent != null) {
-            sql.append(" and l.rent <= ?");
-            args.add(maxRent);
-        }
-        sql.append(" order by l.published_at desc nulls last");
-        return db.list(sql.toString(), args.toArray());
-    }
-
-    /**
      * Public: returns one live listing.
      *
      * @throws ApiException (404) when it is not live
@@ -89,13 +56,17 @@ public class PublicService {
         return asSystem(() -> {
             Map<String, Object> l = findLive(id);
             db.update("update leasing.listing set views = views + 1 where id = ?", id);
+            // Who is renting it out, the other homes in the building and the amenity icons; the internal references never leave the service.
+            UUID org = UUID.fromString(String.valueOf(l.remove("org_ref")));
+            UUID property = UUID.fromString(String.valueOf(l.remove("property_ref")));
+            l.putAll(catalog.detailExtras(id, org, property, l.get("amenities")));
             return l;
         });
     }
 
     Map<String, Object> findLive(UUID id) {
         return db.one("Listing", """
-                select l.id, l.title, l.description, l.rent, l.deposit, l.available_date, l.photos, l.highlights,
+                select l.id, l.org_id as org_ref, l.property_id as property_ref, l.title, l.description, l.rent, l.deposit, l.available_date, l.photos, l.highlights,
                        p.name as property_name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.amenities, u.beds, u.baths, u.sqft,
                        p.type as property_type, p.year_built, u.number as unit_number, u.features,
                        (select round(avg(r.stars), 1) from leasing.review r where r.subject_type = 'PROPERTY' and r.subject_id = p.id) as property_rating,

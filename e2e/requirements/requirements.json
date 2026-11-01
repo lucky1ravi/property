@@ -102,7 +102,7 @@
   {
     "id": "SITE-21",
     "area": "Public website",
-    "text": "Rental search filters by city, bedrooms and rent and says so when nothing matches"
+    "text": "Rental search filters by words, bedrooms and rent, keeps the choices in the address, and says so when nothing matches"
   },
   {
     "id": "SITE-22",
@@ -118,6 +118,26 @@
     "id": "SITE-24",
     "area": "Public website",
     "text": "A visitor asks, requests a tour, applies and sends documents with the private link"
+  },
+  {
+    "id": "AMEN-01",
+    "area": "Amenities and homes search",
+    "text": "A company adds its own amenity with an icon, picks it on a property, and visitors see it with that icon"
+  },
+  {
+    "id": "AMEN-02",
+    "area": "Amenities and homes search",
+    "text": "The platform administrator keeps the shared amenity list; residents cannot add amenities"
+  },
+  {
+    "id": "AMEN-03",
+    "area": "Amenities and homes search",
+    "text": "The homes search lists properties with their units, filters, switches to one card per home and names the company"
+  },
+  {
+    "id": "AMEN-04",
+    "area": "Amenities and homes search",
+    "text": "A long list of homes is paged, and a page past the end goes to the last one"
   },
   {
     "id": "AUTH-01",

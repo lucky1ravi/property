@@ -91,7 +91,7 @@ export function DeliveryLog() {
     { key: '__details', header: '', render: (r) => <Button size="sm" variant="secondary" aria-label={`Show details of the message to ${r.recipient}`} onClick={() => setAsking(r)}>Details</Button> },
   ];
   return (<>
-    <PageHeader title="Delivery log" description="Every email and text message PropertyOS sent, for every company: when, and whether it went. Recipients are masked and the text of a message is never shown. For support work, Details shows the whole recipient and the subject once you give a reason, and the company can see in its audit log that you looked. In a demo environment nothing actually leaves the system." />
+    <PageHeader title="Delivery log" description="Every email and text PropertyOS sent, for every company, and whether it went. Recipients are masked and message text is never shown. For support work, Details shows the whole recipient and subject once you give a reason, which the company can see in its audit log. A demo environment sends nothing." />
     <StatStrip className="mb-6">
       <Stat label="Sent, 7 days" value={s?.last7d ?? '–'} emphasis />
       <Stat label="Emails" value={channel('EMAIL')} />

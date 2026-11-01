@@ -93,15 +93,15 @@ export function AppLayout() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-limestone-200 bg-white px-4 lg:px-8">
-          <button className="rounded p-2 text-graphite-600 hover:bg-limestone-100 lg:hidden" aria-label="Open navigation" onClick={() => setMobileNav(true)}><Menu className="h-5 w-5" /></button>
-          <div className="min-w-0 flex-1 truncate text-sm text-graphite-500">{session.organization.name}</div>
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-federal-950/40 bg-federal-900 px-4 text-white lg:px-8">
+          <button className="rounded p-2 text-federal-100 hover:bg-federal-800 lg:hidden" aria-label="Open navigation" onClick={() => setMobileNav(true)}><Menu className="h-5 w-5" /></button>
+          <div className="min-w-0 flex-1 truncate text-sm text-federal-200">{session.organization.name}</div>
           <GuideHeaderButtons />
           <Notifications />
           <UserMenu name={session.name} email={session.email} photo={session.photo} subtitle={session.roles.join(', ')} />
         </header>
         <main className="scrollbar-thin flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1360px] px-4 pb-28 pt-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-[1360px] px-4 pb-28 pt-4 lg:px-8 lg:pb-8 lg:pt-5">
             <Breadcrumbs pathname={loc.pathname} groups={groups} />
             <SectionTabs pathname={loc.pathname} groups={groups} />
             {loc.pathname === '/app' && <GettingStarted persona={persona} groups={groups} />}
@@ -128,7 +128,7 @@ function Breadcrumbs({ pathname, groups }: { pathname: string; groups: ReturnTyp
   const crumbs = breadcrumbs(pathname, groups);
   if (crumbs.length === 0) return null;
   return (
-    <nav aria-label="Breadcrumb" className="mb-4 -mt-2">
+    <nav aria-label="Breadcrumb" className="mb-2 -mt-1">
       <ol className="flex flex-wrap items-center gap-1 text-[13px] text-graphite-500">
         {crumbs.map((c, i) => {
           const last = i === crumbs.length - 1;
@@ -155,7 +155,7 @@ function SectionTabs({ pathname, groups }: { pathname: string; groups: ReturnTyp
   if (!parent?.children || parent.children.length < 2) return null;
   const kids = parent.children;
   return (
-    <nav aria-label={`${parent.label} sections`} className="-mx-4 mb-5 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+    <nav aria-label={`${parent.label} sections`} className="-mx-4 mb-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
       <ul className="flex min-w-max gap-1 border-b border-limestone-200">
         {kids.map((c) => {
           const on = childActive(c, kids, pathname);
@@ -278,13 +278,13 @@ function UserMenu({ name, email, photo, subtitle }: { name: string; email?: stri
   };
   return (
     <div className="relative">
-      <button data-tour="header-user" onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-limestone-100" aria-expanded={open}>
+      <button data-tour="header-user" onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-federal-800" aria-expanded={open}>
         <Avatar name={name} size={34} seed={email} src={photo} ring />
         <span className="hidden text-left md:block">
-          <span className="block text-sm font-semibold leading-tight text-graphite-900">{name}</span>
-          <span className="block max-w-[160px] truncate text-2xs text-graphite-500">{subtitle}</span>
+          <span className="block text-sm font-semibold leading-tight text-white">{name}</span>
+          <span className="block max-w-[160px] truncate text-2xs text-federal-200">{subtitle}</span>
         </span>
-        <ChevronDown className="hidden h-4 w-4 text-graphite-400 md:block" />
+        <ChevronDown className="hidden h-4 w-4 text-federal-200 md:block" />
       </button>
       {open && (
         <>
@@ -315,7 +315,7 @@ function Notifications() {
   };
   return (
     <div className="relative">
-      <button data-tour="header-notifications" onClick={() => setOpen(!open)} className="relative rounded p-2 text-graphite-600 hover:bg-limestone-100" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
+      <button data-tour="header-notifications" onClick={() => setOpen(!open)} className="relative rounded p-2 text-federal-100 hover:bg-federal-800" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
         <Bell className="h-5 w-5" />
         {unread > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick-600 px-1 text-[10px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
       </button>

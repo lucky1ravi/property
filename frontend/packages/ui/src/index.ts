@@ -20,6 +20,7 @@ export * from './components/RichText';
 export * from './components/Carousel';
 export * from './components/RowActions';
 export * from './components/pickers';
+export * from './components/amenities';
 export * from './components/motion';
 export * from './components/InvoiceDownload';
 export * from './components/documents';

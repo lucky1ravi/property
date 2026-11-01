@@ -89,7 +89,10 @@
     "accentColor": "#C8963E",
     "logoDataUrl": "",
     "portalDomain": "",
-    "emailSender": ""
+    "emailSender": "",
+    "contactPhone": "",
+    "contactEmail": "",
+    "website": ""
   },
   "payments": {
     "methods": { "ach": true, "card": true },

@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { MicroApp, useSession } from '@propertyos/ui';
+import { MicroApp, useSession, AmenityManager } from '@propertyos/ui';
 import { Access } from './pages/Access';
 import { Configuration } from './pages/Config';
 import { Automations, Workflows } from './pages/Automation';
@@ -26,6 +26,7 @@ export default function App() {
         <Route path="plans" element={<Plans />} />
         <Route path="enquiries" element={<Enquiries />} />
         <Route path="features" element={<Features />} />
+        <Route path="amenities" element={<AmenityManager platform />} />
         <Route path="payments" element={<PlatformPayments />} />
         <Route path="subscription" element={<Subscription />} />
         <Route path="health" element={<ServiceHealth />} />
