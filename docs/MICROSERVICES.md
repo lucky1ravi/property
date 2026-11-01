@@ -28,7 +28,7 @@ How PropertyOS applies the common microservice practices, where each one lives i
 | Configuration outside the code | Everything environment-specific is an environment variable (twelve-factor); secrets come from a Secret | `common.yml`, `infra/k8s/00-namespace-config.yaml` | review |
 | API documentation | OpenAPI per service, one Swagger UI at the gateway | `OpenApiConfig` | `docs/API.md` |
 | Design principles | SOLID and layering | `docs/ARCHITECTURE.md` | code review |
-| Automated quality gates | Unit, integration and whole-system tests; combined line coverage must stay at or above 90% | `platform-system-tests`, CI | `mvn verify` |
+| Automated quality gates | Unit, integration and whole-system tests; combined line coverage must stay at or above 90% and branch coverage at or above 72% | `platform-system-tests`, CI | `mvn verify` |
 
 ## Migrating a legacy application: patterns used here
 

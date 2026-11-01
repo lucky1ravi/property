@@ -10,7 +10,7 @@
     "test:ui": "playwright test --project=chromium",
     "test:readonly": "E2E_ALLOW_WRITES=false playwright test",
     "report": "playwright show-report",
-    "docs:check": "node tools/check-diagrams.mjs JOURNEYS.md ../docs/architecture/DEPLOYMENT.md ../docs/architecture/HLD.md ../docs/architecture/LLD.md",
+    "docs:check": "node tools/check-diagrams.mjs . ../docs ../README.md ../CONTRIBUTING.md ../performance",
     "trace": "node tools/trace.mjs",
     "stack:start": "bash tools/local-stack.sh start",
     "stack:stop": "bash tools/local-stack.sh stop"

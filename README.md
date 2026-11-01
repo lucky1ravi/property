@@ -1,119 +1,157 @@
+<div align="center">
+
 # PropertyOS
 
-AI-assisted property management for US residential portfolios: leasing, rent and payments, maintenance, documents and e-signature, owner reporting, and a broker cockpit that turns a large portfolio into a short daily queue.
+**The operating system for residential property management.**
+Leasing, rent and payments, maintenance, documents and e-signature, owner reporting and AI assistance, on one multi-tenant platform that a company can be running on within a day.
 
 [![CI](https://github.com/lucky1ravi/property/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/lucky1ravi/property/actions/workflows/ci.yml)
+[![Deploy](https://github.com/lucky1ravi/property/actions/workflows/deploy.yml/badge.svg?branch=develop)](https://github.com/lucky1ravi/property/actions/workflows/deploy.yml)
 
-| Layer | Technology |
+[Documentation hub](docs/README.md) · [Product guide](docs/PRODUCT.md) · [Architecture](docs/architecture/HLD.md) · [API reference](docs/api/README.md) · [Run it locally](docs/LOCAL-RUN.md) · [Live demo](https://dtqbmyulhq2jl.cloudfront.net)
+
+</div>
+
+---
+
+## Why PropertyOS
+
+A property manager's day is a queue: an enquiry to answer, an application to screen, a repair to approve, rent that did not arrive, an owner who wants a statement. PropertyOS turns a large portfolio into a short, prioritised list, and makes each item one click.
+
+| Principle | What it means in the product |
 | --- | --- |
-| Backend | Java 21, Spring Boot 3.4, Spring Cloud Gateway, seven microservices |
-| Data | PostgreSQL 16, one schema per service, Flyway, row-level security (RLS) |
-| Frontend | React 18, TypeScript, Vite Module Federation (shell + seven micro-frontends) |
-| AI | OpenAI or AWS Bedrock, offline rule-based fallback, guardrails and audit |
-| API docs | OpenAPI 3 via springdoc, one combined Swagger UI at the gateway |
-| Tests | JUnit 5, Testcontainers (PostgreSQL), Vitest |
+| **One system of record** | Properties, units, leases, residents, money, repairs and documents share one database and one audit trail. Nothing is copied between tools. |
+| **Safe by construction** | A company can never see another company's data, even if application code has a bug: PostgreSQL row-level security is the last line of defence ([Security](docs/SECURITY.md)). |
+| **Configuration is data** | Fees, approval limits, screening rules, notifications, branding and state-law rules are settings, not code releases ([Configuration](docs/CONFIGURATION.md)). |
+| **AI that asks first** | The assistant drafts, explains and suggests. It never writes without a person confirming, and the product works fully with no model at all ([AI](docs/AI.md)). |
+| **Operable** | Health probes, correlation ids on every log line, alarms, a delivery log, service-health and usage consoles for the platform team ([Operations](docs/OPERATIONS.md)). |
+
+## What is in it
+
+```mermaid
+flowchart LR
+  subgraph PUB[Public]
+    HOME[Rental site:<br/>search, listings,<br/>apply online]
+    SITE[Marketing site:<br/>plans, demo request]
+  end
+  subgraph CO[Company workspace]
+    PF[Portfolio:<br/>owners, properties,<br/>units, amenities]
+    LS[Leasing:<br/>listings, leads, showings,<br/>applications, leases]
+    PY[Payments:<br/>invoices, collections,<br/>deposits, statements]
+    MT[Maintenance:<br/>work orders, vendors,<br/>preventive plans]
+    DC[Documents:<br/>library, photos,<br/>e-signature]
+    IN[Insights:<br/>reports, broker cockpit,<br/>AI tools]
+    AU[Automation:<br/>rules, workflows,<br/>deadlines and alerts]
+  end
+  subgraph PL[Platform operator console]
+    OB[Company onboarding,<br/>plans, product defaults]
+    OP[Service health,<br/>company usage,<br/>delivery log]
+    BL[Subscription billing,<br/>enquiries, features]
+  end
+  HOME --> LS
+  PF --> LS --> PY
+  PF --> MT
+  LS --> DC
+  PY --> IN
+  MT --> IN
+  AU -.runs.-> LS & PY & MT
+  OB -.governs.-> CO
+```
+
+| Area | Highlights |
+| --- | --- |
+| **Portfolio** | Owners, properties, units, photo galleries with AI review, a searchable amenity catalogue with icons (platform list plus each company's own), resident ratings of properties and units. |
+| **Leasing** | AI-assisted listings with fair-housing screening, a public homes search with filters, paging, by-property and by-home views, enquiry and tour requests, online applications, automated screening, lease generation, e-signature, renewals. |
+| **Payments** | Monthly rent cycle on a nightly timer, invoices with a professional PDF, card and bank payments, late fees with state caps, deposits, owner statements, 1099 data. |
+| **Maintenance** | Residents report with photos, AI triage, approval limits per role, vendor assignment and scheduling, completion and verification, vendor ratings, preventive plans. |
+| **Documents** | Library with versions and requirement checklists, applicant upload links that expire, signature requests with reminders. |
+| **Insights** | Fourteen drill-down reports (rent roll, occupancy, receivables, income, repair costs, vendor scorecard and more), the broker cockpit, AI studio tools. |
+| **Platform console** | Company onboarding and suspension, plans and feature entitlements, product defaults, subscription invoices and payments, service health, company usage, a masked delivery log with audited full-detail access. |
+| **Every company is its own brand** | Primary colour, logo and contact details flow through the menu, top bar, buttons, invoice PDF and the public listing page. |
 
 ## Architecture at a glance
 
-```
- Browser ── shell (React) ── micro-frontends: leasing, payments, maintenance,
-    │                         documents, broker, admin, insights
-    ▼
- api-gateway :8080  (JWT check, plan/feature gate, CORS, Swagger UI)
-    ├── identity-service    :8081   users, companies, roles, plans, configuration
-    ├── leasing-service     :8082   listings, applications, leases, showings
-    ├── billing-service     :8083   charges, payments, owner statements, 1099
-    ├── maintenance-service :8084   work orders, vendors, inspections
-    ├── workflow-service    :8085   approvals, tasks, notifications
-    ├── ai-service          :8086   assistant, AI studio tools, guardrails
-    └── document-service    :8087   library, photos, e-signature, requirements
-                │
-                ▼
-          PostgreSQL (schema per service + shared `platform` schema:
-          event log, audit, RLS helpers)
+```mermaid
+flowchart TB
+  U[Browser] --> CF[CloudFront CDN]
+  CF -->|static assets| S3[(S3: shell + 7 micro-frontends)]
+  CF -->|/api/*| ALB[Load balancer]
+  ALB --> GW
+  subgraph ECS[ECS Fargate]
+    GW[API gateway :8080<br/>JWT, rate limit, plan gate, headers]
+    GW --> ID[identity :8081]
+    GW --> LE[leasing :8082]
+    GW --> BI[billing :8083]
+    GW --> MA[maintenance :8084]
+    GW --> WF[workflow :8085]
+    GW --> AI[ai :8086]
+    GW --> DO[document :8087]
+  end
+  ID & LE & BI & MA & WF & AI & DO --> PG[(PostgreSQL 16<br/>one schema per service<br/>forced row-level security)]
+  DO --> F[(S3: documents)]
+  AI -.optional.-> LLM[OpenAI or Bedrock]
 ```
 
-Services talk to each other over REST (`/internal/**`, protected by a shared token) and through a transactional event log. Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Seven business services behind one gateway, each owning a database schema, talking over REST for questions and a transactional event log for facts. The front end is a shell plus seven independently deployable micro-frontends. Read the [high-level design](docs/architecture/HLD.md) next.
+
+| Layer | Technology |
+| --- | --- |
+| Backend | Java 21, Spring Boot 3.4, Spring Cloud Gateway, seven services plus the gateway |
+| Data | PostgreSQL 16, schema per service, Flyway (31 forward-only migrations), forced row-level security |
+| Frontend | React 18, TypeScript, Vite Module Federation (shell plus seven micro-frontends), Tailwind |
+| AI | OpenAI or AWS Bedrock behind one interface, offline rule-based fallback, guardrails and audit |
+| Delivery | GitHub Actions CI and CD, OIDC to AWS (no stored keys), Terraform, ECS Fargate, RDS, S3, CloudFront |
+| Quality | JUnit 5 and Testcontainers, an eight-process system test, 360 Playwright tests, Gatling load tests, a 90% line and 72% branch coverage gate |
 
 ## Quick start
 
-Prerequisites: Docker, JDK 21, Maven 3.9+, Node 20+.
+Prerequisites: Docker, JDK 21 or newer, Maven 3.9+, Node 20+.
 
 ```powershell
-# Windows: Postgres + all services
-.\scripts\start-local.ps1          # stop with .\scripts\stop-local.ps1
-
-# Frontend
-cd frontend
-npm install
-npm run build
-npm run preview                    # http://localhost:4173
+.\scripts\start-local.ps1        # PostgreSQL in Docker plus all eight services (stop: .\scripts\stop-local.ps1)
+cd frontend; npm install; npm run build; npm run preview      # http://localhost:4173
 ```
 
-Open http://localhost:4173 and pick a demo persona on the sign-in page. The public rental site is at `/homes`.
+Open <http://localhost:4173> and choose a demo persona on the sign-in page. The public rental site is at `/homes`. Swagger UI is at <http://localhost:8080/swagger-ui.html>.
 
-| URL | What |
-| --- | --- |
-| http://localhost:8080/swagger-ui.html | Swagger UI for every service |
-| http://localhost:8080/actuator/health | Gateway health |
-| http://localhost:8080/api/&lt;service&gt;/public/v3/api-docs | Raw OpenAPI JSON per service |
+The full walkthrough, with troubleshooting, is in [Run it locally](docs/LOCAL-RUN.md).
 
-## Tests
+## Quality you can verify
 
-```bash
-cd backend
-mvn test        # unit tests only (fast, no Docker)
-mvn verify      # unit + integration tests; integration tests start PostgreSQL with Testcontainers
-cd ../frontend && npm test
-```
-
-No Docker? Point the integration tests at any PostgreSQL: `IT_JDBC_URL=jdbc:postgresql://localhost:5432/postgres IT_DB_USER=postgres IT_DB_PASSWORD=... mvn verify`. See [docs/TESTING.md](docs/TESTING.md).
-
-## Configuration
-
-Everything is an environment variable; no secrets live in the repository. The full table is in [docs/CONFIGURATION.md](docs/CONFIGURATION.md). The ones you will touch first:
-
-| Variable | Purpose |
-| --- | --- |
-| `JWT_SECRET`, `INTERNAL_TOKEN` | Token signing key and service-to-service token (required outside local dev) |
-| `PG*` | Database connection |
-| `AI_PROVIDER` | `openai`, `bedrock` or unset (offline rules) |
-| `API_DOCS_ENABLED` | `false` hides OpenAPI and Swagger UI (use in production) |
-| `ALLOWED_ORIGINS`, `VITE_API_URL` | CORS and frontend-to-API wiring |
-
-## Documentation
-
-| Doc | Contents |
-| --- | --- |
-| [JOURNEY](docs/JOURNEY.md) | **Start here:** the end-to-end engineering journey, quality scorecard and proof for every claim |
-| [HLD](docs/architecture/HLD.md), [LLD](docs/architecture/LLD.md), [Deployment](docs/architecture/DEPLOYMENT.md) | Architecture diagrams (Mermaid): context, request/event sequences, data, AWS runtime and pipeline |
-| [SAD](docs/SAD.md), [Technical design](docs/TECHNICAL-DESIGN.md) | Solution architecture, quality scenarios, known gaps; how the key mechanisms work |
-| [API reference](docs/api/README.md) | Endpoint inventory per service with required permission, plus live Swagger |
-| [MICROSERVICES](docs/MICROSERVICES.md) | Resilience, observability, health, security and HA standards, and where each is implemented |
-| [ARCHITECTURE](docs/ARCHITECTURE.md) | Services, data flow, design principles (SOLID) mapped to the code |
-| [SECURITY](docs/SECURITY.md) | Authentication, permissions, tenant isolation with RLS, fail-closed rules |
-| [AI](docs/AI.md) | Providers, tools, guardrails, audit |
-| [API](docs/API.md) | Conventions, errors, pagination, how Swagger is generated |
-| [CONFIGURATION](docs/CONFIGURATION.md) | Every environment variable and per-company setting |
-| [PERFORMANCE](performance/README.md) | Gatling load, stress, spike and soak tests, with service levels and a baseline |
-| [CI-CD](docs/CI-CD.md) | Push to develop and only the changed services and apps are tested, built and deployed |
-| [AWS-DEPLOY](docs/AWS-DEPLOY.md) | ECS Fargate deployment in Mumbai: Terraform, GitHub Actions pipeline, cost, rollback |
-| [TESTING](docs/TESTING.md) | Test strategy and how to run each layer |
-| [DEPLOY](docs/DEPLOY.md) | Railway and Vercel |
-| [CONTRIBUTING](CONTRIBUTING.md) | Branching, code style, checks that must pass |
+| Gate | What it proves | Where |
+| --- | --- | --- |
+| Unit and integration tests | Rules in isolation; each service against a real PostgreSQL | [Testing](docs/TESTING.md) |
+| System tests | All eight services started as real processes and driven over HTTP as every persona; merged coverage must stay at or above 90% lines and 72% branches | `backend/platform-system-tests` |
+| Tenant isolation | A second company gets "not found" for the first company's records | `TenantIsolationIT` |
+| Browser end-to-end | 360 Playwright tests: screens, long journeys, sad paths, two-company isolation, phone layouts, AI with a stand-in model | [e2e/README.md](e2e/README.md), [JOURNEYS](e2e/JOURNEYS.md) |
+| Migrations | Numbered without gaps, and a released migration is never edited | `scripts/check-migrations.js` |
+| Documentation | Every diagram parses; the API reference matches the controllers | `npm run docs:check`, `scripts/generate-api-docs.js --check` |
+| Performance | Smoke, load, stress, spike and soak runs with pass or fail service levels | [performance/README.md](performance/README.md) |
 
 ## Repository layout
 
+```text
+backend/        platform-common (shared kernel), platform-test-support, api-gateway, seven *-service modules,
+                platform-system-tests (eight-process end-to-end test with merged coverage)
+frontend/       apps/ (shell + 7 micro-frontends), packages/ui (design system, API client, formatters)
+e2e/            Playwright suite, journey documentation, requirement traceability
+performance/    Gatling simulations
+infra/          aws/ (Terraform), k8s/ (manifests), docker compose files
+scripts/        local start and stop, migration, endpoint and documentation checks
+docs/           everything you are about to read
+.github/        CI, deploy and performance workflows, pull request template
 ```
-backend/
-  platform-common/        shared kernel: security, RLS, errors, events, OpenAPI config
-  platform-test-support/  Testcontainers database + HTTP client for integration tests
-  api-gateway/            routing, auth, feature gate, Swagger UI
-  *-service/              the seven domain services
-frontend/
-  apps/*                  micro-frontends
-  packages/ui             shared components, API client, formatters
-infra/                    docker-compose for local Postgres
-docs/                     documentation
-.github/                  CI workflow, PR template
-```
+
+## Documentation
+
+New here? Start at the **[documentation hub](docs/README.md)**, which has a reading path for every role. The essentials:
+
+| I want to... | Read |
+| --- | --- |
+| Understand the product and who uses it | [Product guide](docs/PRODUCT.md) |
+| Understand how it is built | [HLD](docs/architecture/HLD.md), [LLD](docs/architecture/LLD.md), [Data model](docs/DATA-MODEL.md) |
+| Judge security and tenant isolation | [Security](docs/SECURITY.md) |
+| Run, deploy and operate it | [Local run](docs/LOCAL-RUN.md), [AWS deploy](docs/AWS-DEPLOY.md), [CI/CD](docs/CI-CD.md), [Operations](docs/OPERATIONS.md) |
+| Integrate with it | [API guide](docs/API.md), [API reference](docs/api/README.md) |
+| Contribute | [CONTRIBUTING](CONTRIBUTING.md), [Testing](docs/TESTING.md), [ADRs](docs/adr/README.md) |
+| See what changed | [Changelog](docs/CHANGELOG.md) |

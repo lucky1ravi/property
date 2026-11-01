@@ -386,6 +386,33 @@ flowchart LR
     PR[Property form: amenities, one per line] --> LP[Public listing page: facts with icons, amenities with icons, costs, resident rating]
 ```
 
+## 17. Amenities and the public homes search (AMEN-01 to AMEN-04)
+
+A company adds an amenity with an icon, picks it on a property, and a visitor finds the home by it. The platform administrator keeps the shared list. Visitors browse by property or by home, filter, sort and page, and see who is renting the home out.
+
+```mermaid
+sequenceDiagram
+    participant A as Company admin
+    participant P as Platform administrator
+    participant V as Visitor
+    participant S as PropertyOS
+    P->>S: Amenities page: add a shared amenity with an icon, switch it off, remove it (AMEN-02)
+    A->>S: Leasing, Amenities: add Dog wash with a paw icon (AMEN-01)
+    S-->>A: a repeated name is refused with a reason
+    A->>S: Property form: search the list, pick Dog wash and Covered parking
+    A->>S: Publish a listing
+    V->>S: Homes page: filter by that amenity (AMEN-01)
+    S-->>V: one property card with its homes, a photo carousel and Listed by the company
+    V->>S: Switch to All homes, sort by rent, add a size filter, remove it, reload (AMEN-03)
+    S-->>V: the address keeps every choice, the count and the cards follow
+    V->>S: Open a home (AMEN-03)
+    S-->>V: company logo, phone, email and website, the other home in the building, amenities with icons
+    V->>S: Long result list, Next and Previous, a page past the end (AMEN-04)
+    S-->>V: 12 per page, the last page when the number is too high
+```
+
+Spec: `tests/ui/amenities.ui.spec.ts`. The API rules behind it (names, icons, permissions, filters, paging, no internal ids) are in `PublicCatalogIT`.
+
 ## Where each test id lives
 
 | Prefix | File |
@@ -404,3 +431,4 @@ flowchart LR
 | BRAND, INV, RATE-UI, LIST, REP-UI, FEES-UI | `tests/ui/features.ui.spec.ts` |
 | GUIDE, PAGE, TOAST, ROW | `tests/ui/guide.ui.spec.ts` |
 | RBAC-08 | `tests/ui/navigation.ui.spec.ts` |
+| AMEN-01 to 04 | `tests/ui/amenities.ui.spec.ts` |

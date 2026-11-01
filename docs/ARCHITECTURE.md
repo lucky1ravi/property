@@ -1,16 +1,18 @@
 # Architecture
 
+See the [HLD](architecture/HLD.md) for the picture and the [data model](DATA-MODEL.md) for the tables; this page explains the rules the code follows.
+
 ## Services and boundaries
 
 Each service owns its data (its own Postgres schema) and exposes a REST API under `/api/<name>`. No service reads another service's tables. Cross-service reads use `ServiceClient` against `/internal/**` endpoints, which require the `X-Internal-Token` header and are not published in the OpenAPI spec or routed by the gateway.
 
 | Service | Owns |
 | --- | --- |
-| identity | users, companies, roles and permissions, plans and feature entitlements, configuration |
-| leasing | properties, units, listings, showings, applications, leases |
-| billing | charges, payments, owner statements, tax forms |
-| maintenance | work orders, vendors, inspections |
-| workflow | approvals, tasks, notifications |
+| identity | users, companies, roles and permissions, plans and feature entitlements, configuration, audit, the platform operator console and subscription billing, public website content |
+| leasing | owners, properties, units, the amenity catalogue, listings, leads, showings, applications, leases, ratings, reports, the public homes search |
+| billing | invoices, payments, deposits, expenses, the ledger, owner statements, tax forms |
+| maintenance | work orders, vendors and their ratings, preventive maintenance |
+| workflow | automation rules, workflow definitions, notifications and delivery, messages, the operator delivery log |
 | ai | assistant, AI studio tools, guardrails, AI audit |
 | document | document library, versions, photo review, e-signature, requirements |
 
