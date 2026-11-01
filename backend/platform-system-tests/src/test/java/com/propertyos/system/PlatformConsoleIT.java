@@ -121,6 +121,7 @@ class PlatformConsoleIT {
         Set<String> companies = new java.util.HashSet<>();
         for (JsonNode d : Flow.rows(workflow.get(platform, "/api/workflow/platform/deliveries?page=1&size=200"))) {
             companies.add(d.path("org_name").asText());
+            assertTrue(d.path("recipient").asText().matches("^[^*]\\*\\*\\*@[^*]+$|^\\*+\\d{2}$"), "every recipient is masked, emails to their first letter and texts to their last two digits: " + d.path("recipient").asText());
             assertTrue(!d.path("org_name").asText().isBlank());
         }
         assertTrue(companies.size() >= 2, "messages for several companies are in one log: " + companies);

@@ -53,6 +53,9 @@ test.describe('Platform operator console', () => {
     expect(d.recipient, 'masked to the first letter and the domain, with no stray characters').toMatch(/^[A-Za-z0-9]\*\*\*@[^*]+$|^\*+\d{2}$/);
     expect(d.subject, 'the operator never sees what a message said').toBeUndefined();
     expect(d.body).toBeUndefined();
+    for (const x of rows(await platform.get('/api/workflow/platform/deliveries?page=1&size=100'))) {
+      expect(x.recipient, 'every recipient is masked: emails to their first letter, texts to their last two digits').toMatch(/^[^*]\*\*\*@[^*]+$|^\*+\d{2}$/);
+    }
     const page = (await platform.get('/api/workflow/platform/deliveries?page=1&size=2')).body;
     expect(page.rows).toHaveLength(2);
     expect(page.total).toBeGreaterThan(2);
