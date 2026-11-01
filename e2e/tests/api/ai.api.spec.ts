@@ -64,7 +64,8 @@ test.describe('AI assistant and studio', () => {
     expect(clean.issues.length).toBe(0);
     const photo = await mgr.upload('/api/ai/studio/photo-triage', { name: 'leak.png', mimeType: 'image/png', buffer: PNG }, { note: 'Water under the sink' });
     if (photo.status === 200) expect(JSON.stringify(photo.body).length).toBeGreaterThan(20);
-    else { expect(photo.status).toBe(503); expect(photo.body.code).toBe('AI_OFFLINE'); expect(photo.body.detail).toMatch(/image model/); } // no vision model connected: a clear message, not a crash
+    else if (photo.status === 503) { expect(photo.body.code).toBe('AI_OFFLINE'); expect(photo.body.detail).toMatch(/image model/); } // no vision model connected: a clear message, not a crash
+    else { expect(photo.status).toBe(502); expect(photo.body.code).toBe('AI_FAILED'); expect(photo.body.detail).toMatch(/couldn.t be analysed/); } // a model is connected but could not be reached: also a clear message
     expect((await mgr.upload('/api/ai/studio/photo-triage', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') })).status).toBe(400);
     // Studio tools run as the caller: a resident's scan and outlook cover only their own lease.
     const tenantScan = (await (await apiAs('tenant')).get('/api/ai/studio/anomalies')).body;

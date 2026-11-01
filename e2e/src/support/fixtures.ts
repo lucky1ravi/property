@@ -2,6 +2,7 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { tokenFor, apiAs, publicApi, type Api } from './api';
 import { PERSONAS, type PersonaKey } from './personas';
 import { CAN_WRITE } from './env';
+import { dismissWelcome, quietGuide } from './journey';
 
 type Fixtures = {
   /** Opens a page already signed in as the given demo user. */
@@ -17,6 +18,7 @@ export const test = base.extend<Fixtures>({
     const contexts: any[] = [];
     await use(async (key, path = '/app') => {
       const token = await tokenFor(key);
+      await quietGuide(token); // the welcome tour is tested on its own, not in front of every other screen
       const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 } });
       contexts.push(ctx);
       // Seed the session once per tab, so signing out in a test really signs the tab out.
@@ -30,6 +32,7 @@ export const test = base.extend<Fixtures>({
   pageWithToken: async ({ browser }, use) => {
     const contexts: any[] = [];
     await use(async (token, path = '/app') => {
+      await quietGuide(token);
       const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 } });
       contexts.push(ctx);
       await ctx.addInitScript((t) => { try { if (!sessionStorage.getItem('e2e-seeded')) { localStorage.setItem('pos.token', t as string); sessionStorage.setItem('e2e-seeded', '1'); } } catch { /* ignore */ } }, token);
@@ -68,6 +71,7 @@ export async function signInWithPicker(page: Page, label: string) {
   await pick(page, page.getByRole('combobox', { name: 'Fill in a demo user' }), label);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.waitForURL(/\/app/);
+  await dismissWelcome(page);
 }
 
 /** Collects console errors and failed API calls while a page is used. */

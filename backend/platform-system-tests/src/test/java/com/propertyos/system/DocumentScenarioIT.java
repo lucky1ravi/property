@@ -119,8 +119,9 @@ class DocumentScenarioIT {
             Flow.ok(up, "upload for signing");
             String doc = up.body().path("id").asText();
             Reply candidates = Flow.ok(docs.get(admin, "/api/documents/" + doc + "/signers"), "signer candidates");
-            assertTrue(candidates.body().size() >= 2, "expected at least two possible signers");
-            JsonNode a = candidates.body().get(0), b = candidates.body().get(1);
+            JsonNode people = candidates.body().path("rows");
+            assertTrue(people.size() >= 2, "expected at least two possible signers");
+            JsonNode a = people.get(0), b = people.get(1);
             assertEquals(400, docs.post(admin, "/api/documents/" + doc + "/signature-requests", Map.of("signers", List.of())).status());
             assertEquals(400, docs.post(admin, "/api/documents/" + doc + "/signature-requests", Map.of("signers", List.of(UUID.randomUUID().toString()))).status());
             Reply req = Flow.ok(docs.post(admin, "/api/documents/" + doc + "/signature-requests", Map.of("signers",
@@ -138,7 +139,7 @@ class DocumentScenarioIT {
             if (round == 0) {
                 assertEquals(409, docs.post(tokenB, "/api/documents/signatures/" + sig + "/sign", consent).status(), "second signer waits for the first");
             }
-            assertEquals(400, docs.post(tokenA, "/api/documents/signatures/" + sig + "/sign", Map.of("signature", "Wrong Name", "consent", true)).status());
+            assertEquals(400, docs.post(tokenA, "/api/documents/signatures/" + sig + "/sign", Map.of("signature", "  ", "consent", true)).status());
             assertEquals(400, docs.post(tokenA, "/api/documents/signatures/" + sig + "/sign", Map.of("signature", a.path("name").asText(), "consent", false)).status());
             if (round == 2) {
                 Flow.ok(docs.post(tokenA, "/api/documents/signatures/" + sig + "/decline", Map.of("reason", "Terms are wrong")), "decline");

@@ -357,7 +357,16 @@ function ApplicationDetail() {
   const inv = ['/api/leasing/applications'];
   const screen = useAction(() => api.post(`/api/leasing/applications/${id}/screen`, {}), { success: 'Screening complete', invalidate: inv });
   const act = useAction((v: { a: string; reason?: string }) => api.post(`/api/leasing/applications/${id}/actions/${v.a}`, { reason: v.reason }), { success: 'Application updated', invalidate: inv });
-  const mkLease = useAction(() => api.post<any>(`/api/leasing/applications/${id}/lease`, {}), { success: 'Lease drafted', invalidate: inv, onSuccess: (r) => nav(`${base}/leases/${r.id}`) });
+  // The lease starts when the applicant wants to move in, unless staff choose otherwise (for example to record a lease that began earlier).
+  const [leaseOpen, setLeaseOpen] = useState(false);
+  const [terms, setTerms] = useState({ startDate: '', termMonths: '12', rent: '', deposit: '' });
+  const openLease = () => {
+    setTerms({ startDate: String(a?.move_in_date ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10), termMonths: '12', rent: String(a?.listing_rent ?? ''), deposit: String(a?.listing_deposit ?? '') });
+    setLeaseOpen(true);
+  };
+  const mkLease = useAction(() => api.post<any>(`/api/leasing/applications/${id}/lease`, {
+    startDate: terms.startDate || undefined, termMonths: Number(terms.termMonths) || undefined, rent: terms.rent === '' ? undefined : Number(terms.rent), deposit: terms.deposit === '' ? undefined : Number(terms.deposit),
+  }), { success: 'Lease drafted', invalidate: inv, onSuccess: (r) => { setLeaseOpen(false); nav(`${base}/leases/${r.id}`); } });
   const link = useAction(() => api.post<{ path: string }>(`/api/leasing/applications/${id}/upload-link`, {}), {
     silent: true, onSuccess: async (r) => {
       const url = `${window.location.origin}${r.path}`;
@@ -371,7 +380,7 @@ function ApplicationDetail() {
       meta={<><StatusPill status={a.status} /><span>{a.unit_label}</span></>}
       actions={<>{!['REJECTED', 'WITHDRAWN', 'LEASED'].includes(a.status) && <Button variant="secondary" loading={link.isPending} onClick={() => link.mutate(undefined)}>Copy upload link</Button>}{canScreen && <Button variant="primary" loading={screen.isPending} onClick={() => screen.mutate(undefined)}>Run screening</Button>}
         <ActionBar actions={a.actions} loading={act.isPending} primary={['APPROVE']} onAction={(x, reason) => act.mutate({ a: x, reason })} />
-        {a.status === 'APPROVED' && !a.lease && <Button variant="primary" loading={mkLease.isPending} onClick={() => mkLease.mutate(undefined)}>Create lease</Button>}
+        {a.status === 'APPROVED' && !a.lease && <Button variant="primary" onClick={openLease}>Create lease</Button>}
         {a.lease && <Link to={`${base}/leases/${a.lease.id}`}><Button>Open lease</Button></Link>}</>} />
     <div className="mb-6"><WorkflowTrack steps={APPLICATION_STEPS} current={a.status} /></div>
     <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -391,6 +400,16 @@ function ApplicationDetail() {
         </AiInsight> : <EmptyState title="Not screened yet" body="Run screening to check income, credit and background." />}
       </div>
     </div>
+    <Modal open={leaseOpen} onClose={() => setLeaseOpen(false)} title="Create the lease"
+      footer={<><Button variant="quiet" onClick={() => setLeaseOpen(false)}>Cancel</Button><Button variant="primary" loading={mkLease.isPending} disabled={!terms.startDate || !(Number(terms.termMonths) >= 1)} onClick={() => mkLease.mutate(undefined)}>Create lease</Button></>}>
+      <p className="mb-3 text-sm text-graphite-600">The lease is drafted from these terms. Change them if this lease is different from the listing, or began earlier than the move-in date.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Start date" required hint="Usually the applicant’s move-in date."><Input type="date" value={terms.startDate} onChange={(e) => setTerms({ ...terms, startDate: e.target.value })} /></Field>
+        <Field label="Term (months)" required><Input type="number" min={1} max={120} value={terms.termMonths} onChange={(e) => setTerms({ ...terms, termMonths: e.target.value })} /></Field>
+        <Field label="Monthly rent ($)" hint="From the listing."><Input type="number" min={0} value={terms.rent} onChange={(e) => setTerms({ ...terms, rent: e.target.value })} /></Field>
+        <Field label="Security deposit ($)" hint="From the listing."><Input type="number" min={0} value={terms.deposit} onChange={(e) => setTerms({ ...terms, deposit: e.target.value })} /></Field>
+      </div>
+    </Modal>
   </>);
 }
 

@@ -30,8 +30,11 @@ public class BillingService {
     private final Notifier notifier;
     private final ConfigClient config;
     private final ServiceClient client;
+    private final boolean demo;
 
-    public BillingService(Db db, AuditService audit, EventPublisher events, Notifier notifier, ConfigClient config, ServiceClient client) {
+    public BillingService(Db db, AuditService audit, EventPublisher events, Notifier notifier, ConfigClient config, ServiceClient client,
+                          @org.springframework.beans.factory.annotation.Value("${propertyos.demo.enabled:true}") boolean demo) {
+        this.demo = demo;
         this.db = db;
         this.audit = audit;
         this.events = events;
@@ -368,14 +371,28 @@ public class BillingService {
     }
 
     // ---------- Billing cycle ----------
-    /** Generates upcoming rent invoices, charges late fees and runs autopay. Safe to run repeatedly. */
+    /** True when this environment may run the billing cycle for a date other than today (demos, tests and trials, never production). */
+    public boolean canChooseCycleDate() {
+        return demo;
+    }
+
+    /** Generates upcoming rent invoices, charges late fees and runs autopay for today. Safe to run repeatedly. */
     @Transactional
     public Map<String, Object> runCycle() {
+        return runCycle(null);
+    }
+
+    /**
+     * Runs the cycle as if today were {@code asOf} (null means today). This lets a demo or a test show what a few months of living in
+     * a home look like: rent for later months, late fees after the grace days, autopay on due dates.
+     */
+    @Transactional
+    public Map<String, Object> runCycle(LocalDate asOf) {
         JsonNode leasesNode = client.get(ServiceClient.Service.LEASING, "/internal/leasing/active-leases");
         int rentCreated = 0, lateFees = 0, autopay = 0;
         int daysBefore = config.number("invoicing.invoiceDaysBeforeDue", "5").intValue();
         int dueDay = config.number("invoicing.dueDay", "1").intValue();
-        LocalDate today = LocalDate.now();
+        LocalDate today = asOf != null ? asOf : LocalDate.now();
         YearMonth target = !today.plusDays(daysBefore).isBefore(today.withDayOfMonth(1).plusMonths(1)) ? YearMonth.from(today).plusMonths(1) : YearMonth.from(today);
         for (JsonNode ln : leasesNode) {
             Map<String, Object> lease = toMap(ln);
@@ -393,7 +410,7 @@ public class BillingService {
         // Late fees on overdue rent past the grace period, once per invoice.
         for (Map<String, Object> inv : db.list("""
                 select i.* from billing.invoice i
-                where i.kind = 'RENT' and i.status in ('OPEN','PARTIAL') and i.due_date < current_date""")) {
+                where i.kind = 'RENT' and i.status in ('OPEN','PARTIAL') and i.due_date < ?::date""", today.toString())) {
             JsonNode lease = findLease(leasesNode, (UUID) inv.get("lease_id"));
             if (lease == null) continue;
             int grace = lease.path("terms").path("lateFeeGraceDays").asInt(5);
@@ -412,7 +429,7 @@ public class BillingService {
         // Autopay for invoices due today or earlier.
         for (Map<String, Object> m : db.list("select * from billing.payment_method where autopay")) {
             UUID t = (UUID) m.get("tenant_id");
-            BigDecimal due = db.value(BigDecimal.class, "select coalesce(sum(amount - paid), 0) from billing.invoice where tenant_id = ? and status in ('OPEN','PARTIAL') and due_date <= current_date", t);
+            BigDecimal due = db.value(BigDecimal.class, "select coalesce(sum(amount - paid), 0) from billing.invoice where tenant_id = ? and status in ('OPEN','PARTIAL') and due_date <= ?::date", t, today.toString());
             if (due.signum() > 0) {
                 try {
                     takePayment(t, due, null, (String) m.get("type"), (String) m.get("last4"), "AUTOPAY");

@@ -40,7 +40,7 @@ public class IdentityStore {
         List<String> selected = statuses == null || statuses.isEmpty() ? List.of("ACTIVE") : statuses.stream().distinct().toList();
         String placeholders = String.join(", ", Collections.nCopies(selected.size(), "?"));
         return SqlPaging.page(jdbc, "select o.*, (select count(*) from identity.app_user u where u.org_id = o.id) as user_count " +
-                "from identity.organization o where o.status in (" + placeholders + ") order by o.created_at", selected.toArray());
+                "from identity.organization o where o.status in (" + placeholders + ") order by o.created_at desc", selected.toArray());
     }
 
     /**

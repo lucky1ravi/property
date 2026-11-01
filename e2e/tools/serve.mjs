@@ -19,5 +19,9 @@ http.createServer((req, res) => {
   if (!file.startsWith(root) || !existsSync(file) || statSync(file).isDirectory()) file = join(root, clean.startsWith('/remotes/') ? clean : 'index.html');
   if (!existsSync(file) || statSync(file).isDirectory()) file = join(root, 'index.html');
   res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
-  createReadStream(file).pipe(res);
+  // Close the file when the browser goes away mid-download, so a finished test never leaves a file open (on Windows that blocks the next build).
+  const stream = createReadStream(file);
+  res.on('close', () => stream.destroy());
+  stream.on('error', () => res.destroy());
+  stream.pipe(res);
 }).listen(4173, () => console.log('web on 4173'));

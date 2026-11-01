@@ -11,7 +11,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 3 : 4,
   reporter: [['list'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }]],
-  use: { baseURL, trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'off', viewport: { width: 1366, height: 900 } },
+  use: { baseURL, actionTimeout: 20_000, trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'off', viewport: { width: 1366, height: 900 } },
   projects: [
     { name: 'api', testMatch: /tests\/api\/.*\.spec\.ts/ },
     { name: 'chromium', testMatch: /tests\/(ui|journeys)\/.*\.spec\.ts/, use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 900 } } },

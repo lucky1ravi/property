@@ -120,7 +120,9 @@ test.describe('Company admin screens', () => {
     await expect(d.getByRole('button', { name: 'Send' })).toBeDisabled();
     const subject = `E2E hello ${Date.now()}`;
     await d.getByLabel('Subject').fill(subject);
-    await d.getByRole('checkbox').first().check();
+    // People are found by typing, not picked from a long list.
+    await d.getByPlaceholder(/Search people/).click();
+    await page.getByRole('option').first().click();
     await d.getByLabel('Message').fill('First message from the browser test.');
     await d.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(subject).first()).toBeVisible();

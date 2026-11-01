@@ -22,14 +22,14 @@ type Direction = 'up' | 'down' | 'left' | 'right' | 'none';
 const offset = (d: Direction, px: number) => ({ x: d === 'left' ? px : d === 'right' ? -px : 0, y: d === 'up' ? px : d === 'down' ? -px : 0 });
 
 /** Fades and slides its content in the first time it scrolls into view. */
-export function Reveal({ children, direction = 'up', distance = 28, delay = 0, duration = 0.6, amount = 0.2, once = true, as = 'div', className, style }: {
-  children: ReactNode; direction?: Direction; distance?: number; delay?: number; duration?: number; amount?: number; once?: boolean; as?: ElementType; className?: string; style?: CSSProperties;
+export function Reveal({ children, direction = 'up', distance = 28, delay = 0, duration = 0.6, amount = 0.2, once = true, as = 'div', className, style, ...rest }: {
+  children: ReactNode; direction?: Direction; distance?: number; delay?: number; duration?: number; amount?: number; once?: boolean; as?: ElementType; className?: string; style?: CSSProperties; [attribute: string]: unknown;
 }) {
   const ok = useMotionOK();
   const M: any = (motion as any)[as as string] ?? motion.div;
-  if (!ok) { const Plain: any = as; return <Plain className={className} style={style}>{children}</Plain>; }
+  if (!ok) { const Plain: any = as; return <Plain className={className} style={style} {...rest}>{children}</Plain>; }
   return (
-    <M className={className} style={style} initial={{ opacity: 0, ...offset(direction, distance) }} whileInView={{ opacity: 1, x: 0, y: 0 }} viewport={{ once, amount }}
+    <M className={className} style={style} {...rest} initial={{ opacity: 0, ...offset(direction, distance) }} whileInView={{ opacity: 1, x: 0, y: 0 }} viewport={{ once, amount }}
       transition={{ duration, delay, ease: EASE }}>
       {children}
     </M>
@@ -40,19 +40,19 @@ const container = (gap: number, delay: number): Variants => ({ hidden: {}, show:
 const item = (d: Direction, px: number): Variants => ({ hidden: { opacity: 0, ...offset(d, px) }, show: { opacity: 1, x: 0, y: 0, transition: { duration: 0.55, ease: EASE } } });
 
 /** Children that are {@link StaggerItem}s appear one after another as the group scrolls into view. */
-export function Stagger({ children, gap = 0.08, delay = 0, amount = 0.15, as = 'div', className }: { children: ReactNode; gap?: number; delay?: number; amount?: number; as?: ElementType; className?: string }) {
+export function Stagger({ children, gap = 0.08, delay = 0, amount = 0.15, as = 'div', className, ...rest }: { children: ReactNode; gap?: number; delay?: number; amount?: number; as?: ElementType; className?: string; [attribute: string]: unknown }) {
   const ok = useMotionOK();
   const M: any = (motion as any)[as as string] ?? motion.div;
-  if (!ok) { const Plain: any = as; return <Plain className={className}>{children}</Plain>; }
-  return <M className={className} variants={container(gap, delay)} initial="hidden" whileInView="show" viewport={{ once: true, amount }}>{children}</M>;
+  if (!ok) { const Plain: any = as; return <Plain className={className} {...rest}>{children}</Plain>; }
+  return <M className={className} {...rest} variants={container(gap, delay)} initial="hidden" whileInView="show" viewport={{ once: true, amount }}>{children}</M>;
 }
 
 /** One thing in a {@link Stagger}. */
-export function StaggerItem({ children, direction = 'up', distance = 22, as = 'div', className }: { children: ReactNode; direction?: Direction; distance?: number; as?: ElementType; className?: string }) {
+export function StaggerItem({ children, direction = 'up', distance = 22, as = 'div', className, ...rest }: { children: ReactNode; direction?: Direction; distance?: number; as?: ElementType; className?: string; [attribute: string]: unknown }) {
   const ok = useMotionOK();
   const M: any = (motion as any)[as as string] ?? motion.div;
-  if (!ok) { const Plain: any = as; return <Plain className={className}>{children}</Plain>; }
-  return <M className={className} variants={item(direction, distance)}>{children}</M>;
+  if (!ok) { const Plain: any = as; return <Plain className={className} {...rest}>{children}</Plain>; }
+  return <M className={className} {...rest} variants={item(direction, distance)}>{children}</M>;
 }
 
 /**

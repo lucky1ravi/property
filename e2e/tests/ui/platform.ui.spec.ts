@@ -9,8 +9,9 @@ test.describe('Platform administrator screens', () => {
     await expect(page.getByRole('heading', { name: 'Platform' }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Onboard company' })).toBeVisible();
     await expect(page.getByText('Companies', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Details' }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Features' }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /^View / }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Edit / }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Delete / }).first()).toBeVisible();
     await page.goto('/app/admin/defaults');
     await expect(page.getByRole('heading', { name: 'Product defaults' }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save for all companies' })).toBeVisible();
@@ -28,10 +29,12 @@ test.describe('Platform administrator screens', () => {
 
   test('[PLAT-20] the company details open and the suspend dialog needs a reason', async ({ pageAs }) => {
     const page = await pageAs('platform', '/app/admin/platform');
-    await page.getByRole('button', { name: 'Details' }).first().click();
+    await page.getByRole('button', { name: /^View / }).first().click();
     await expect(page.getByRole('dialog').or(page.locator('aside[role=dialog], [aria-modal=true]')).first()).toBeVisible();
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Suspend' }).first().click();
+    // Suspending is part of editing a company: the edit form has an Account access section.
+    await page.getByRole('button', { name: /^Edit / }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Suspend', exact: true }).click();
     const d = page.getByRole('dialog');
     await expect(d.getByRole('button', { name: 'Suspend company' })).toBeDisabled();
     await d.getByRole('button', { name: 'Cancel' }).click(); // never confirm on shared demo data
@@ -61,11 +64,15 @@ test.describe('Platform administrator screens', () => {
       const row = page.getByRole('row', { name: new RegExp(name) });
       await expect(row).toBeVisible();
 
-      await row.getByRole('button', { name: 'Suspend' }).click();
+      await row.getByRole('button', { name: `Edit ${name}` }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Suspend', exact: true }).click();
       const s = page.getByRole('dialog');
       await expect(s.getByText(`Suspend ${name}?`)).toBeVisible();
       await s.getByLabel('Reason').fill('E2E: unpaid invoice');
       await s.getByRole('button', { name: 'Suspend company' }).click();
+      // The list shows active companies by default, so ask it to include suspended ones too.
+      await page.getByRole('button', { name: /^Status:/ }).click();
+      await page.getByRole('menu').getByLabel('Suspended').check();
       await expect(page.getByRole('row', { name: new RegExp(name) })).toContainText(/Suspended/i);
       // The administrator can no longer sign in.
       const r = await (await publicApi()).post('/api/identity/public/login', { email, password: temp });

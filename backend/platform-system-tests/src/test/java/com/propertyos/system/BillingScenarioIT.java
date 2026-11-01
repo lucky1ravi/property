@@ -75,6 +75,20 @@ class BillingScenarioIT {
     }
 
     @Test
+    void theBillingCycleCanRunAsIfItWereAnotherDay() {
+        String admin = Flow.token("ORG_ADMIN");
+        java.time.LocalDate later = java.time.LocalDate.now().plusMonths(2).withDayOfMonth(10);
+        Reply first = Flow.ok(billing.post(admin, "/api/billing/run-cycle", Map.of("asOf", later.toString())), "cycle for a later day");
+        assertEquals(java.time.YearMonth.from(later).toString(), first.body().path("period").asText(), "rent is billed for the month of that day");
+        Reply again = Flow.ok(billing.post(admin, "/api/billing/run-cycle", Map.of("asOf", later.toString())), "the same day again");
+        assertEquals(0, again.body().path("rentInvoicesCreated").asInt(), "running a day twice never bills twice");
+        assertEquals(400, billing.post(admin, "/api/billing/run-cycle", Map.of("asOf", "next tuesday")).status(), "a date that is not a date is refused");
+        Reply today = Flow.ok(billing.post(admin, "/api/billing/run-cycle", Map.of()), "no date means today");
+        assertTrue(today.body().has("rentInvoicesCreated") && today.body().has("lateFeesCharged") && today.body().has("autopayCollected"));
+        assertEquals(403, billing.post(Flow.token("TENANT"), "/api/billing/run-cycle", Map.of("asOf", later.toString())).status(), "residents cannot run it");
+    }
+
+    @Test
     void residentManagesTheirOwnAccount() {
         Flow.Soft soft = new Flow.Soft();
         String tenant = Flow.token("TENANT");

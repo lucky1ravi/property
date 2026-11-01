@@ -56,7 +56,7 @@ export const NAV: NavGroup[] = [
           { to: '/app/leasing/listings', label: 'Listings', icon: Megaphone, perm: 'LISTING:VIEW', personas: STAFF },
           { to: '/app/leasing/leads', label: 'Leads', icon: Inbox, perm: 'LISTING:VIEW', personas: STAFF },
           { to: '/app/leasing/showings', label: 'Showings', icon: CalendarCheck, perm: 'SHOWING:VIEW', personas: STAFF },
-          { to: '/app/leasing/applications', label: 'Applications', icon: ClipboardList, perm: 'APPLICATION:VIEW', personas: STAFF },
+          { to: '/app/leasing/applications', label: 'Applications', icon: ClipboardList, perm: 'APPLICATION:VIEW', personas: [...STAFF, 'owner'] },
           { to: '/app/leasing/leases', label: 'Leases', icon: FileText, perm: 'LEASE:VIEW', personas: STAFF },
         ],
       },

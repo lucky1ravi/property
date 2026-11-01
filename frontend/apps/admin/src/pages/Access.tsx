@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
   PageHeader, Panel, Button, StatusPill, DataTable, PersonCell, type Column, Tabs, Modal, Field, Input, Select, Textarea, Badge, Skeleton, EmptyState, ConfirmDialog,
-  useApi, useAction, api, fmt, useSession, usePagedApi, EntityPicker
+  useApi, useAction, api, fmt, useSession, usePagedApi, EntityPicker, MultiEntityPicker
 } from '@propertyos/ui';
 
 const inv = ['/api/identity/roles', '/api/identity/users'];
@@ -10,10 +10,15 @@ const inv = ['/api/identity/roles', '/api/identity/users'];
 function UserModal({ user, roles, onClose }: { user: any | 'new' | null; roles: any[]; onClose: () => void }) {
   const isNew = user === 'new';
   const [f, setF] = useState<any>(null);
-  if (user && f === null) setTimeout(() => setF(isNew ? { name: '', email: '', title: '', roleIds: [] } : { name: user.name, title: user.title ?? '', status: user.status, roleIds: (user.roles ?? []).map((r: any) => r.id) }), 0);
+  if (user && f === null) setTimeout(() => setF(isNew ? { name: '', email: '', title: '', roleIds: [], propertyIds: [] } : { name: user.name, title: user.title ?? '', status: user.status, roleIds: (user.roles ?? []).map((r: any) => r.id), propertyIds: user.property_ids ?? [] }), 0);
   const close = () => { setF(null); onClose(); };
   const partyRole = isNew ? (roles.filter((r) => f?.roleIds?.includes(r.id)).find((r) => ['OWNER', 'TENANT', 'VENDOR'].includes(r.scope)) ?? null) : null;
   const partyType = partyRole?.scope as 'OWNER' | 'TENANT' | 'VENDOR' | undefined;
+  // A role limited to certain properties needs to be told which ones; without any, the person would see an empty product.
+  const limitedToProperties = roles.some((r) => f?.roleIds?.includes(r.id) && r.scope === 'PROPERTY');
+  // To show names (not ids) for properties already assigned, fetch the company's properties once when editing.
+  const { data: known } = useApi<any>(!isNew && user && (user.property_ids ?? []).length > 0 ? '/api/leasing/properties?page=1&size=100' : null);
+  const assigned = (known?.rows ?? known ?? []).filter((p: any) => (f?.propertyIds ?? []).includes(p.id));
   const partyEndpoint = partyType === 'OWNER' ? '/api/leasing/owners' : partyType === 'VENDOR' ? '/api/maintenance/vendors' : '/api/leasing/residents';
   const [issued, setIssued] = useState<{ name: string; email: string; password: string } | null>(null);
   const save = useAction(() => (isNew ? api.post<{ temporaryPassword: string }>('/api/identity/users', { ...f, partyType: partyType ?? undefined, partyId: partyType ? f.partyId || undefined : undefined }) : api.put(`/api/identity/users/${user.id}`, f)), {
@@ -48,6 +53,9 @@ function UserModal({ user, roles, onClose }: { user: any | 'new' | null; roles: 
         <fieldset><legend className="mb-1.5 text-sm font-semibold text-graphite-800">Roles</legend>
           <div className="grid gap-1.5 sm:grid-cols-2">{roles.map((r) => (
             <label key={r.id} className="flex items-center gap-2 rounded border border-limestone-200 px-3 py-2 text-sm"><input type="checkbox" checked={f.roleIds.includes(r.id)} onChange={() => toggle(r.id)} /><span className="h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />{r.name}</label>))}</div></fieldset>
+        {limitedToProperties && <Field label="Properties this person works on" required hint={(f.propertyIds ?? []).length === 0 ? 'Their role sees only the properties chosen here. Choose at least one, or they will see nothing.' : 'They see only these properties.'}>
+          <MultiEntityPicker<any> endpoint="/api/leasing/properties" value={f.propertyIds ?? []} selected={assigned} onChange={(ids) => setF({ ...f, propertyIds: ids })} placeholder="Search properties by name or address"
+            label={(p) => p.name} sub={(p) => [p.street, p.city, p.state].filter(Boolean).join(', ')} /></Field>}
         {!isNew && <div className="rounded border border-limestone-200 p-3"><div className="text-sm font-semibold text-graphite-800">Sign-in</div>
           <p className="mt-0.5 text-xs text-graphite-500">Forgotten password? Create a new temporary one. Their current password stops working and they choose a new one at next sign-in.</p>
           <Button className="mt-2" size="sm" variant="secondary" loading={reset.isPending} onClick={() => reset.mutate(undefined as never)}>Reset password</Button></div>}

@@ -127,7 +127,7 @@ test.describe('Documents', () => {
     // second signer must wait their turn
     const early = await sam.api.post(`/api/documents/signatures/${rid}/sign`, { signature: 'Sam Second', consent: true });
     expect(early.status).toBe(409);
-    expect((await sue.api.post(`/api/documents/signatures/${rid}/sign`, { signature: 'Wrong Name', consent: true })).status).toBe(400);
+    expect((await sue.api.post(`/api/documents/signatures/${rid}/sign`, { signature: '  ', consent: true })).status).toBe(400);
     expect((await sue.api.post(`/api/documents/signatures/${rid}/sign`, { signature: 'Sue Signer', consent: false })).status).toBe(400);
     expect((await sue.api.post(`/api/documents/signatures/${rid}/sign`, { signature: 'Sue Signer', consent: true })).status).toBe(200);
     expect((await sue.api.post(`/api/documents/signatures/${rid}/sign`, { signature: 'Sue Signer', consent: true })).status).toBe(409);

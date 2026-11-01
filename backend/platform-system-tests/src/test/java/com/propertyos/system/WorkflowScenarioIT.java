@@ -109,8 +109,9 @@ class WorkflowScenarioIT {
         Flow.Soft soft = new Flow.Soft();
         String admin = Flow.token("ORG_ADMIN");
         Reply contacts = Flow.ok(workflow.get(admin, "/api/workflow/chat/contacts"), "contacts");
-        assertTrue(contacts.body().size() >= 2);
-        String a = contacts.body().get(0).path("id").asText(), b = contacts.body().get(1).path("id").asText();
+        JsonNode people = contacts.body().path("rows");
+        assertTrue(people.size() >= 2);
+        String a = people.get(0).path("id").asText(), b = people.get(1).path("id").asText();
         assertEquals(400, workflow.post(admin, "/api/workflow/chat/conversations", Map.of("body", "No subject", "memberIds", List.of(a))).status());
         assertEquals(400, workflow.post(admin, "/api/workflow/chat/conversations", Map.of("subject", "No body", "memberIds", List.of(a))).status());
         assertEquals(400, workflow.post(admin, "/api/workflow/chat/conversations", Map.of("subject", "No people", "body", "Hello")).status());
@@ -137,9 +138,9 @@ class WorkflowScenarioIT {
             String t = Flow.token(role);
             Reply c = soft.seen(workflow.get(t, "/api/workflow/chat/contacts"), role + " contacts");
             soft.seen(workflow.get(t, "/api/workflow/chat/conversations"), role + " conversations");
-            if (c.status() == 200 && c.body().size() > 0) {
+            if (c.status() == 200 && Flow.rows(c).size() > 0) {
                 Reply started = soft.seen(workflow.post(t, "/api/workflow/chat/conversations", Map.of("subject", role + " question", "body", "Quick question about my account",
-                        "memberIds", List.of(c.body().get(0).path("id").asText()))), role + " start");
+                        "memberIds", List.of(Flow.rows(c).get(0).path("id").asText()))), role + " start");
                 if (started.status() == 200) {
                     String cid = started.body().path("id").asText();
                     soft.seen(workflow.post(t, "/api/workflow/chat/conversations/" + cid + "/messages", Map.of("body", "Following up")), role + " post");

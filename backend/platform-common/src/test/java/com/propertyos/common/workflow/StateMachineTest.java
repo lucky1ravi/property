@@ -24,7 +24,7 @@ class StateMachineTest {
     void aMissingRecordIsNotFound() {
         when(db.value(eq(String.class), anyString(), any(Object[].class))).thenThrow(new EmptyResultDataAccessException(1));
         assertThatThrownBy(() -> machine.apply("Showing", "leasing.showing", UUID.randomUUID(), "SHOWING", "CONFIRM", null, null, null))
-                .isInstanceOf(ApiException.class).hasMessageContaining("Showing");
+                .isInstanceOf(ApiException.class).hasMessageContaining("showing");
     }
 
     @Test

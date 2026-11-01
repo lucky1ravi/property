@@ -51,7 +51,7 @@ test.describe('Marketing website', () => {
     await page.goto('/security');
     await page.getByRole('link', { name: 'PropertyOS home' }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Run a bigger portfolio');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Control every property operation');
   });
 
   test('[SITE-09] the home page: hero actions, every product card, pricing teaser and the governance section', async ({ page }) => {
@@ -76,7 +76,7 @@ test.describe('Marketing website', () => {
     await page.getByRole('main').getByRole('link', { name: /Why teams choose PropertyOS/ }).click();
     await expect(page).toHaveURL(/\/why-us$/);
     await page.goto('/');
-    await page.getByRole('main').getByRole('link', { name: 'Sign in' }).click();
+    await page.locator('header').getByRole('link', { name: 'Sign in' }).first().click();
     await expect(page).toHaveURL(/\/signin$/);
   });
 
@@ -169,11 +169,11 @@ test.describe('Marketing website', () => {
   test('[SITE-15] the why-us and security pages show their sections and lead to a contact form', async ({ page }) => {
     await page.goto('/why-us');
     await expect(page.getByRole('heading', { name: 'Where a person stays in charge' })).toBeVisible();
-    expect(await page.locator('main h2').count()).toBeGreaterThanOrEqual(3);
+    await expect.poll(() => page.locator('main h2').count()).toBeGreaterThanOrEqual(3);
     await page.getByRole('main').getByRole('link', { name: 'See plans' }).first().click();
     await expect(page).toHaveURL(/\/plans$/);
     await page.goto('/security');
-    expect(await page.locator('main h2').count()).toBeGreaterThanOrEqual(4);
+    await expect.poll(() => page.locator('main h2').count()).toBeGreaterThanOrEqual(4);
     await expect(page.getByRole('heading', { name: 'Need details for your own review?' })).toBeVisible();
     await page.getByRole('main').getByRole('link', { name: 'Ask a security question' }).click();
     await expect(page).toHaveURL(/\/contact$/);

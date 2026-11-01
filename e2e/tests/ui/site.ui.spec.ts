@@ -2,7 +2,7 @@ import { test, expect, watchErrors } from '../../src/support/fixtures';
 import { CAN_WRITE, SUFFIX } from '../../src/support/env';
 
 const PAGES: Array<[string, RegExp]> = [
-  ['/', /Run a bigger portfolio with the same team/],
+  ['/', /Control every property operation from one system/],
   ['/products', /One platform, six jobs done/],
   ['/solutions', /A view built for every role/],
   ['/features', /Everything a property business runs on/],

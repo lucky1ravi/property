@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
@@ -18,10 +18,11 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
   open: boolean; onClose: () => void; title: ReactNode; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode; width?: number;
 }) {
   useEscape(open, onClose);
+  const titleId = useId();
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-40" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-labelledby={titleId}>
           <motion.div className="absolute inset-0 bg-graphite-950/30" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <motion.aside
             className="absolute inset-y-0 right-0 flex w-full flex-col bg-limestone-50 shadow-drawer"
@@ -31,7 +32,7 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
           >
             <header className="flex items-start justify-between gap-4 border-b border-limestone-200 bg-white px-6 py-4">
               <div className="min-w-0">
-                <h2 className="truncate text-lg font-extrabold tracking-[-0.01em] text-graphite-950">{title}</h2>
+                <h2 id={titleId} className="truncate text-lg font-extrabold tracking-[-0.01em] text-graphite-950">{title}</h2>
                 {subtitle && <div className="mt-0.5 text-sm text-graphite-500">{subtitle}</div>}
               </div>
               <button onClick={onClose} aria-label="Close" className="rounded p-1.5 text-graphite-500 hover:bg-limestone-100 hover:text-graphite-900"><X className="h-5 w-5" /></button>
@@ -50,10 +51,11 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
  */
 export function Modal({ open, onClose, title, children, footer, size = 'md' }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; footer?: ReactNode; size?: 'sm' | 'md' | 'lg' }) {
   useEscape(open, onClose);
+  const titleId = useId();
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby={titleId}>
           <motion.div className="absolute inset-0 bg-graphite-950/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <motion.div
             className={clsx('relative w-full rounded-lg bg-white shadow-lift', size === 'sm' && 'max-w-md', size === 'md' && 'max-w-lg', size === 'lg' && 'max-w-3xl')}
@@ -61,7 +63,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: {
             transition={{ duration: 0.16 }}
           >
             <header className="flex items-center justify-between border-b border-limestone-200 px-5 py-3.5">
-              <h2 className="text-base font-bold text-graphite-950">{title}</h2>
+              <h2 id={titleId} className="text-base font-bold text-graphite-950">{title}</h2>
               <button onClick={onClose} aria-label="Close" className="rounded p-1 text-graphite-500 hover:bg-limestone-100"><X className="h-4 w-4" /></button>
             </header>
             <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>

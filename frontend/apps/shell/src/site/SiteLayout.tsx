@@ -35,7 +35,7 @@ export function SiteLayout() {
   }, [pathname, hash]);
 
   return (
-    <div className="min-h-screen bg-limestone-50 text-graphite-900">
+    <div className="min-h-screen overflow-x-clip bg-limestone-50 text-graphite-900">
       <ScrollProgress />
       <a href="#content" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2">Skip to content</a>
       <div className="hidden bg-federal-950 text-federal-100 lg:block">

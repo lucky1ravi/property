@@ -50,7 +50,7 @@ final class Flow {
     static JsonNode rows(Reply r) {
         JsonNode b = r.body();
         if (b == null) return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
-        return b.isArray() ? b : b.path("items");
+        return b.isArray() ? b : b.has("rows") ? b.path("rows") : b.path("items");
     }
 
     /** Asserts the call succeeded (2xx) and returns it. */

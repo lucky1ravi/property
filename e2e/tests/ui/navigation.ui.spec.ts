@@ -27,7 +27,7 @@ const MENU: Record<string, string[]> = {
   broker: ['Home', 'Messages', 'Broker cockpit', ...PORTFOLIO, ...LEASING, 'Overview', 'Invoices', 'Payments received', 'Owner statements', 'Deposits', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Opportunities', 'Deadlines and alerts', ...AUTOMATION],
   agent: ['Home', 'Messages', ...PORTFOLIO, ...LEASING, ...FILES, 'AI tools'],
   accountant: ['Home', 'Messages', ...PORTFOLIO, 'Leasing', 'Overview', 'Invoices', 'Collections', 'Payments received', 'Owner statements', 'Deposits', 'Tax and compliance', ...MAINT, ...FILES, 'AI tools', 'Reports', 'Deadlines and alerts', 'Administration'],
-  owner: ['Home', 'Messages', 'Properties', 'Units', 'Overview', 'Invoices', 'Payments received', 'Owner statements', 'Deposits', 'Work orders', 'Preventive maintenance', ...FILES, 'Reports', 'Opportunities'],
+  owner: ['Home', 'Messages', 'Properties', 'Units', 'Leasing', 'Overview', 'Invoices', 'Payments received', 'Owner statements', 'Deposits', 'Work orders', 'Preventive maintenance', ...FILES, 'Reports', 'Opportunities'],
   tenant: ['Home', 'Messages', 'My lease', 'Overview', 'Invoices', 'Payments received', 'Deposits', 'Maintenance', ...FILES],
   vendor: ['Home', 'Messages', 'Work orders', 'Preventive maintenance', ...FILES],
 };

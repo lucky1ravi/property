@@ -2,6 +2,7 @@ package com.propertyos.billing.web;
 
 import com.propertyos.billing.service.*;
 import com.propertyos.common.security.RequiresPermission;
+import com.propertyos.common.web.ApiException;
 import com.propertyos.common.web.Req;
 import org.springframework.web.bind.annotation.*;
 
@@ -129,7 +130,11 @@ public class BillingController {
      * Runs the billing cycle for active leases: creates rent charges, applies late fees and processes autopay according to the company's invoicing settings.
      */
     @PostMapping("/run-cycle") @RequiresPermission("INVOICE:CREATE")
-    public Object runCycle() { return billing.runCycle(); }
+    public Object runCycle(@RequestBody(required = false) Map<String, Object> b) {
+        java.time.LocalDate asOf = Req.date(b, "asOf");
+        if (asOf != null && !billing.canChooseCycleDate()) throw ApiException.badRequest("Running the billing cycle for another date is only available in demo environments.");
+        return billing.runCycle(asOf);
+    }
 
     /**
      * Returns billed, collected and outstanding totals for the dashboard.

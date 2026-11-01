@@ -1,4 +1,5 @@
 import { test, expect, needsWrites, pick, watchErrors } from '../../src/support/fixtures';
+import { dismissWelcome } from '../../src/support/journey';
 import { Api, rows } from '../../src/support/api';
 import { onboardCompany, createSignedInUser, Company } from '../../src/support/company';
 import { buildPortfolio, publishListing, activeLease, apply, until, moveIn, Portfolio } from '../../src/support/builders';
@@ -49,6 +50,7 @@ test.describe('Journeys through the browser', () => {
     await page.waitForURL(/\/app/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Ada');
     await expect(page.locator('header').first()).toContainText(name);
+    await dismissWelcome(page);
     // 3. Set up: an owner, a property and a unit through the screens.
     await page.goto('/app/leasing/owners');
     await page.getByRole('button', { name: 'Add owner' }).first().click();
@@ -82,9 +84,12 @@ test.describe('Journeys through the browser', () => {
     // 5. The platform administrator suspends the company; the administrator is signed out.
     await platform.goto('/app/admin/platform');
     const row = platform.getByRole('row', { name: new RegExp(name) });
-    await row.getByRole('button', { name: 'Suspend' }).click();
+    await row.getByRole('button', { name: `Edit ${name}` }).click();
+    await platform.getByRole('dialog').getByRole('button', { name: 'Suspend', exact: true }).click();
     await platform.getByRole('dialog').getByLabel('Reason').fill('Journey test');
     await platform.getByRole('dialog').getByRole('button', { name: 'Suspend company' }).click();
+    await platform.getByRole('button', { name: /^Status:/ }).click();
+    await platform.getByRole('menu').getByLabel('Suspended').check();
     await expect(platform.getByRole('row', { name: new RegExp(name) })).toContainText(/Suspended/i);
     await expect.poll(async () => { await page.goto('/app'); await page.waitForTimeout(500); return page.url(); }, { timeout: 40_000 }).toMatch(/\/signin/);
     await page.getByLabel('Work email').fill(email);

@@ -129,7 +129,7 @@ test.describe('Role-based access', () => {
     expect(asAgent.actions.map((x: any) => x.action)).not.toContain('APPROVE');
     const refused = await agent.post(`/api/leasing/applications/${target}/actions/APPROVE`, { reason: 'x' });
     expect(refused.status).toBe(403);
-    expect(String(refused.body.detail)).toMatch(/APPLICATION:APPROVE/);
+    expect(String(refused.body.detail)).toMatch(/don't have permission to approve/);
     const acct = await apiAs('accountant');
     const prop = rows(await acct.get('/api/leasing/properties'))[0];
     expect((await acct.put(`/api/leasing/properties/${prop.id}`, { name: 'Hacked' })).status).toBe(403);
