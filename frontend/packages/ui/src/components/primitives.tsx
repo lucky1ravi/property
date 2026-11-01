@@ -1,5 +1,6 @@
 import { Children, Fragment, forwardRef, isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import clsx from 'clsx';
+import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Search as SearchIcon } from 'lucide-react';
 import { fmt } from '../lib/format';
@@ -39,10 +40,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { variant = 'secondary', size = 'md', loading, icon, className, children, disabled, ...rest },
   ref,
 ) {
+  const off = !!(disabled || loading);
+  // A press sinks a little and the filled buttons lift on hover: small, springy, and gone for people who reduce motion.
   return (
-    <button
+    <motion.button
       ref={ref}
-      disabled={disabled || loading}
+      disabled={off}
+      whileTap={off ? undefined : { scale: 0.97 }}
+      whileHover={off || (variant !== 'primary' && variant !== 'accent') ? undefined : { y: -1 }}
+      transition={{ type: 'spring', stiffness: 520, damping: 30 }}
       className={clsx(
         'inline-flex items-center justify-center rounded font-semibold whitespace-nowrap transition-colors',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600',
@@ -51,11 +57,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         sizes[size],
         className,
       )}
-      {...rest}
+      {...(rest as any)}
     >
       {loading ? <Spinner className="h-3.5 w-3.5" /> : icon}
       {children}
-    </button>
+    </motion.button>
   );
 });
 
@@ -75,7 +81,7 @@ export function Spinner({ className }: { className?: string }) {
  * Grey placeholder block shown while data loads.
  */
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={clsx('animate-pulse rounded bg-limestone-200', className)} />;
+  return <div className={clsx('relative overflow-hidden rounded bg-limestone-200 after:absolute after:inset-0 after:-translate-x-full after:bg-gradient-to-r after:from-transparent after:via-white/60 after:to-transparent motion-safe:after:animate-shimmer', className)} />;
 }
 
 // ---------------- Status ----------------
@@ -333,7 +339,7 @@ export function Toggle({ checked, onChange, label, disabled }: { checked: boolea
         checked ? 'bg-federal-800' : 'bg-limestone-400',
       )}
     >
-      <span className={clsx('inline-block h-4 w-4 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[18px]' : 'translate-x-0.5')} />
+      <motion.span className="inline-block h-4 w-4 rounded-full bg-white shadow" initial={false} animate={{ x: checked ? 18 : 2 }} transition={{ type: 'spring', stiffness: 620, damping: 32 }} />
     </button>
   );
 }

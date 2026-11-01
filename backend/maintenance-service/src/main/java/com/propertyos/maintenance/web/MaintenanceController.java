@@ -55,7 +55,7 @@ public class MaintenanceController {
      * Lists vendors with workload and recent ratings.
      */
     @GetMapping("/vendors") @RequiresPermission("VENDOR:VIEW")
-    public Object vendors() { return svc.vendors(); }
+    public Object vendors(@RequestParam(required = false) Boolean active) { return svc.vendors(Boolean.TRUE.equals(active)); }
 
     /**
      * Adds a vendor.

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
   PageHeader, Panel, Button, StatusPill, DataTable, PersonCell, type Column, Tabs, Modal, Field, Input, Select, Textarea, Badge, Skeleton, EmptyState, ConfirmDialog,
-  useApi, useAction, api, fmt, useSession,
+  useApi, useAction, api, fmt, useSession, usePagedApi, EntityPicker
 } from '@propertyos/ui';
 
 const inv = ['/api/identity/roles', '/api/identity/users'];
@@ -14,7 +14,7 @@ function UserModal({ user, roles, onClose }: { user: any | 'new' | null; roles: 
   const close = () => { setF(null); onClose(); };
   const partyRole = isNew ? (roles.filter((r) => f?.roleIds?.includes(r.id)).find((r) => ['OWNER', 'TENANT', 'VENDOR'].includes(r.scope)) ?? null) : null;
   const partyType = partyRole?.scope as 'OWNER' | 'TENANT' | 'VENDOR' | undefined;
-  const { data: parties } = useApi<any[]>(partyType === 'OWNER' ? '/api/leasing/owners' : partyType === 'VENDOR' ? '/api/maintenance/vendors' : partyType === 'TENANT' ? '/api/leasing/residents' : null);
+  const partyEndpoint = partyType === 'OWNER' ? '/api/leasing/owners' : partyType === 'VENDOR' ? '/api/maintenance/vendors' : '/api/leasing/residents';
   const [issued, setIssued] = useState<{ name: string; email: string; password: string } | null>(null);
   const save = useAction(() => (isNew ? api.post<{ temporaryPassword: string }>('/api/identity/users', { ...f, partyType: partyType ?? undefined, partyId: partyType ? f.partyId || undefined : undefined }) : api.put(`/api/identity/users/${user.id}`, f)), {
     success: isNew ? 'User added' : 'User updated', invalidate: inv,
@@ -41,9 +41,9 @@ function UserModal({ user, roles, onClose }: { user: any | 'new' | null; roles: 
         <Field label="Job title"><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></Field>
         {isNew && partyType && <Field label={partyType === 'OWNER' ? 'Which owner is this?' : partyType === 'VENDOR' ? 'Which vendor is this?' : 'Which resident is this?'} required
           hint="They will only see their own records.">
-          <Select value={f.partyId ?? ''} onChange={(e) => setF({ ...f, partyId: e.target.value })}><option value="">Choose…</option>
-            {(parties ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}{x.email ? ` · ${x.email}` : ''}</option>)}</Select>
-          {parties && parties.length === 0 && <span className="mt-1 block text-xs text-graphite-500">{partyType === 'TENANT' ? 'Residents appear here once they have a lease.' : partyType === 'OWNER' ? 'Add the owner under Portfolio → Owners first.' : 'Add the vendor under Maintenance → Vendors first.'}</span>}</Field>}
+          <EntityPicker<any> key={partyType} endpoint={partyEndpoint} value={f.partyId || null} onChange={(id) => setF({ ...f, partyId: id ?? '' })} avatar
+            placeholder={partyType === 'OWNER' ? 'Search owners' : partyType === 'VENDOR' ? 'Search vendors' : 'Search residents'}
+            label={(x) => x.name} sub={(x) => x.email} hint={partyType === 'TENANT' ? 'Residents appear here once they have a lease.' : partyType === 'OWNER' ? 'Add the owner under Portfolio → Owners first.' : 'Add the vendor under Maintenance → Vendors first.'} /></Field>}
         {!isNew && <Field label="Status"><Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option></Select></Field>}
         <fieldset><legend className="mb-1.5 text-sm font-semibold text-graphite-800">Roles</legend>
           <div className="grid gap-1.5 sm:grid-cols-2">{roles.map((r) => (
@@ -58,7 +58,7 @@ function UserModal({ user, roles, onClose }: { user: any | 'new' | null; roles: 
 
 function Users({ roles }: { roles: any[] }) {
   const { can } = useSession();
-  const { data, isLoading } = useApi<any[]>('/api/identity/users');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/identity/users');
   const [u, setU] = useState<any>(null);
   const cols: Column<any>[] = [
     { key: 'name', header: 'Name', render: (r) => (<PersonCell name={r.name} sub={r.email} size={36} seed={r.email} />) },
@@ -67,7 +67,7 @@ function Users({ roles }: { roles: any[] }) {
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status} /> },
   ];
   return (<Panel title="People" padded={false} actions={can('USER:CREATE') && <Button size="sm" variant="primary" onClick={() => setU('new')}>Add user</Button>}>
-    <DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => can('USER:EDIT') && setU(r)} exportName="users" />
+    <DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => can('USER:EDIT') && setU(r)} exportName="users" />
     <UserModal user={u} roles={roles} onClose={() => setU(null)} /></Panel>);
 }
 

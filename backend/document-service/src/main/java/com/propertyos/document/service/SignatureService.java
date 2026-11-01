@@ -9,6 +9,7 @@ import com.propertyos.common.rls.Db;
 import com.propertyos.common.security.UserContext;
 import com.propertyos.common.security.UserContextHolder;
 import com.propertyos.common.web.ApiException;
+import com.propertyos.common.web.PageParams;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,36 +53,57 @@ public class SignatureService {
     }
 
     /**
-     * Lists people who may be asked to sign a document, with how each relates to it.
+     * People who can be asked to sign a document that match a search: the document's own resident, owner and vendor first, then staff.
+     * Meant for a type-ahead, so it returns at most {@code size} people (default 20) and how many matched. Staff are searched in the
+     * identity service, so a company with thousands of staff never sends them all.
      */
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> candidates(UUID documentId) {
+    public Map<String, Object> candidates(UUID documentId, String q, int size) {
+        int n = Math.max(1, Math.min(size <= 0 ? 20 : size, 50));
         Map<String, Object> d = docs.load(documentId);
-        Set<String> parties = new HashSet<>();
+        Set<String> parties = new LinkedHashSet<>();
         for (String k : List.of("tenant_id", "owner_id", "vendor_id")) if (d.get(k) != null) parties.add(d.get(k).toString());
         List<Map<String, Object>> out = new ArrayList<>();
-        for (JsonNode u : lookups.directory()) {
-            String partyType = u.path("party_type").asText("");
-            String partyId = u.path("party_id").asText("");
-            String reason;
-            if (partyType.isBlank() || "null".equals(partyType)) {
-                String roles = u.path("roles").asText("");
-                if (roles.contains("PLATFORM")) continue;
-                reason = "Staff";
-            } else if (parties.contains(partyId)) {
-                reason = switch (partyType) { case "TENANT" -> "Resident"; case "OWNER" -> "Owner"; case "VENDOR" -> "Vendor"; default -> partyType; };
-            } else continue;
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("userId", u.path("id").asText());
-            m.put("name", u.path("name").asText());
-            m.put("title", u.path("title").asText(""));
-            m.put("partyType", partyType.isBlank() || "null".equals(partyType) ? null : partyType);
-            m.put("partyId", partyId.isBlank() || "null".equals(partyId) ? null : partyId);
-            m.put("relationship", reason);
-            out.add(m);
+        Set<String> seen = new HashSet<>();
+        if (!parties.isEmpty()) {
+            for (JsonNode u : lookups.directory(q, null, parties, false, 50)) addCandidate(out, seen, u, parties);
         }
+        int related = out.size();
+        for (JsonNode u : lookups.directory(q, null, null, true, 100)) addCandidate(out, seen, u, parties);
         out.sort(Comparator.comparing((Map<String, Object> m) -> "Staff".equals(m.get("relationship")) ? 1 : 0).thenComparing(m -> String.valueOf(m.get("name"))));
-        return out;
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("rows", out.stream().limit(n).toList());
+        res.put("total", out.size());
+        res.put("related", related);
+        return res;
+    }
+
+    private void addCandidate(List<Map<String, Object>> out, Set<String> seen, JsonNode u, Set<String> parties) {
+        Map<String, Object> m = candidateOf(u, parties);
+        if (m != null && seen.add(String.valueOf(m.get("userId")))) out.add(m);
+    }
+
+    /** Whether this person may be asked to sign this document, and how they relate to it; null when they may not. */
+    private Map<String, Object> candidateOf(JsonNode u, Set<String> parties) {
+        String partyType = u.path("party_type").asText("");
+        String partyId = u.path("party_id").asText("");
+        boolean staff = partyType.isBlank() || "null".equals(partyType);
+        String reason;
+        if (staff) {
+            if (u.path("roles").asText("").contains("PLATFORM")) return null;
+            reason = "Staff";
+        } else if (parties.contains(partyId)) {
+            reason = switch (partyType) { case "TENANT" -> "Resident"; case "OWNER" -> "Owner"; case "VENDOR" -> "Vendor"; default -> partyType; };
+        } else return null;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("userId", u.path("id").asText());
+        m.put("name", u.path("name").asText());
+        m.put("title", u.path("title").asText(""));
+        m.put("email", u.path("email").asText(""));
+        m.put("partyType", staff ? null : partyType);
+        m.put("partyId", staff || partyId.isBlank() || "null".equals(partyId) ? null : partyId);
+        m.put("relationship", reason);
+        return m;
     }
 
     /**
@@ -103,8 +125,16 @@ public class SignatureService {
         if (!"application/pdf".equals(d.get("mime_type"))) throw ApiException.badRequest("Send PDF files for signature so every signer sees exactly the same pages.");
         List<Object> requested = b.get("signers") instanceof List<?> l ? (List<Object>) l : List.of();
         if (requested.isEmpty()) throw ApiException.badRequest("Add at least one signer.");
+        // Only the people actually chosen are checked, not the whole directory.
         Map<String, Map<String, Object>> allowed = new HashMap<>();
-        for (Map<String, Object> c : candidates(documentId)) allowed.put(String.valueOf(c.get("userId")), c);
+        Set<String> docParties = new HashSet<>();
+        for (String k : List.of("tenant_id", "owner_id", "vendor_id")) if (d.get(k) != null) docParties.add(d.get(k).toString());
+        List<String> chosen = new ArrayList<>();
+        for (Object o : requested) chosen.add(o instanceof Map<?, ?> m ? String.valueOf(m.get("userId")) : String.valueOf(o));
+        for (JsonNode u : lookups.directory(null, chosen, null, false, 0)) {
+            Map<String, Object> c = candidateOf(u, docParties);
+            if (c != null) allowed.put(String.valueOf(c.get("userId")), c);
+        }
         UUID id = UUID.randomUUID();
         boolean sequential = Boolean.TRUE.equals(b.get("sequential"));
         int days = config.number("documents/esign/expiryDays", "14").intValue();
@@ -167,9 +197,11 @@ public class SignatureService {
             args.add(ctx.userId());
             args.add(ctx.partyId() == null ? "-" : ctx.partyId().toString());
         }
-        if (status != null && !status.isBlank()) { sql.append(" and r.status = ?"); args.add(status); }
-        sql.append(" order by case r.status when 'PENDING' then 0 else 1 end, r.created_at desc limit 300");
-        List<Map<String, Object>> rows = db.list(sql.toString(), args.toArray());
+        if ("OTHER".equals(status)) sql.append(" and r.status not in ('PENDING', 'COMPLETED')");
+        else if (status != null && !status.isBlank()) { sql.append(" and r.status = ?"); args.add(status); }
+        sql.append(" order by case r.status when 'PENDING' then 0 else 1 end, r.created_at desc");
+        if (PageParams.current().isEmpty()) sql.append(" limit 300");
+        List<Map<String, Object>> rows = db.page(sql.toString(), args.toArray());
         for (Map<String, Object> r : rows) {
             List<Map<String, Object>> signers = signersOf("select id, signer_order, name, role_label, status, signed_at, viewed_at, user_id from document.signature_signer where request_id = ? order by signer_order", r.get("id"));
             r.put("signers", signers);

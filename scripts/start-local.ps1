@@ -53,8 +53,14 @@ Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" | Where-Object { $_.Co
 }
 Start-Sleep -Seconds 2
 foreach ($name in $services.Keys) {
-    $busy = Get-NetTCPConnection -LocalPort $services[$name] -State Listen -ErrorAction SilentlyContinue
-    if ($busy) { Fail "Port $($services[$name]) ($name) is in use by process $($busy[0].OwningProcess), which is not one of ours. Stop it and run this again." }
+    # A stopped service's socket can linger for a few seconds (shown as process 0); give it time to close before calling it a conflict.
+    $busy = $null
+    for ($i = 0; $i -lt 20; $i++) {
+        $busy = Get-NetTCPConnection -LocalPort $services[$name] -State Listen -ErrorAction SilentlyContinue
+        if (-not $busy) { break }
+        Start-Sleep -Milliseconds 750
+    }
+    if ($busy) { Fail "Port $($services[$name]) ($name) is still in use by process $($busy[0].OwningProcess), which is not one of ours. Stop it and run this again." }
 }
 
 # --- 3. Database -------------------------------------------------------------

@@ -3,6 +3,7 @@ package com.propertyos.billing.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.propertyos.common.audit.AuditService;
 import com.propertyos.common.client.ServiceClient;
+import com.propertyos.common.web.PageParams;
 import com.propertyos.common.config.ConfigClient;
 import com.propertyos.common.events.EventPublisher;
 import com.propertyos.common.events.Notifier;
@@ -57,8 +58,9 @@ public class BillingService {
         }
         if (tenantId != null) { sql.append(" and tenant_id = ?"); a.add(tenantId); }
         if (kind != null) { sql.append(" and kind = ?"); a.add(kind); }
-        sql.append(" order by due_date desc, created_at desc limit 500");
-        return db.list(sql.toString(), a.toArray());
+        // A screen that pages gets every matching row a page at a time; other callers keep the 500 most recent.
+        sql.append(PageParams.current().isPresent() ? " order by due_date desc, created_at desc" : " order by due_date desc, created_at desc limit 500");
+        return db.page(sql.toString(), a.toArray());
     }
 
     /**
@@ -214,8 +216,8 @@ public class BillingService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> payments(UUID tenantId) {
-        return tenantId == null ? db.list("select * from billing.payment order by created_at desc limit 300")
-                : db.list("select * from billing.payment where tenant_id = ? order by created_at desc", tenantId);
+        return tenantId == null ? db.page("select * from billing.payment order by created_at desc" + (PageParams.current().isPresent() ? "" : " limit 300"))
+                : db.page("select * from billing.payment where tenant_id = ? order by created_at desc", tenantId);
     }
 
     /**

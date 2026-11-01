@@ -53,15 +53,21 @@ public class InternalController {
 
     /** Active people in the organisation, for deciding who may message whom. */
     @GetMapping("/directory")
-    public List<Map<String, Object>> directory() {
-        return tx.read(() -> store.users().stream().filter(u -> "ACTIVE".equals(String.valueOf(u.get("status"))))
-                .map(u -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("id", u.get("id")); m.put("name", u.get("name")); m.put("title", u.get("title")); m.put("persona", u.get("persona"));
-                    m.put("party_type", u.get("party_type")); m.put("party_id", u.get("party_id"));
-                    m.put("roles", String.valueOf(u.get("roles"))); m.put("property_ids", String.valueOf(u.get("property_ids")));
-                    return m;
-                }).toList());
+    public List<Map<String, Object>> directory(@RequestParam(required = false) String q, @RequestParam(required = false) String ids,
+                                               @RequestParam(required = false) String parties, @RequestParam(defaultValue = "false") boolean staff,
+                                               @RequestParam(defaultValue = "0") int limit) {
+        List<java.util.UUID> only = uuids(ids), ofParties = uuids(parties);
+        return tx.read(() -> store.directory(q, only, ofParties, staff, Math.max(0, Math.min(limit, 1000))).stream().map(u -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", u.get("id")); m.put("name", u.get("name")); m.put("title", u.get("title")); m.put("email", u.get("email")); m.put("persona", u.get("persona"));
+            m.put("party_type", u.get("party_type")); m.put("party_id", u.get("party_id"));
+            m.put("roles", String.valueOf(u.get("roles"))); m.put("property_ids", String.valueOf(u.get("property_ids")));
+            return m;
+        }).toList());
+    }
+
+    private static List<java.util.UUID> uuids(String csv) {
+        return csv == null || csv.isBlank() ? List.of() : java.util.Arrays.stream(csv.split(",")).filter(x -> !x.isBlank()).map(x -> java.util.UUID.fromString(x.trim())).toList();
     }
 
     /**

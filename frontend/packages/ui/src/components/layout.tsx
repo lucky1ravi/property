@@ -1,21 +1,22 @@
 import { type ReactNode, useState } from 'react';
 import clsx from 'clsx';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { CountUp, EASE, Float, withDelays } from './motion';
 
 /**
  * Page title row with optional description, actions, meta line and back link.
  */
 export function PageHeader({ title, description, actions, meta, back }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; meta?: ReactNode; back?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-      <div className="min-w-0">
+    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: EASE }} className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="min-w-0" data-tour="page-title">
         {back && <div className="mb-2">{back}</div>}
         <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em] text-graphite-950">{title}</h1>
         {description && <p className="mt-1 max-w-[68ch] text-[15px] text-graphite-600">{description}</p>}
         {meta && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-graphite-600">{meta}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-    </div>
+      {actions && <div className="flex flex-wrap items-center gap-2" data-tour="page-actions">{actions}</div>}
+    </motion.div>
   );
 }
 
@@ -24,7 +25,7 @@ export function Panel({ title, description, actions, children, className, padded
   title?: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; padded?: boolean; tone?: 'plain' | 'tinted' | 'alert';
 }) {
   return (
-    <section className={clsx('rounded-md border bg-white shadow-panel',
+    <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EASE }} className={clsx('rounded-md border bg-white shadow-panel',
       tone === 'tinted' && 'border-federal-100 bg-federal-50/50',
       tone === 'alert' && 'border-brick-200 bg-brick-50/40',
       tone === 'plain' && 'border-limestone-200', className)}>
@@ -38,7 +39,7 @@ export function Panel({ title, description, actions, children, className, padded
         </header>
       )}
       <div className={clsx(padded && 'p-5')}>{children}</div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -47,7 +48,7 @@ export function Panel({ title, description, actions, children, className, padded
  */
 export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { key: T; label: ReactNode; count?: number }[]; value: T; onChange: (v: T) => void; className?: string }) {
   return (
-    <div role="tablist" className={clsx('flex gap-1 overflow-x-auto border-b border-limestone-200', className)}>
+    <div role="tablist" data-tour="tabs" className={clsx('flex gap-1 overflow-x-auto border-b border-limestone-200', className)}>
       {tabs.map((t) => (
         <button
           key={t.key}
@@ -73,22 +74,22 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
  */
 export function EmptyState({ icon, title, body, action }: { icon?: ReactNode; title: string; body?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center px-6 py-12 text-center">
-      {icon && <div className="mb-3 text-federal-700">{icon}</div>}
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }} className="flex flex-col items-center px-6 py-12 text-center">
+      {icon && <Float amplitude={4} duration={4.5} className="mb-3 text-federal-700">{icon}</Float>}
       <p className="text-[15px] font-bold text-graphite-900">{title}</p>
       {body && <p className="mt-1 max-w-[46ch] text-sm text-graphite-500">{body}</p>}
       {action && <div className="mt-4">{action}</div>}
-    </div>
+    </motion.div>
   );
 }
 
 /** A figure with its label; `emphasis` makes one number on a page the anchor. */
-export function Stat({ label, value, sub, trend, emphasis, onClick }: { label: string; value: ReactNode; sub?: ReactNode; trend?: { value: string; good: boolean }; emphasis?: boolean; onClick?: () => void }) {
-  const Comp: any = onClick ? 'button' : 'div';
+export function Stat({ label, value, sub, trend, emphasis, onClick, delay = 0 }: { delay?: number; label: string; value: ReactNode; sub?: ReactNode; trend?: { value: string; good: boolean }; emphasis?: boolean; onClick?: () => void }) {
+  const Comp: any = onClick ? motion.button : motion.div;
   return (
-    <Comp onClick={onClick} className={clsx('min-w-0 text-left', onClick && 'rounded transition-colors hover:bg-limestone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slateblue-600')}>
+    <Comp initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay, ease: EASE }} onClick={onClick} className={clsx('min-w-0 text-left', onClick && 'rounded transition-colors hover:bg-limestone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slateblue-600')}>
       <div className="text-[13px] font-medium text-graphite-500">{label}</div>
-      <div className={clsx('mt-1 font-extrabold tabular-nums tracking-[-0.02em] text-graphite-950', emphasis ? 'text-[34px] leading-none' : 'text-[22px] leading-tight')}>{value}</div>
+      <div className={clsx('mt-1 font-extrabold tabular-nums tracking-[-0.02em] text-graphite-950', emphasis ? 'text-[34px] leading-none' : 'text-[22px] leading-tight')}>{typeof value === 'string' || typeof value === 'number' ? <CountUp value={value} /> : value}</div>
       {(sub || trend) && (
         <div className="mt-1 flex items-center gap-2 text-xs text-graphite-500">
           {trend && <span className={clsx('font-semibold', trend.good ? 'text-good-700' : 'text-crit-700')}>{trend.value}</span>}
@@ -101,7 +102,7 @@ export function Stat({ label, value, sub, trend, emphasis, onClick }: { label: s
 
 /** A horizontal strip of figures separated by rules (instead of a grid of identical cards). */
 export function StatStrip({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={clsx('grid grid-cols-2 divide-limestone-200 rounded-md border border-limestone-200 bg-white shadow-panel md:flex md:divide-x [&>*]:px-5 [&>*]:py-4 md:[&>*]:flex-1', className)}>{children}</div>;
+  return <div className={clsx('grid grid-cols-2 divide-limestone-200 rounded-md border border-limestone-200 bg-white shadow-panel md:flex md:divide-x [&>*]:px-5 [&>*]:py-4 md:[&>*]:flex-1', className)}>{withDelays(children, 0.07)}</div>;
 }
 
 /**
@@ -113,9 +114,11 @@ export function Collapsible({ title, children, defaultOpen = false }: { title: R
     <div className="border-b border-limestone-200 last:border-0">
       <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between py-3 text-left text-sm font-semibold text-graphite-900" aria-expanded={open}>
         {title}
-        <span className={clsx('text-graphite-400 transition-transform', open && 'rotate-180')}>⌄</span>
+        <span className={clsx('text-graphite-400 transition-transform duration-200', open && 'rotate-180')}>⌄</span>
       </button>
-      {open && <div className="pb-4">{children}</div>}
+      <AnimatePresence initial={false}>
+        {open && <motion.div key="body" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: EASE }} className="overflow-hidden"><div className="pb-4">{children}</div></motion.div>}
+      </AnimatePresence>
     </div>
   );
 }

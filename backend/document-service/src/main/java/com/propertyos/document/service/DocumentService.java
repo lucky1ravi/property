@@ -10,6 +10,7 @@ import com.propertyos.common.rls.Db;
 import com.propertyos.common.security.UserContext;
 import com.propertyos.common.security.UserContextHolder;
 import com.propertyos.common.web.ApiException;
+import com.propertyos.common.web.PageParams;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -198,17 +199,31 @@ public class DocumentService {
             String q = "%" + f.get("q").trim() + "%";
             for (int i = 0; i < 6; i++) args.add(q);
         }
-        sql.append(" order by updated_at desc limit ").append(Math.min(Integer.parseInt(f.getOrDefault("limit", "500")), 1000));
+        // Tab counts cover every page and ignore the tab itself, so each tab shows its own total.
+        Map<String, Long> byCategory = new LinkedHashMap<>();
+        long esigned = 0;
+        boolean paged = PageParams.current().isPresent();
+        if (paged) {
+            for (Map<String, Object> c : db.list("select category, count(*) as n, count(*) filter (where signature_status <> 'NONE') as signed from (" + sql + ") x group by category", args.toArray())) {
+                byCategory.put((String) c.get("category"), ((Number) c.get("n")).longValue());
+                esigned += ((Number) c.get("signed")).longValue();
+            }
+        }
+        if (has(f, "categories")) { sql.append(" and category = any (string_to_array(?, ','))"); args.add(f.get("categories")); }
+        if ("esign".equals(f.get("group"))) sql.append(" and signature_status <> 'NONE'");
+        sql.append(" order by updated_at desc");
+        if (PageParams.current().isEmpty()) sql.append(" limit ").append(Math.min(Integer.parseInt(f.getOrDefault("limit", "500")), 1000));
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (Map<String, Object> d : db.list(sql.toString(), args.toArray())) {
+        for (Map<String, Object> d : db.page(sql.toString(), args.toArray())) {
             if ("HIDDEN".equals(access(d, ctx))) continue;
             rows.add(view(d, ctx));
         }
-        Map<String, Long> byCategory = new LinkedHashMap<>();
-        for (Map<String, Object> r : rows) byCategory.merge((String) r.get("category"), 1L, Long::sum);
+        if (!paged) for (Map<String, Object> r : rows) byCategory.merge((String) r.get("category"), 1L, Long::sum);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("items", rows);
         out.put("byCategory", byCategory);
+        if (paged) out.put("esigned", esigned);
+        PageParams.addTo(out);
         return out;
     }
 
@@ -522,7 +537,7 @@ public class DocumentService {
     public Map<String, Object> review(UUID id, String decision, String note) {
         UserContext ctx = UserContextHolder.require();
         if (!staff(ctx) || !ctx.has("DOCUMENT:EDIT")) throw ApiException.forbidden("You can't review documents.");
-        if (!List.of("ACCEPTED", "REJECTED").contains(decision)) throw ApiException.badRequest("Decision must be ACCEPTED or REJECTED.");
+        if (!List.of("ACCEPTED", "REJECTED").contains(decision)) throw ApiException.badRequest("Choose whether to accept or reject.");
         if ("REJECTED".equals(decision) && blank(note)) throw ApiException.badRequest("Say why the file was rejected so the sender can fix it.");
         Map<String, Object> d = load(id);
         db.update("update document.document set review_status = ?, review_note = ?, updated_at = now() where id = ?", decision, trim(note, 500), id);

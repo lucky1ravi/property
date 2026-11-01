@@ -37,8 +37,8 @@ export function Profile() {
   if (!session) return <Skeleton className="h-96" />;
   const pick = async (f?: File) => {
     if (!f) return;
-    if (!f.type.startsWith('image/')) return toast('Choose an image file (JPG or PNG)');
-    try { setPhoto(await toSquareJpeg(f)); } catch { toast('That image could not be read. Try another one.'); }
+    if (!f.type.startsWith('image/')) return toast('That isn’t a picture', { tone: 'warning', body: 'Choose an image file, such as a JPG or PNG.' });
+    try { setPhoto(await toSquareJpeg(f)); } catch { toast('That picture couldn’t be read', { tone: 'warning', body: 'Try a different one. JPG, PNG and WebP work best.' }); }
   };
   const dirty = name !== (session.name ?? '') || title !== (session.title ?? '') || phone !== (session.phone ?? '') || photo !== (session.photo ?? null);
   return (<>

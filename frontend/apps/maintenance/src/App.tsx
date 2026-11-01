@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-rout
 import {
   DocumentsPanel,
   MicroApp, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Modal, Field, Input, Select, Textarea, KeyValues, Timeline,
-  AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction, QuickLink, ConfirmDialog } from '@propertyos/ui';
+  AiInsight, SlaClock, WorkflowTrack, RankBars, EmptyState, Skeleton, Toggle, useApi, useAction, api, fmt, useSession, personaOf, type WorkflowAction, QuickLink, ConfirmDialog, usePagedApi, EntityPicker } from '@propertyos/ui';
 
 const BASE = '/app/maintenance';
 const inv = ['/api/maintenance'];
@@ -16,7 +16,7 @@ const SubNav = () => null;
 function List() {
   const nav = useNavigate(); const { can, session } = useSession();
   const staff = personaOf(session) !== 'tenant' && personaOf(session) !== 'vendor';
-  const { data, isLoading } = useApi<any[]>('/api/maintenance/work-orders');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/maintenance/work-orders', { initialSort: { key: 'priority', dir: 'desc' } });
   const { data: st } = useApi<any>(staff ? '/api/maintenance/stats' : null);
   const [creating, setCreating] = useState(false);
   const cols: Column<any>[] = [
@@ -32,7 +32,7 @@ function List() {
     <SubNav />
     {st && <StatStrip className="mb-6"><Stat label="Open requests" value={st.open_orders} emphasis /><Stat label="Emergencies" value={st.open_emergencies} /><Stat label="Awaiting owner approval" value={st.awaiting_approval} />
       <Stat label="Past SLA" value={st.sla_breached} /><Stat label="Avg. resolution" value={`${Math.round(st.avg_resolution_hours ?? 0)} h`} /><Stat label="Cost this month" value={fmt.usd(st.cost_this_month)} /></StatStrip>}
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(w) => w.id} loading={isLoading} onRowClick={(w) => nav(`${BASE}/${w.id}`)} exportName="work-orders" initialSort={{ key: 'priority', dir: 'desc' }}
+    <Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(w) => w.id} loading={isLoading} onRowClick={(w) => nav(`${BASE}/${w.id}`)} exportName="work-orders" initialSort={{ key: 'priority', dir: 'desc' }}
       empty={{ title: 'No requests', body: 'Submitted requests will appear here.' }} /></Panel>
     {st?.by_category?.length > 0 && <div className="mt-6 grid gap-6 lg:grid-cols-2"><Panel title="Requests by category"><RankBars data={st.by_category} label="category" value="count" /></Panel><Panel title="Requests by property"><RankBars data={st.by_property} label="property_name" value="count" /></Panel></div>}
     <NewRequest open={creating} onClose={() => setCreating(false)} />
@@ -42,13 +42,13 @@ function List() {
 function NewRequest({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { session } = useSession(); const nav = useNavigate();
   const tenant = personaOf(session) === 'tenant';
-  const { data: leases } = useApi<any[]>(open && !tenant ? '/api/leasing/leases?status=ACTIVE' : null);
   const [f, setF] = useState<any>({ tenantId: '', title: '', description: '', permissionToEnter: true });
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const go = useAction(() => api.post<any>('/api/maintenance/work-orders', { ...f, tenantId: f.tenantId || undefined }), { success: 'Request submitted', invalidate: inv, onSuccess: (r) => { onClose(); if (r?.id) nav(`${BASE}/${r.id}`); } });
   return (<Modal open={open} onClose={onClose} title="New maintenance request" footer={<><Button variant="quiet" onClick={onClose}>Cancel</Button><Button variant="primary" loading={go.isPending} disabled={!f.title || (!tenant && !f.tenantId)} onClick={() => go.mutate(undefined)}>Submit</Button></>}>
     <div className="space-y-3">
-      {!tenant && <Field label="Resident" required><Select value={f.tenantId} onChange={set('tenantId')}><option value="">Choose a resident</option>{(leases ?? []).map((l) => <option key={l.id} value={l.tenant_id}>{l.tenant_name} · {l.property_name} {l.unit_label}</option>)}</Select></Field>}
+      {!tenant && <Field label="Resident" required hint="Search by name, property or unit."><EntityPicker<any> endpoint="/api/leasing/leases" params={{ status: 'ACTIVE' }} value={f.tenantId || null} onChange={(id) => setF({ ...f, tenantId: id ?? '' })} avatar
+        getId={(l) => l.tenant_id} label={(l) => l.tenant_name} sub={(l) => `${l.property_name} · ${l.unit_label}`} placeholder="Search residents" /></Field>}
       <Field label="What’s wrong?" required><Input value={f.title} onChange={set('title')} placeholder="e.g. Kitchen sink is leaking" /></Field>
       <Field label="Details" hint="We triage by urgency and cost. If you smell gas or see smoke, leave and call 911 first."><Textarea rows={4} value={f.description} onChange={set('description')} /></Field>
       <Toggle checked={f.permissionToEnter} onChange={(v) => setF({ ...f, permissionToEnter: v })} label="OK to enter if I’m not home" />
@@ -61,7 +61,6 @@ function Detail() {
   const { id } = useParams(); const { session } = useSession();
   const staff = personaOf(session) !== 'tenant';
   const { data: w, isLoading } = useApi<any>(`/api/maintenance/work-orders/${id}`);
-  const { data: vendors } = useApi<any[]>(staff ? '/api/maintenance/vendors' : null);
   const [dlg, setDlg] = useState<Dlg>(null); const [v, setV] = useState<any>({}); const [msg, setMsg] = useState(''); const [internal, setInternal] = useState(false);
   const act = useAction((x: { a: string; body: any }) => api.post(`/api/maintenance/work-orders/${id}/actions/${x.a}`, x.body), { success: 'Updated', invalidate: inv, onSuccess: () => { setDlg(null); setV({}); } });
   const post = useAction(() => api.post(`/api/maintenance/work-orders/${id}/comments`, { body: msg, internal }), { success: 'Comment added', invalidate: inv, onSuccess: () => setMsg('') });
@@ -104,7 +103,8 @@ function Detail() {
     <Modal open={!!dlg} onClose={() => setDlg(null)} title={dlg?.action.label ?? ''} size="sm" footer={<><Button variant="quiet" onClick={() => setDlg(null)}>Cancel</Button><Button variant="primary" loading={act.isPending} onClick={submit}
       disabled={(A === 'ASSIGN' && !v.vendorId) || (A === 'SCHEDULE' && !v.when) || (A === 'COMPLETE' && !v.cost) || (dlg?.action.requiresReason && !v.reason)}>{dlg?.action.label}</Button></>}>
       <div className="space-y-3">
-        {A === 'ASSIGN' && <Field label="Vendor"><Select value={v.vendorId ?? ''} onChange={(e) => setV({ ...v, vendorId: e.target.value })}><option value="">Choose a vendor</option>{(vendors ?? []).filter((x) => x.active).map((x) => <option key={x.id} value={x.id}>{x.name} · {(x.trades ?? []).join(', ')} · {x.rating}★</option>)}</Select></Field>}
+        {A === 'ASSIGN' && <Field label="Vendor" hint="Search by name or trade."><EntityPicker<any> endpoint="/api/maintenance/vendors" params={{ active: 'true' }} value={v.vendorId || null} onChange={(id) => setV({ ...v, vendorId: id ?? '' })}
+          label={(x) => x.name} sub={(x) => `${(x.trades ?? []).join(', ')} · ${x.rating}★`} placeholder="Search vendors" /></Field>}
         {A === 'APPROVE' && <Field label="Approved amount (USD)" hint={`Defaults to the estimate${w.estimate ? ` of ${fmt.usd(w.estimate)}` : ''}.`}><Input type="number" value={v.amount ?? ''} onChange={(e) => setV({ ...v, amount: e.target.value })} /></Field>}
         {A === 'SCHEDULE' && <Field label="Visit date and time" required><Input type="datetime-local" value={v.when ?? ''} onChange={(e) => setV({ ...v, when: e.target.value })} /></Field>}
         {A === 'COMPLETE' && <><Field label="Final cost (USD)" required><Input type="number" value={v.cost ?? ''} onChange={(e) => setV({ ...v, cost: e.target.value })} /></Field><Field label="Work notes"><Textarea rows={3} value={v.notes ?? ''} onChange={(e) => setV({ ...v, notes: e.target.value })} /></Field></>}
@@ -146,7 +146,7 @@ function AddVendor({ open, onClose, existing }: { open: boolean; onClose: () => 
 }
 
 function Vendors() {
-  const { data, isLoading } = useApi<any[]>('/api/maintenance/vendors');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/maintenance/vendors');
   const { can } = useSession();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -160,13 +160,12 @@ function Vendors() {
     { key: 'open_jobs', header: 'Open', align: 'right' },
     { key: 'insurance_expires', header: 'Insurance to', hideOnMobile: true, render: (r) => fmt.date(r.insurance_expires) },
   ];
-  return (<><PageHeader title="Vendors" description="Ranked automatically on rating, price, response time and current workload." /><SubNav /><Panel padded={false} actions={can('VENDOR:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add vendor</Button>}><AddVendor open={adding} onClose={() => setAdding(false)} /><AddVendor open={!!editing} existing={editing} onClose={() => setEditing(null)} /><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => can('VENDOR:EDIT') && setEditing(r)} exportName="vendors" /></Panel></>);
+  return (<><PageHeader title="Vendors" description="Ranked automatically on rating, price, response time and current workload." /><SubNav /><Panel padded={false} actions={can('VENDOR:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add vendor</Button>}><AddVendor open={adding} onClose={() => setAdding(false)} /><AddVendor open={!!editing} existing={editing} onClose={() => setEditing(null)} /><DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => can('VENDOR:EDIT') && setEditing(r)} exportName="vendors" /></Panel></>);
 }
 
 function Recurring() {
-  const { data, isLoading } = useApi<any[]>('/api/maintenance/recurring');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/maintenance/recurring');
   const { can } = useSession();
-  const { data: props } = useApi<any[]>('/api/leasing/properties');
   const [adding, setAdding] = useState(false);
   const blank = { propertyId: '', title: '', category: 'GENERAL', everyMonths: '6', nextDue: '' };
   const [t, setT] = useState(blank);
@@ -179,10 +178,11 @@ function Recurring() {
   ];
   return (<><PageHeader title="Preventive maintenance" description="Scheduled inspections and filter changes cost far less than emergency repairs." actions={<Button onClick={() => run.mutate(undefined)} loading={run.isPending}>Create due requests now</Button>} /><SubNav />
     <Panel padded={false} actions={can('WORK_ORDER:EDIT') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add recurring task</Button>}>
-      <DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} empty={{ title: 'No recurring tasks yet', body: can('WORK_ORDER:EDIT') ? 'Add inspections or filter changes that repeat, and they turn into requests when due.' : undefined }} /></Panel>
+      <DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} empty={{ title: 'No recurring tasks yet', body: can('WORK_ORDER:EDIT') ? 'Add inspections or filter changes that repeat, and they turn into requests when due.' : undefined }} /></Panel>
     <Modal open={adding} onClose={() => setAdding(false)} title="Add a recurring task" footer={<><Button variant="quiet" onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" disabled={!t.propertyId || !t.title.trim()} loading={addTask.isPending} onClick={() => addTask.mutate(undefined as never)}>Save</Button></>}>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="sm:col-span-2"><Field label="Property" required><Select value={t.propertyId} onChange={(e) => setT({ ...t, propertyId: e.target.value })}><option value="">Choose a property</option>{(props ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field></div>
+        <div className="sm:col-span-2"><Field label="Property" required><EntityPicker<any> endpoint="/api/leasing/properties" value={t.propertyId || null} onChange={(id) => setT({ ...t, propertyId: id ?? '' })} placeholder="Search properties by name or address"
+          label={(p) => p.name} sub={(p) => [p.street, p.city, p.state].filter(Boolean).join(', ')} /></Field></div>
         <div className="sm:col-span-2"><Field label="Task" required><Input value={t.title} onChange={(e) => setT({ ...t, title: e.target.value })} /></Field></div>
         <Field label="Category"><Select value={t.category} onChange={(e) => setT({ ...t, category: e.target.value })}><option value="GENERAL">General</option><option value="HVAC">HVAC</option><option value="PLUMBING">Plumbing</option><option value="ELECTRICAL">Electrical</option><option value="PEST_CONTROL">Pest control</option><option value="LANDSCAPING">Landscaping</option></Select></Field>
         <Field label="Repeats every (months)"><Input type="number" min={1} value={t.everyMonths} onChange={(e) => setT({ ...t, everyMonths: e.target.value })} /></Field>

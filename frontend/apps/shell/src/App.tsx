@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MotionConfig } from 'framer-motion';
 import { useToken } from '@propertyos/ui';
 import { SignIn } from './pages/SignIn';
 import { Messages } from './pages/Messages';
@@ -64,6 +65,7 @@ function NotFound() {
 export function App() {
   return (
     <QueryClientProvider client={qc}>
+      <MotionConfig reducedMotion="user">
       <BrowserRouter>
         <Routes>
           <Route element={<SiteLayout />}>
@@ -96,6 +98,7 @@ export function App() {
         </Routes>
         <Toaster />
       </BrowserRouter>
+      </MotionConfig>
     </QueryClientProvider>
   );
 }

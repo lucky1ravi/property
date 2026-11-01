@@ -58,16 +58,38 @@ public class ChatService {
         return out;
     }
 
-    /** Everyone in the company with the properties they work on or belong to. */
+    /** Everyone in the company with the properties they work on or belong to. Prefer the narrower form below for anything a person triggers. */
     private List<Person> directory() {
+        return directory(null, null, 0);
+    }
+
+    /**
+     * People matching a search and/or a set of ids, at most {@code limit} of them (0 = no limit), with the properties they work on
+     * or belong to. The search and the limit are applied by the identity service, so a company with thousands of people only
+     * ever sends the few that were asked for.
+     */
+    private List<Person> directory(String q, Collection<UUID> ids, int limit) {
         List<Person> out = new ArrayList<>();
-        Map<String, Set<String>> partyProps = new HashMap<>();
         try {
-            for (JsonNode p : client.get(ServiceClient.Service.LEASING, "/internal/leasing/party-directory")) partyProps.put(p.path("party_id").asText(), split(p.path("property_ids")));
-        } catch (Exception ignored) {
-        }
-        try {
-            for (JsonNode u : client.get(ServiceClient.Service.IDENTITY, "/internal/directory")) {
+            List<String> ps = new ArrayList<>();
+            if (q != null && !q.isBlank()) ps.add("q=" + org.springframework.web.util.UriUtils.encodeQueryParam(q.trim(), java.nio.charset.StandardCharsets.UTF_8));
+            if (ids != null && !ids.isEmpty()) ps.add("ids=" + String.join(",", ids.stream().map(UUID::toString).toList()));
+            if (limit > 0) ps.add("limit=" + limit);
+            JsonNode users = client.get(ServiceClient.Service.IDENTITY, "/internal/directory" + (ps.isEmpty() ? "" : "?" + String.join("&", ps)));
+            // Owners and residents belong to properties through the leasing service; ask only about the ones found.
+            List<String> partyIds = new ArrayList<>();
+            for (JsonNode u : users) if (!"STAFF".equals(kindOf(u)) && !u.path("party_id").isNull()) partyIds.add(u.path("party_id").asText());
+            Map<String, Set<String>> partyProps = new HashMap<>();
+            if (!ps.isEmpty() && partyIds.isEmpty()) {
+                // nobody to look up
+            } else {
+                try {
+                    String path = "/internal/leasing/party-directory" + (ps.isEmpty() ? "" : "?partyIds=" + String.join(",", partyIds));
+                    for (JsonNode p : client.get(ServiceClient.Service.LEASING, path)) partyProps.put(p.path("party_id").asText(), split(p.path("property_ids")));
+                } catch (Exception ignored) {
+                }
+            }
+            for (JsonNode u : users) {
                 String kind = kindOf(u);
                 Set<String> props = new HashSet<>();
                 boolean orgWide = false;
@@ -86,6 +108,11 @@ public class ChatService {
             throw new ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "DIRECTORY_UNAVAILABLE", "The people directory isn't available right now. Try again in a moment.");
         }
         return out;
+    }
+
+    /** The signed-in person alone, without loading anyone else. */
+    private Person meOnly() {
+        return me(directory(null, List.of(UserContextHolder.require().userId()), 0));
     }
 
     private boolean pairAllowed(String a, String b) {
@@ -118,41 +145,63 @@ public class ChatService {
 
     // ---------- Contacts ----------
     /**
-     * Lists people the user may message, according to the company's chat rules.
+     * People the user may message, according to the company's chat rules, that match a search. Meant for a type-ahead: it returns
+     * at most {@code size} people (default 20, at most 50) and the number that matched, so the screen can say "keep typing to narrow".
      */
-    public List<Map<String, Object>> contacts() {
+    public Map<String, Object> contacts(String q, int size) {
         requireEnabled();
-        List<Person> dir = directory();
-        Person me = me(dir);
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (Person p : dir) {
+        int n = Math.max(1, Math.min(size <= 0 ? 20 : size, 50));
+        Person me = meOnly();
+        // The rules decide who is reachable, so look at more matches than will be shown and keep the first n that pass.
+        List<Person> found = directory(q, null, 500);
+        List<Map<String, Object>> allowed = new ArrayList<>();
+        for (Person p : found) {
             if (p.id().equals(me.id()) || !pairAllowed(me.kind(), p.kind()) || !connected(me, p)) continue;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", p.id()); m.put("name", p.name()); m.put("title", p.title()); m.put("kind", p.kind());
-            out.add(m);
+            allowed.add(m);
         }
-        out.sort(Comparator.comparing((Map<String, Object> m) -> String.valueOf(m.get("kind"))).thenComparing(m -> String.valueOf(m.get("name"))));
+        allowed.sort(Comparator.comparing((Map<String, Object> m) -> String.valueOf(m.get("kind"))).thenComparing(m -> String.valueOf(m.get("name"))));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("rows", allowed.stream().limit(n).toList());
+        out.put("total", allowed.size());
+        out.put("truncated", found.size() >= 500);
         return out;
     }
 
     // ---------- Conversations ----------
     /**
-     * Lists the user's 200 latest conversations with last message and unread counts.
+     * Lists the user's conversations, latest first, with last message and unread counts. A search ({@code q}) looks at the subject,
+     * the people and the last message; {@code limit} (default 30, at most 200) is how many to return, and {@code total} says how many
+     * matched so the screen can offer "load more".
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> list() {
+    public Map<String, Object> list(String q, int limit) {
         requireEnabled();
         UUID me = UserContextHolder.require().userId();
-        List<Map<String, Object>> rows = db.list("""
+        int n = Math.max(1, Math.min(limit <= 0 ? 30 : limit, 200));
+        String like = q == null || q.isBlank() ? null : "%" + q.trim().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        String inner = """
                 select c.id, c.subject, c.context_type, c.context_id, c.context_label, c.status, c.last_message_at,
                        (select body from workflow.message m where m.conversation_id = c.id order by created_at desc limit 1) as last_body,
                        (select sender_name from workflow.message m where m.conversation_id = c.id order by created_at desc limit 1) as last_sender,
                        (select count(*) from workflow.message m where m.conversation_id = c.id and m.kind = 'USER' and m.sender_id <> ? and (cm.last_read_at is null or m.created_at > cm.last_read_at)) as unread,
                        (select string_agg(x.user_name, ', ' order by x.user_name) from workflow.conversation_member x where x.conversation_id = c.id and x.user_id <> ?) as with_names
-                from workflow.conversation c join workflow.conversation_member cm on cm.conversation_id = c.id and cm.user_id = ?
-                order by c.last_message_at desc limit 200""", me, me, me);
-        long unread = rows.stream().mapToLong(r -> ((Number) r.get("unread")).longValue()).sum();
-        return Map.of("items", rows, "unread", unread);
+                from workflow.conversation c join workflow.conversation_member cm on cm.conversation_id = c.id and cm.user_id = ?""";
+        String where = like == null ? "" : " where t.subject ilike ? or coalesce(t.with_names, '') ilike ? or coalesce(t.last_body, '') ilike ?";
+        List<Object> args = new ArrayList<>(List.of(me, me, me));
+        if (like != null) { args.add(like); args.add(like); args.add(like); }
+        Long total = db.value(Long.class, "select count(*) from (" + inner + ") t" + where, args.toArray());
+        // Unread across everything, not just the page shown.
+        Long unread = db.value(Long.class, "select coalesce(sum(t.unread), 0) from (" + inner + ") t", me, me, me);
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(n);
+        List<Map<String, Object>> rows = db.list("select t.* from (" + inner + ") t" + where + " order by t.last_message_at desc limit ?", pageArgs.toArray());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("items", rows);
+        out.put("unread", unread == null ? 0 : unread);
+        out.put("total", total == null ? 0 : total);
+        return out;
     }
 
     private Map<String, Object> member(UUID conv) {
@@ -193,7 +242,10 @@ public class ChatService {
         if (!CONTEXTS.contains(ctype)) throw ApiException.badRequest("Unknown conversation type.");
         List<?> ids = b.get("memberIds") instanceof List<?> l ? l : List.of();
         if (ids.isEmpty()) throw ApiException.badRequest("Choose who to message.");
-        List<Person> dir = directory();
+        List<UUID> wanted = new ArrayList<>();
+        for (Object o : ids) wanted.add(UUID.fromString(String.valueOf(o)));
+        wanted.add(UserContextHolder.require().userId());
+        List<Person> dir = directory(null, wanted, 0);
         Person me = me(dir);
         Map<UUID, Person> allowed = new HashMap<>();
         for (Person p : dir) if (!p.id().equals(me.id()) && pairAllowed(me.kind(), p.kind()) && connected(me, p)) allowed.put(p.id(), p);
@@ -225,7 +277,7 @@ public class ChatService {
         requireEnabled();
         member(id);
         UserContext ctx = UserContextHolder.require();
-        Person me = me(directory());
+        Person me = meOnly();
         checkBody(me, body == null ? "" : body);
         insertMessage(id, ctx, me, "USER", body.trim());
         db.update("update workflow.conversation set status = 'OPEN' where id = ? and status = 'RESOLVED'", id);
@@ -246,7 +298,7 @@ public class ChatService {
         member(id);
         UserContext ctx = UserContextHolder.require();
         db.update("update workflow.conversation set status = ? where id = ?", resolved ? "RESOLVED" : "OPEN", id);
-        Person me = me(directory());
+        Person me = meOnly();
         insertMessage(id, ctx, me, "SYSTEM", me.name() + (resolved ? " marked this resolved." : " reopened this conversation."));
         return Map.of("status", resolved ? "RESOLVED" : "OPEN");
     }
@@ -265,7 +317,7 @@ public class ChatService {
         Collections.reverse(msgs);
         if (msgs.isEmpty()) throw ApiException.badRequest("There is nothing to summarise yet.");
         String subject = (String) db.one("Conversation", "select subject from workflow.conversation where id = ?", id).get("subject");
-        boolean staff = "STAFF".equals(me(directory()).kind());
+        boolean staff = "STAFF".equals(meOnly().kind());
         List<Map<String, String>> input = new ArrayList<>();
         for (Map<String, Object> m : msgs) input.add(Map.of("from", String.valueOf(m.get("sender_name")), "text", String.valueOf(m.get("body"))));
         Optional<JsonNode> r = ai.call("thread", Map.of("subject", subject, "messages", input));

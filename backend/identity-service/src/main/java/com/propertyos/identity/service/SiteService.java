@@ -1,5 +1,7 @@
 package com.propertyos.identity.service;
 
+import com.propertyos.common.rls.SqlPaging;
+import com.propertyos.common.web.PageParams;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.propertyos.common.audit.AuditService;
 import com.propertyos.common.config.ConfigClient;
@@ -123,7 +125,7 @@ public class SiteService {
      * @throws ApiException (404) for an unknown feature, (400) for a bad value
      */
     public List<Map<String, Object>> updateFeature(String key, Map<String, Object> body) {
-        if (jdbc.queryForObject("select count(*) from identity.site_feature where feature_key = ?", Integer.class, key) == 0) throw ApiException.notFound("Feature not found.");
+        if (jdbc.queryForObject("select count(*) from identity.site_feature where feature_key = ?", Integer.class, key) == 0) throw ApiException.notFound("Feature");
         if (body.containsKey("title")) {
             String t = text(body, "title");
             if (t.isEmpty() || t.length() > 100) throw ApiException.badRequest("The title needs 1 to 100 characters.");
@@ -141,8 +143,9 @@ public class SiteService {
 
     /** Enquiries, newest first, optionally only one status. */
     public List<Map<String, Object>> contactRequests(String status) {
-        if (status == null || status.isBlank()) return jdbc.queryForList("select * from identity.contact_request order by created_at desc limit 500");
-        return jdbc.queryForList("select * from identity.contact_request where status = ? order by created_at desc limit 500", status.toUpperCase());
+        String cap = PageParams.current().isPresent() ? "" : " limit 500"; // a screen that pages gets every enquiry, a page at a time
+        if (status == null || status.isBlank()) return SqlPaging.page(jdbc, "select * from identity.contact_request order by created_at desc" + cap);
+        return SqlPaging.page(jdbc, "select * from identity.contact_request where status = ? order by created_at desc" + cap, status.toUpperCase());
     }
 
     /**
@@ -153,7 +156,7 @@ public class SiteService {
     public void setContactStatus(UUID id, String status) {
         String s = status == null ? "" : status.toUpperCase();
         if (!STATUSES.contains(s)) throw ApiException.badRequest("Status must be one of " + STATUSES + ".");
-        if (jdbc.update("update identity.contact_request set status = ?, updated_at = now() where id = ?", s, id) == 0) throw ApiException.notFound("Enquiry not found.");
+        if (jdbc.update("update identity.contact_request set status = ?, updated_at = now() where id = ?", s, id) == 0) throw ApiException.notFound("Enquiry");
         audit.record("ContactRequest", id, "CONTACT_STATUS_CHANGED", null, s, Map.of("by", UserContextHolder.require().name()));
     }
 

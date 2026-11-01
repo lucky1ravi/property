@@ -30,10 +30,13 @@ public class ApiException extends RuntimeException {
     /**
      * Creates a 404 error.
      *
-     * @param what the thing that was not found, for example "Lease"; the message reads "Lease not found"
+     * @param what the thing that was not found, as a noun, for example "Lease"; the message reads
+     *             "We couldn't find that lease. It may have been removed, or you may not have access to it."
      */
     public static ApiException notFound(String what) {
-        return new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", what + " not found");
+        boolean article = what.matches("(?i)^(a|an|the|that|this)\b.*");
+        String subject = article ? Character.toLowerCase(what.charAt(0)) + what.substring(1) : "that " + Character.toLowerCase(what.charAt(0)) + what.substring(1);
+        return new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "We couldn't find " + subject + ". It may have been removed, or you may not have access to it.");
     }
 
     /**

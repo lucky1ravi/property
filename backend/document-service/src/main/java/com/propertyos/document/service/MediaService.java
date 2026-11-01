@@ -12,6 +12,7 @@ import com.propertyos.common.rls.Db;
 import com.propertyos.common.security.UserContext;
 import com.propertyos.common.security.UserContextHolder;
 import com.propertyos.common.web.ApiException;
+import com.propertyos.common.web.PageParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -114,7 +115,7 @@ public class MediaService {
     public Map<String, Object> submit(String kind, UUID subjectId, String originalName, byte[] data) {
         UserContext ctx = UserContextHolder.require();
         kind = kind == null ? "PROPERTY" : kind.toUpperCase();
-        if (!kind.equals("PROPERTY") && !kind.equals("PROFILE")) throw ApiException.badRequest("Photo type must be PROPERTY or PROFILE.");
+        if (!kind.equals("PROPERTY") && !kind.equals("PROFILE")) throw ApiException.badRequest("Choose whether the photo is for a property or for a profile.");
         String label;
         UUID propertyId = null;
         if (kind.equals("PROPERTY")) {
@@ -257,7 +258,7 @@ public class MediaService {
         if (!reviewer(ctx)) throw ApiException.forbidden("You can't review photos.");
         Map<String, Object> m = db.find("select id, org_id, kind, subject_id, status, uploaded_by, subject_label from document.media where id = ?", id).orElseThrow(() -> ApiException.notFound("Photo"));
         boolean approve = "APPROVE".equalsIgnoreCase(decision);
-        if (!approve && !"REJECT".equalsIgnoreCase(decision)) throw ApiException.badRequest("Decision must be APPROVE or REJECT.");
+        if (!approve && !"REJECT".equalsIgnoreCase(decision)) throw ApiException.badRequest("Choose whether to approve or reject.");
         String before = (String) m.get("status");
         String after = approve ? "APPROVED" : "REJECTED";
         if (before.equals(after)) throw ApiException.conflict("This photo is already " + after.toLowerCase() + ".");
@@ -332,10 +333,12 @@ public class MediaService {
             sql.append(" and subject_id = ?");
             args.add(UUID.fromString(f.get("subjectId")));
         }
-        sql.append(" order by case status when 'PENDING_REVIEW' then 0 else 1 end, created_at desc limit 200");
-        List<Map<String, Object>> rows = db.list(sql.toString(), args.toArray());
+        sql.append(" order by case status when 'PENDING_REVIEW' then 0 else 1 end, created_at desc");
+        if (PageParams.current().isEmpty()) sql.append(" limit 200");
+        List<Map<String, Object>> rows = db.page(sql.toString(), args.toArray());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("items", rows.stream().map(this::view).toList());
+        PageParams.addTo(out);
         if (all) {
             Map<String, Object> s = db.one("Photos", """
                     select count(*) filter (where status = 'PENDING_REVIEW') as pending,

@@ -112,13 +112,13 @@ public class WorkflowController {
      * Lists the signed-in user's conversations.
      */
     @GetMapping("/api/workflow/chat/conversations") @RequiresPermission("CONVERSATION:VIEW")
-    public Object conversations() { return chat.list(); }
+    public Object conversations(@RequestParam(required = false) String q, @RequestParam(defaultValue = "30") int limit) { return chat.list(q, limit); }
 
     /**
      * Lists people the signed-in user may start a conversation with.
      */
     @GetMapping("/api/workflow/chat/contacts") @RequiresPermission("CONVERSATION:CREATE")
-    public Object contacts() { return chat.contacts(); }
+    public Object contacts(@RequestParam(required = false) String q, @RequestParam(defaultValue = "20") int size) { return chat.contacts(q, size); }
 
     /**
      * Starts a conversation, optionally about a property, lease or work order.

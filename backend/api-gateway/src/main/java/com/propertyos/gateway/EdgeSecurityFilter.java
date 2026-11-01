@@ -91,7 +91,7 @@ public class EdgeSecurityFilter implements GlobalFilter, Ordered {
         h.set("Referrer-Policy", "strict-origin-when-cross-origin");
         h.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
-        if (path.startsWith("/internal")) return error(res, HttpStatus.NOT_FOUND, "Not found");
+        if (path.startsWith("/internal")) return error(res, HttpStatus.NOT_FOUND, "We couldn't find what you asked for.");
         if ("OPTIONS".equals(req.getMethod().name()) || !path.startsWith("/api/")) return chain.filter(exchange);
 
         String correlation = req.getHeaders().getFirst("X-Correlation-Id");
@@ -108,12 +108,12 @@ public class EdgeSecurityFilter implements GlobalFilter, Ordered {
             limit = publicPerMinute;
         } else {
             String auth = req.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-            if (auth == null || !auth.startsWith("Bearer ")) return error(res, HttpStatus.UNAUTHORIZED, "Sign-in required");
+            if (auth == null || !auth.startsWith("Bearer ")) return error(res, HttpStatus.UNAUTHORIZED, "Your session has ended. Sign in again to continue.");
             try {
                 Claims c = Jwts.parser().verifyWith(key).requireIssuer("propertyos").build().parseSignedClaims(auth.substring(7)).getPayload();
                 bucketKey = "user:" + c.getSubject();
             } catch (Exception e) {
-                return error(res, HttpStatus.UNAUTHORIZED, "Session expired or invalid. Please sign in again.");
+                return error(res, HttpStatus.UNAUTHORIZED, "Your session has ended. Sign in again to continue.");
             }
             limit = userPerMinute;
         }
@@ -121,7 +121,7 @@ public class EdgeSecurityFilter implements GlobalFilter, Ordered {
         long retryAfter = bucket.tryConsume();
         if (retryAfter >= 0) {
             h.set("Retry-After", String.valueOf(Math.max(1, retryAfter)));
-            return error(res, HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please retry shortly.");
+            return error(res, HttpStatus.TOO_MANY_REQUESTS, "You're going a little fast. Wait a few seconds and try again.");
         }
         h.set("X-RateLimit-Remaining", String.valueOf(bucket.remaining()));
         String finalCorrelation = correlation;
@@ -135,7 +135,7 @@ public class EdgeSecurityFilter implements GlobalFilter, Ordered {
     private Mono<Void> error(ServerHttpResponse res, HttpStatus status, String message) {
         res.setStatusCode(status);
         res.getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);
-        String body = "{\"status\":" + status.value() + ",\"title\":\"" + status.getReasonPhrase() + "\",\"detail\":\"" + message + "\"}";
+        String body = "{\"status\":" + status.value() + ",\"title\":\"" + status.getReasonPhrase() + "\",\"detail\":\"" + message.replace("\"", "\\\"") + "\",\"code\":\"" + status.name() + "\",\"timestamp\":\"" + java.time.Instant.now() + "\"}";
         DataBuffer buf = res.bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
         return res.writeWith(Mono.just(buf));
     }

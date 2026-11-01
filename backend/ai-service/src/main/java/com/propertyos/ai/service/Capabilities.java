@@ -48,7 +48,7 @@ public class Capabilities {
         String key = CONFIG_KEY.get(capability);
         if (key == null) throw ApiException.notFound("AI capability");
         if (!config.flag("ai." + key + ".enabled", true)) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_DISABLED", "This AI feature is turned off for your organization.");
-        Llm llm = provider.get().orElseThrow(() -> new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_OFFLINE", "No AI model is configured."));
+        Llm llm = provider.get().orElseThrow(() -> new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_OFFLINE", "The AI assistant isn't set up yet. Ask an administrator to connect an AI model."));
         long t0 = System.currentTimeMillis();
         String system = systemFor(capability);
         String user = guardrails.redact(trim(input.toString(), 6000));
@@ -63,7 +63,7 @@ public class Capabilities {
             throw e;
         } catch (Exception e) {
             audit.record("CAPABILITY", capability, user, List.of(), llm.provider(), 0, 0, false, e.getMessage(), true, System.currentTimeMillis() - t0);
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_FAILED", "The AI model didn't return a usable answer.");
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_FAILED", "The AI assistant couldn't produce a usable answer. Please try again.");
         }
     }
 
@@ -89,27 +89,27 @@ public class Capabilities {
         switch (c) {
             case "listing" -> {
                 String t = out.path("title").asText(""), d = out.path("description").asText("");
-                if (t.isBlank() || d.length() < 40) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "Incomplete listing copy");
+                if (t.isBlank() || d.length() < 40) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "The AI assistant didn't finish the description. Please try again.");
                 List<String> bad = guardrails.fairHousing(t, d);
                 if (!bad.isEmpty()) throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "FAIR_HOUSING", "Generated copy was blocked for fair housing wording: " + bad);
             }
             case "lead-reply" -> {
-                if (out.path("reply").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "Empty reply");
-                if (!guardrails.fairHousing(out.path("reply").asText()).isEmpty()) throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "FAIR_HOUSING", "Reply blocked");
+                if (out.path("reply").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "The AI assistant gave an answer we couldn't use. Please try again.");
+                if (!guardrails.fairHousing(out.path("reply").asText()).isEmpty()) throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "FAIR_HOUSING", "That reply was blocked because its wording may breach fair housing rules. Edit it and try again.");
             }
             case "screening" -> {
-                if (out.path("summary").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "Empty summary");
+                if (out.path("summary").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "The AI assistant gave an answer we couldn't use. Please try again.");
             }
             case "thread" -> {
-                if (out.path("summary").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "Empty summary");
+                if (out.path("summary").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "The AI assistant gave an answer we couldn't use. Please try again.");
                 if (!guardrails.fairHousing(out.path("summary").asText(), out.path("suggestedReply").asText("")).isEmpty())
-                    throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "FAIR_HOUSING", "Suggestion blocked");
+                    throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "FAIR_HOUSING", "That suggestion was blocked because its wording may breach fair housing rules. Edit it and try again.");
             }
             case "triage" -> {
                 if (!List.of("PLUMBING", "HVAC", "ELECTRICAL", "APPLIANCE", "PEST", "GENERAL").contains(out.path("category").asText()))
-                    throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "Unknown category");
+                    throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "The AI assistant gave an answer we couldn't use. Please try again.");
                 if (!List.of("EMERGENCY", "HIGH", "NORMAL", "LOW").contains(out.path("priority").asText()))
-                    throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "Unknown priority");
+                    throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "The AI assistant gave an answer we couldn't use. Please try again.");
             }
             default -> { }
         }

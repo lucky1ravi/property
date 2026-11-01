@@ -54,7 +54,7 @@ public class MediaController {
         try {
             subject = subjectId == null || subjectId.isBlank() ? null : UUID.fromString(subjectId);
         } catch (IllegalArgumentException e) {
-            throw ApiException.badRequest("Not a valid property id.");
+            throw ApiException.badRequest("That property reference isn't valid. Refresh the page and try again.");
         }
         return media.submit(kind, subject, file.getOriginalFilename(), file.getBytes());
     }

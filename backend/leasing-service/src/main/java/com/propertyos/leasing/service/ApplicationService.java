@@ -52,7 +52,7 @@ public class ApplicationService {
                 select a.id, a.applicant_name, a.applicant_email, a.unit_label, a.status, a.monthly_income, a.credit_score, a.background_clear,
                        a.submitted_at, a.move_in_date, a.screening->'recommendation' as recommendation, l.rent
                 from leasing.application a join leasing.listing l on l.id = a.listing_id""";
-        return status == null ? db.list(sql + " order by a.submitted_at desc") : db.list(sql + " where a.status = ? order by a.submitted_at desc", status);
+        return status == null ? db.page(sql + " order by a.submitted_at desc") : db.page(sql + " where a.status = ? order by a.submitted_at desc", status);
     }
 
     /**

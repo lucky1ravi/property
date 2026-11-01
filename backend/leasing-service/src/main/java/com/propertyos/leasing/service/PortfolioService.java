@@ -28,7 +28,7 @@ public class PortfolioService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> properties() {
-        return db.list("""
+        return db.page("""
                 select p.id, p.name, p.street, p.city, p.state, p.zip, p.lat, p.lng, p.type, p.year_built, p.amenities, p.photo_url, p.photos,
                        p.owner_id, o.name as owner_name,
                        count(u.id) as units,
@@ -71,9 +71,21 @@ public class PortfolioService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> units(String status) {
-        return status == null
-                ? db.list("select u.*, p.name as property_name, p.city, p.state from leasing.unit u join leasing.property p on p.id = u.property_id where u.archived_at is null and p.archived_at is null order by p.name, u.number")
-                : db.list("select u.*, p.name as property_name, p.city, p.state from leasing.unit u join leasing.property p on p.id = u.property_id where u.status = ? and u.archived_at is null and p.archived_at is null order by p.name, u.number", status);
+        return units(status, false);
+    }
+
+    /**
+     * Lists units, optionally only those with no live or draft listing ({@code unlisted}), so "new listing" can search just the
+     * units that can be listed instead of loading every unit and every listing.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> units(String status, boolean unlisted) {
+        StringBuilder sql = new StringBuilder("select u.*, p.name as property_name, p.street, p.city, p.state from leasing.unit u join leasing.property p on p.id = u.property_id where u.archived_at is null and p.archived_at is null");
+        List<Object> args = new ArrayList<>();
+        if (status != null) { sql.append(" and u.status = ?"); args.add(status); }
+        if (unlisted) sql.append(" and not exists (select 1 from leasing.listing l where l.unit_id = u.id and l.status <> 'LEASED')");
+        sql.append(" order by p.name, u.number");
+        return db.page(sql.toString(), args.toArray());
     }
 
     /**
@@ -81,7 +93,7 @@ public class PortfolioService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> owners() {
-        return db.list("""
+        return db.page("""
                 select o.id, o.name, o.contact, o.email, o.phone, o.approval_limit, o.management_fee_pct, o.bank_last4,
                        (select count(*) from leasing.property p where p.owner_id = o.id and p.archived_at is null) as properties,
                        (select count(*) from leasing.unit u where u.owner_id = o.id and u.archived_at is null) as units
@@ -109,7 +121,7 @@ public class PortfolioService {
         if (db.one("Owner", "select archived_at from leasing.owner where id = ?", ownerId).get("archived_at") != null)
             throw ApiException.conflict("This owner is archived. Restore the owner first.");
         String state = Req.required(b, "state").toUpperCase();
-        if (state.length() != 2) throw ApiException.badRequest("State must be a two-letter code, for example TX");
+        if (state.length() != 2) throw ApiException.badRequest("State must be a two-letter code, for example TX.");
         db.update("""
                 insert into leasing.property (id, org_id, owner_id, name, street, city, state, zip, type, year_built, photo_url, photos, amenities)
                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb)""",
@@ -166,8 +178,8 @@ public class PortfolioService {
         UUID id = UUID.randomUUID();
         BigDecimal fee = Optional.ofNullable(Req.money(b, "managementFeePct")).orElse(new BigDecimal("8"));
         BigDecimal limit = Optional.ofNullable(Req.money(b, "approvalLimit")).orElse(new BigDecimal("500"));
-        if (fee.signum() < 0 || fee.compareTo(new BigDecimal("100")) > 0) throw ApiException.badRequest("Management fee must be between 0 and 100 percent");
-        if (limit.signum() < 0) throw ApiException.badRequest("Approval limit can't be negative");
+        if (fee.signum() < 0 || fee.compareTo(new BigDecimal("100")) > 0) throw ApiException.badRequest("Management fee must be between 0 and 100 percent.");
+        if (limit.signum() < 0) throw ApiException.badRequest("Approval limit can't be negative.");
         db.update("insert into leasing.owner (id, org_id, name, contact, email, phone, approval_limit, management_fee_pct) values (?, ?, ?, ?, ?, ?, ?, ?)",
                 id, UserContextHolder.orgId(), Req.required(b, "name"), Req.str(b, "contact"), Req.str(b, "email"), Req.str(b, "phone"), limit, fee);
         audit.record("Owner", id, "CREATED", null, "ACTIVE", Map.of("name", Req.required(b, "name")));
@@ -178,8 +190,8 @@ public class PortfolioService {
     @Transactional
     public void updateOwner(UUID id, Map<String, Object> b) {
         BigDecimal fee = Req.money(b, "managementFeePct"), limit = Req.money(b, "approvalLimit");
-        if (fee != null && (fee.signum() < 0 || fee.compareTo(new BigDecimal("100")) > 0)) throw ApiException.badRequest("Management fee must be between 0 and 100 percent");
-        if (limit != null && limit.signum() < 0) throw ApiException.badRequest("Approval limit can't be negative");
+        if (fee != null && (fee.signum() < 0 || fee.compareTo(new BigDecimal("100")) > 0)) throw ApiException.badRequest("Management fee must be between 0 and 100 percent.");
+        if (limit != null && limit.signum() < 0) throw ApiException.badRequest("Approval limit can't be negative.");
         if (db.update("""
                 update leasing.owner set name = coalesce(?, name), contact = coalesce(?, contact), email = coalesce(?, email), phone = coalesce(?, phone),
                        management_fee_pct = coalesce(?, management_fee_pct), approval_limit = coalesce(?, approval_limit), updated_at = now() where id = ?""",
@@ -192,7 +204,7 @@ public class PortfolioService {
     @Transactional
     public void updateProperty(UUID id, Map<String, Object> b) {
         String state = Req.str(b, "state");
-        if (state != null && state.trim().length() != 2) throw ApiException.badRequest("State must be a two-letter code, for example TX");
+        if (state != null && state.trim().length() != 2) throw ApiException.badRequest("State must be a two-letter code, for example TX.");
         if (db.update("""
                 update leasing.property set name = coalesce(?, name), street = coalesce(?, street), city = coalesce(?, city), state = coalesce(?, state),
                        zip = coalesce(?, zip), type = coalesce(?, type), year_built = coalesce(?, year_built), updated_at = now() where id = ?""",
@@ -206,7 +218,7 @@ public class PortfolioService {
     @Transactional
     public void updateUnit(UUID id, Map<String, Object> b) {
         BigDecimal rent = Req.money(b, "marketRent");
-        if (rent != null && rent.signum() <= 0) throw ApiException.badRequest("Market rent must be more than zero");
+        if (rent != null && rent.signum() <= 0) throw ApiException.badRequest("Market rent must be more than zero.");
         String baths = Req.str(b, "baths");
         if (db.update("""
                 update leasing.unit set number = coalesce(?, number), beds = coalesce(?, beds), baths = coalesce(?, baths), sqft = coalesce(?, sqft),
@@ -219,7 +231,7 @@ public class PortfolioService {
     /** People who have a lease or an application, so a resident's sign-in can be linked to them. */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> residents() {
-        return db.list("""
+        return db.page("""
                 select p.id, p.first_name || ' ' || p.last_name as name, p.email,
                        (select count(*) from leasing.lease l where l.tenant_id = p.id and l.status = 'ACTIVE') as active_leases
                 from leasing.person p

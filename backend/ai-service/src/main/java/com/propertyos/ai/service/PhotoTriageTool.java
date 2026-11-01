@@ -45,7 +45,7 @@ public class PhotoTriageTool {
      */
     public Map<String, Object> triage(byte[] image, String mime, String note) {
         runner.enabled("PHOTO_TRIAGE");
-        Llm v = provider.vision().orElseThrow(() -> new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_OFFLINE", "Photo analysis needs an image model, and none is connected."));
+        Llm v = provider.vision().orElseThrow(() -> new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_OFFLINE", "Photo checking isn't set up yet. Ask an administrator to connect an image model."));
         long t0 = System.currentTimeMillis();
         try {
             String reply = v.vision("You are a maintenance coordinator for a US property management company. You look at one photo of a problem in a rental home. Reply with JSON only: "

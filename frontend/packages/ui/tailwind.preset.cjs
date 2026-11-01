@@ -23,6 +23,18 @@ module.exports = {
         lift: '0 12px 32px -12px rgba(8,36,37,0.28)',
         drawer: '-24px 0 48px -24px rgba(8,36,37,0.35)',
       },
+      keyframes: {
+        // A row of a table appearing: a short rise and fade, staggered by the row's position.
+        'row-in': { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'none' } },
+        // A loading placeholder catching the light.
+        shimmer: { '100%': { transform: 'translateX(100%)' } },
+        'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
+      },
+      animation: {
+        'row-in': 'row-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both',
+        shimmer: 'shimmer 1.5s ease-in-out infinite',
+        'fade-in': 'fade-in 0.2s ease-out both',
+      },
       borderRadius: {
         sm: '4px',
         DEFAULT: '6px',

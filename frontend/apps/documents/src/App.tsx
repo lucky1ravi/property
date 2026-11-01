@@ -3,7 +3,7 @@ import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 're
 import { Archive, ArchiveRestore, CheckCircle2, Download, FileText, Lock, PenLine, Send, ShieldCheck, Trash2, UploadCloud, XCircle } from 'lucide-react';
 import {
   MicroApp, Tabs, PageHeader, Panel, Stat, StatStrip, Button, Badge, StatusPill, DataTable, type Column, Modal, Field, Input, Select, Textarea, Toggle, KeyValues,
-  EmptyState, Skeleton, ConfirmDialog, Timeline, useApi, useAction, api, fmt, useSession,
+  EmptyState, Skeleton, ConfirmDialog, Timeline, useApi, usePagedApi, MultiEntityPicker, EntityPicker, useAction, api, fmt, useSession,
   DocIcon, DocChips, AuthImage, MediaStatus, PhotoConfidence, PhotoUploadButton, MEDIA_INVALIDATE, type MediaRow, DocumentViewer, UploadDocumentDialog, downloadDocument, useDocMeta, fmtBytes, type DocRow,
 } from '@propertyos/ui';
 
@@ -39,21 +39,16 @@ function Library() {
   for (const k of ['entityType', 'entityId', 'propertyId']) if (sp.get(k)) extra.set(k, sp.get(k)!);
   if (tab === 'review') extra.set('review', 'PENDING');
   if (tab === 'expiring') extra.set('expiring', 'true');
-  const { data, isLoading } = useApi<{ items: DocRow[] }>(`/api/documents?status=${status}${extra.toString() ? `&${extra}` : ''}`);
+  const group = GROUPS.find((g) => g.key === tab);
+  // The tab narrows the list on the server, so every page, and the counts on the tabs, cover all of the company's files.
+  if (group?.categories) extra.set('categories', group.categories.join(','));
+  if (group?.key === 'esign') extra.set('group', 'esign');
+  const { rows, data, isLoading, server } = usePagedApi<DocRow>(`/api/documents?status=${status}${extra.toString() ? `&${extra}` : ''}`);
   const [upload, setUpload] = useState(false);
   const [mode, setMode] = useState<'files' | 'gaps'>('files');
 
-  const group = GROUPS.find((g) => g.key === tab);
-  const rows = useMemo(() => {
-    const all = data?.items ?? [];
-    if (!group || group.key === 'all') return all;
-    if (group.key === 'esign') return all.filter((d) => d.signature_status && d.signature_status !== 'NONE');
-    return all.filter((d) => group.categories?.includes(d.category));
-  }, [data, group]);
-  const count = (g: (typeof GROUPS)[number]) => {
-    const all = data?.items ?? [];
-    return g.key === 'all' ? all.length : g.key === 'esign' ? all.filter((d) => d.signature_status && d.signature_status !== 'NONE').length : all.filter((d) => g.categories?.includes(d.category)).length;
-  };
+  const counts: Record<string, number> = (data as any)?.byCategory ?? {};
+  const count = (g: (typeof GROUPS)[number]) => (g.key === 'all' ? Object.values(counts).reduce((a, b) => a + b, 0) : g.key === 'esign' ? Number((data as any)?.esigned ?? 0) : (g.categories ?? []).reduce((a, c) => a + (counts[c] ?? 0), 0));
 
   const tabs = [
     ...GROUPS.map((g) => ({ key: g.key, label: g.label, count: status === 'ACTIVE' && !['review', 'expiring'].includes(tab) ? count(g) : undefined })),
@@ -98,7 +93,7 @@ function Library() {
     </div>}
     {mode === 'gaps' && staff ? <Gaps /> : <>
       <Tabs tabs={tabs} value={tab} onChange={(k) => setSp(k === 'all' ? {} : { tab: k })} className="mb-4" />
-      <DataTable rows={rows} columns={cols} rowKey={(d) => d.id} loading={isLoading} onRowClick={(d) => nav(`${BASE}/${d.id}`)} exportName="documents"
+      <DataTable key={tab} rows={rows} server={server} columns={cols} rowKey={(d) => d.id} loading={isLoading} onRowClick={(d) => nav(`${BASE}/${d.id}`)} exportName="documents"
         searchPlaceholder="Search by title, type, file name, property or tag"
         empty={{ title: tab === 'trash' ? 'Trash is empty' : 'No documents here yet', body: canUpload ? 'Upload a file, or open an application, lease or work order to add it there.' : 'Documents shared with you will appear here.' }} />
     </>}
@@ -271,7 +266,6 @@ function EditDocument({ open, onClose, doc }: { open: boolean; onClose: () => vo
 
 function RequestSignature({ open, onClose, doc }: { open: boolean; onClose: () => void; doc: any }) {
   const nav = useNavigate();
-  const { data: people } = useApi<any[]>(open ? `/api/documents/${doc.id}/signers` : null);
   const [sel, setSel] = useState<string[]>([]);
   const [msg, setMsg] = useState(''); const [due, setDue] = useState(''); const [seq, setSeq] = useState(false);
   const send = useAction(() => api.post<any>(`/api/documents/${doc.id}/signature-requests`, { signers: sel.map((userId) => ({ userId })), message: msg, dueOn: due || null, sequential: seq }),
@@ -279,12 +273,11 @@ function RequestSignature({ open, onClose, doc }: { open: boolean; onClose: () =
   return (
     <Modal open={open} onClose={onClose} title="Request signatures" footer={<><Button variant="quiet" onClick={onClose}>Cancel</Button><Button icon={<Send className="h-4 w-4" />} disabled={!sel.length} loading={send.isPending} onClick={() => send.mutate(undefined)}>Send for signature</Button></>}>
       <div className="space-y-4">
-        <div><p className="mb-1 text-[13px] font-semibold text-graphite-800">Who needs to sign</p>
-          {!people ? <Skeleton className="h-24" /> : people.length === 0 ? <p className="text-sm text-graphite-500">No one to ask. Link this document to a lease, owner or vendor first.</p> : (
-            <ul className="max-h-56 divide-y divide-limestone-200 overflow-auto rounded border border-limestone-200">{people.map((p) => (
-              <li key={p.userId}><label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-limestone-50">
-                <input type="checkbox" checked={sel.includes(p.userId)} onChange={(e) => setSel(e.target.checked ? [...sel, p.userId] : sel.filter((x) => x !== p.userId))} />
-                <span className="flex-1"><strong>{p.name}</strong> <span className="text-graphite-500">{p.title}</span></span><Badge>{p.relationship}</Badge></label></li>))}</ul>)}</div>
+        <div><p className="mb-1.5 text-[13px] font-semibold text-graphite-800">Who needs to sign</p>
+          <MultiEntityPicker<any> endpoint={`/api/documents/${doc.id}/signers`} value={sel} onChange={(ids) => setSel(ids)} avatar
+            getId={(p) => p.userId} label={(p) => p.name} sub={(p) => [p.title, p.email].filter(Boolean).join(' · ')} tag={(p) => p.relationship}
+            placeholder="Search people by name, email or title" hint="This document's resident, owner or vendor, and your staff." />
+          <p className="mt-1.5 text-xs text-graphite-500">{sel.length > 1 ? 'They sign in the order chosen when you turn that on below.' : 'Search by name, email or title. The people linked to this document are listed first.'}</p></div>
         <Field label="Message (optional)"><Textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Please review and sign the attached agreement." /></Field>
         <Field label="Due by" hint="Defaults to your e-signature expiry setting."><Input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
         {sel.length > 1 && <Toggle checked={seq} onChange={setSeq} label="Sign in the order selected" />}
@@ -301,16 +294,17 @@ function Signatures() {
   const { data: meta } = useDocMeta();
   const [mine, setMine] = useState(!meta?.staff);
   const [tab, setTab] = useState('PENDING');
-  const { data, isLoading } = useApi<any[]>(`/api/documents/signatures?mine=${meta?.staff ? mine : true}`);
-  const rows = (data ?? []).filter((r) => (tab === 'ALL' ? true : tab === 'DONE' ? r.status === 'COMPLETED' : tab === 'PENDING' ? r.status === 'PENDING' : !['PENDING', 'COMPLETED'].includes(r.status)));
-  const waiting = (data ?? []).filter((r) => r.myTurn).length;
+  // The tab narrows the list on the server so each page, and the paging, covers every request.
+  const statusParam = tab === 'DONE' ? 'COMPLETED' : tab === 'PENDING' ? 'PENDING' : tab === 'ALL' ? '' : 'OTHER';
+  const { rows, isLoading, server } = usePagedApi<any>(`/api/documents/signatures?mine=${meta?.staff ? mine : true}${statusParam ? `&status=${statusParam}` : ''}`);
+  const waiting = (rows ?? []).filter((r: any) => r.myTurn).length;
   return (<>
     <PageHeader back={<Link to={BASE} className="text-sm font-semibold text-federal-900 hover:underline">All files</Link>} title="E-signatures"
       description={meta?.staff ? 'Agreements out for signature and the ones you need to sign yourself.' : 'Agreements waiting for your signature, and the ones you have signed.'} />
     {waiting > 0 && <div className="mb-4 rounded-md border border-slateblue-600/25 bg-slateblue-50 px-4 py-3 text-sm text-slateblue-800"><strong>{waiting}</strong> {waiting === 1 ? 'document is' : 'documents are'} waiting for your signature.</div>}
     <Tabs tabs={[{ key: 'PENDING', label: 'Waiting' }, { key: 'DONE', label: 'Completed' }, { key: 'OTHER', label: 'Declined or cancelled' }, { key: 'ALL', label: 'All' }]} value={tab} onChange={setTab} className="mb-4" />
     {meta?.staff && <div className="mb-3 w-64"><Toggle checked={mine} onChange={setMine} label="Only ones I need to sign" /></div>}
-    <DataTable rows={rows} loading={isLoading} rowKey={(r) => r.id} onRowClick={(r) => nav(`${BASE}/signatures/${r.id}`)} exportName="signature-requests"
+    <DataTable key={tab} rows={rows} server={server} loading={isLoading} rowKey={(r) => r.id} onRowClick={(r) => nav(`${BASE}/signatures/${r.id}`)} exportName="signature-requests"
       columns={[
         { key: 't', header: 'Document', value: (r) => r.document_title ?? r.title, render: (r) => <div><div className="font-semibold text-graphite-900">{r.document_title ?? r.title}</div><div className="text-xs text-graphite-500">{r.entity_label ?? r.property_name}</div></div> },
         { key: 'st', header: 'Status', value: (r) => r.status, render: (r) => <div className="flex gap-1"><StatusPill label={sigLabel[r.status] ?? r.status} tone={sigTone(r.status) as any} />{r.myTurn && <Badge tone="warn">Your turn</Badge>}</div> },
@@ -408,7 +402,6 @@ function Photos() {
   const { data: settings } = useApi<any>('/api/documents/media/settings');
   const { data, isLoading } = useApi<{ items: MediaRow[]; summary?: any }>(`/api/documents/media${tab ? `?status=${tab}` : ''}`);
   const canProperty = !!settings?.canUploadProperty;
-  const { data: props } = useApi<any[]>(canProperty ? '/api/leasing/properties' : null);
   const decide = useAction((v: { id: string; decision: string; note?: string }) => api.post(`/api/documents/media/${v.id}/decision`, { decision: v.decision, note: v.note }),
     { success: 'Decision saved', invalidate: MEDIA_INVALIDATE.concat(['/api/leasing/properties']), onSuccess: () => setRejecting(null) });
   const s = data?.summary;
@@ -429,7 +422,8 @@ function Photos() {
     <Panel title="Add a photo" className="mb-4">
       <div className="flex flex-wrap items-end gap-3">
         {canProperty && <Field label="Photo is for"><Select value={kind} onChange={(e) => setKind(e.target.value as any)}><option value="PROPERTY">A property</option><option value="PROFILE">My profile</option></Select></Field>}
-        {kind === 'PROPERTY' && canProperty && <Field label="Property"><Select value={property} onChange={(e) => setProperty(e.target.value)}><option value="">Choose a property</option>{(props ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>}
+        {kind === 'PROPERTY' && canProperty && <Field label="Property" hint="Search by name or address."><EntityPicker<any> endpoint="/api/leasing/properties" value={property || null} onChange={(id) => setProperty(id ?? '')} placeholder="Search properties"
+          label={(p) => p.name} sub={(p) => [p.street, p.city, p.state].filter(Boolean).join(', ')} /></Field>}
         {kind === 'PROPERTY' && !property ? <p className="pb-2 text-sm text-graphite-600">Choose a property first.</p> : <PhotoUploadButton key={kind + property} kind={kind} subjectId={kind === 'PROPERTY' ? property : undefined} label={kind === 'PROFILE' ? 'Upload profile photo' : 'Add property photo'} />}
       </div>
       <p className="mt-2 text-xs text-graphite-500">JPG, PNG, WebP or GIF, up to {settings?.maxImageMb ?? 8} MB. Photos that are explicit, violent, or not about the property are held back.</p>

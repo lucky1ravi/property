@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpenCheck, Fingerprint, Layers3, ShieldCheck, Workflow } from 'lucide-react';
+import { Float, Parallax, Reveal, Stagger, StaggerItem, Tilt } from '@propertyos/ui';
 import { PRODUCTS, useSite, useTitle, usd } from './data';
 import { ButtonLink, Container, CtaBand } from './parts';
 import { QueueShot, ScoreShot, StatementShot, TriageShot } from './shots';
@@ -16,15 +17,15 @@ function Showcase({ title, body, points, link, shot, flip }: { title: string; bo
   return (
     <section className="border-t border-limestone-200 first:border-t-0">
       <Container className="grid items-center gap-12 py-20 lg:grid-cols-2 lg:gap-20">
-        <div className={flip ? 'lg:order-2' : ''}>
+        <Reveal direction={flip ? 'right' : 'left'} distance={44} className={flip ? 'lg:order-2' : ''}>
           <h2 className="max-w-[18ch] text-[34px] font-black leading-[1.08] tracking-[-0.03em] text-graphite-950">{title}</h2>
           <p className="mt-4 max-w-[52ch] text-[17px] leading-relaxed text-graphite-700">{body}</p>
           <ul className="mt-6 space-y-3 text-[15px] text-graphite-800">
             {points.map((p) => <li key={p} className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-federal-700" />{p}</li>)}
           </ul>
           <Link to={link} className="mt-7 inline-flex items-center gap-1.5 text-sm font-bold text-federal-800 hover:underline">Learn more <ArrowRight className="h-4 w-4" /></Link>
-        </div>
-        <div className={flip ? 'lg:order-1' : ''}>{shot}</div>
+        </Reveal>
+        <Reveal direction={flip ? 'left' : 'right'} distance={44} delay={0.15} className={flip ? 'lg:order-1' : ''}><Parallax within factor={-0.05}><Tilt max={5}>{shot}</Tilt></Parallax></Reveal>
       </Container>
     </section>
   );
@@ -37,10 +38,10 @@ export function Home() {
   return (
     <>
       <section className="relative overflow-hidden border-b border-federal-800 bg-federal-950 text-white">
-        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(156,195,193,.18)_1px,transparent_1px),linear-gradient(90deg,rgba(156,195,193,.18)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(ellipse_at_70%_10%,black,transparent_68%)]" />
-        <div aria-hidden className="absolute -right-20 top-10 h-[440px] w-[440px] rounded-full bg-federal-700/30 blur-3xl" />
+        <Parallax factor={0.22} className="pointer-events-none absolute inset-x-0 -top-28 bottom-[-8rem]"><div aria-hidden className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(156,195,193,.18)_1px,transparent_1px),linear-gradient(90deg,rgba(156,195,193,.18)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(ellipse_at_70%_10%,black,transparent_68%)]" /></Parallax>
+        <Parallax factor={0.4} className="absolute -right-20 top-10"><div aria-hidden className="h-[440px] w-[440px] rounded-full bg-federal-700/30 blur-3xl" /></Parallax>
         <Container className="relative grid items-center gap-14 py-16 lg:grid-cols-[1.05fr_1fr] lg:py-24">
-          <div>
+          <Reveal distance={34} duration={0.8}>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-federal-300">Enterprise property operations</p>
             <h1 className="mt-4 max-w-[15ch] text-[44px] font-black leading-[1.02] tracking-[-0.045em] sm:text-[64px]">Control every property operation from one system.</h1>
             <p className="mt-6 max-w-[52ch] text-lg leading-relaxed text-federal-100">
@@ -53,20 +54,22 @@ export function Home() {
             <div className="mt-10 grid max-w-[40rem] grid-cols-3 gap-4 border-t border-federal-800 pt-6 text-sm">
               {[['One record', 'for every property'], ['Clear controls', 'at every handoff'], ['Built to scale', 'without new silos']].map(([title, detail]) => <div key={title}><p className="font-extrabold text-white">{title}</p><p className="mt-1 text-xs leading-relaxed text-federal-200">{detail}</p></div>)}
             </div>
-          </div>
-          <div className="relative"><div aria-hidden className="absolute -inset-5 rounded-2xl bg-federal-700/20 blur-xl" /><QueueShot /></div>
+          </Reveal>
+          <Reveal direction="left" distance={60} delay={0.25} duration={0.9}>
+            <Parallax factor={-0.07}><Float amplitude={7} duration={7}><Tilt max={6}><div className="relative"><div aria-hidden className="absolute -inset-5 rounded-2xl bg-federal-700/20 blur-xl" /><QueueShot /></div></Tilt></Float></Parallax>
+          </Reveal>
         </Container>
       </section>
 
       <section aria-label="Platform principles" className="border-b border-limestone-200 bg-white">
-        <Container className="grid gap-0 py-0 sm:grid-cols-2 lg:grid-cols-4">
+        <Container><Stagger className="grid gap-0 py-0 sm:grid-cols-2 lg:grid-cols-4">
           {PILLARS.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="flex gap-3.5 border-b border-limestone-200 px-1 py-7 last:border-b-0 sm:px-6 sm:even:border-l lg:border-b-0 lg:border-l lg:first:border-l-0">
+            <StaggerItem key={title} className="flex gap-3.5 border-b border-limestone-200 px-1 py-7 last:border-b-0 sm:px-6 sm:even:border-l lg:border-b-0 lg:border-l lg:first:border-l-0">
               <Icon className="mt-0.5 h-5 w-5 shrink-0 text-federal-700" aria-hidden />
               <div><h2 className="text-[15px] font-extrabold text-graphite-950">{title}</h2><p className="mt-1 text-sm leading-relaxed text-graphite-600">{body}</p></div>
-            </div>
+            </StaggerItem>
           ))}
-        </Container>
+        </Stagger></Container>
       </section>
 
       <section className="bg-limestone-50">
@@ -94,11 +97,11 @@ export function Home() {
           <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-federal-300"><Workflow className="h-4 w-4" /> Governed automation</p>
           <h2 id="gov" className="mt-3 max-w-[24ch] text-[34px] font-black leading-[1.08] tracking-[-0.03em]">Automation that knows when to stop</h2>
           <p className="mt-4 max-w-[60ch] text-federal-100">Routine steps move on their own. Anything involving money, legal terms or safety waits for a named person, with a time limit and a record.</p>
-          <div className="mt-10 grid gap-px overflow-hidden rounded-lg bg-federal-800 md:grid-cols-3">
+          <Stagger gap={0.12} className="mt-10 grid gap-px overflow-hidden rounded-lg bg-federal-800 md:grid-cols-3">
             {[['Leasing', 'The broker approves every applicant.'], ['Rent', 'The accountant waives or approves every exception.'], ['Maintenance', 'The broker handles every emergency.']].map(([a, b]) => (
-              <div key={a} className="bg-federal-900 p-7"><h3 className="text-lg font-extrabold">{a}</h3><p className="mt-2 text-federal-100">{b}</p></div>
+              <StaggerItem key={a} className="bg-federal-900 p-7"><h3 className="text-lg font-extrabold">{a}</h3><p className="mt-2 text-federal-100">{b}</p></StaggerItem>
             ))}
-          </div>
+          </Stagger>
           <div className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm font-bold">
             <Link to="/security" className="inline-flex items-center gap-1.5 hover:underline">How we protect your data <ArrowRight className="h-4 w-4" /></Link>
             <Link to="/why-us" className="inline-flex items-center gap-1.5 hover:underline">Why teams choose PropertyOS <ArrowRight className="h-4 w-4" /></Link>
@@ -112,27 +115,27 @@ export function Home() {
             <h2 id="platform" className="max-w-[22ch] text-[34px] font-black leading-[1.08] tracking-[-0.03em] text-graphite-950">One platform for the whole property lifecycle</h2>
             <Link to="/products" className="inline-flex items-center gap-1.5 text-sm font-bold text-federal-800 hover:underline">All products <ArrowRight className="h-4 w-4" /></Link>
           </div>
-          <ul className="mt-10 grid gap-px overflow-hidden rounded-lg border border-limestone-300 bg-limestone-300 md:grid-cols-2 lg:grid-cols-3">
+          <Stagger as="ul" gap={0.07} className="mt-10 grid gap-px overflow-hidden rounded-lg border border-limestone-300 bg-limestone-300 md:grid-cols-2 lg:grid-cols-3">
             {PRODUCTS.map((p) => (
-              <li key={p.key} className="bg-white">
+              <StaggerItem as="li" key={p.key} className="bg-white">
                 <Link to={`/products#${p.key.toLowerCase()}`} className="block h-full p-7 transition-colors hover:bg-limestone-50">
                   <h3 className="text-lg font-extrabold text-graphite-950">{p.name}</h3>
                   <p className="mt-2 max-w-[38ch] leading-relaxed text-graphite-600">{p.headline}.</p>
                 </Link>
-              </li>
+              </StaggerItem>
             ))}
-          </ul>
+          </Stagger>
         </Container>
       </section>
 
       <section className="border-t border-limestone-200 bg-limestone-50">
-        <Container className="flex flex-col gap-6 py-14 md:flex-row md:items-center md:justify-between">
+        <Container className="py-14"><Reveal className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-[28px] font-black tracking-[-0.02em] text-graphite-950">Priced by the units you manage</h2>
             <p className="mt-2 max-w-[58ch] text-graphite-700">{cheapest ? `Plans start at ${usd(cheapest.pricePerUnit)} per unit each month. ` : ''}Every plan runs on the same platform, so growing never means migrating.</p>
           </div>
           <ButtonLink to="/plans" variant="secondary">Compare plans</ButtonLink>
-        </Container>
+        </Reveal></Container>
       </section>
       <CtaBand />
     </>

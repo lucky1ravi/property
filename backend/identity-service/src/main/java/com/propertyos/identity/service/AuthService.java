@@ -66,8 +66,8 @@ public class AuthService {
     /** Builds the caller's full security context from the database (runs as system). */
     public UserContext buildContext(UUID userId) {
         return UserContextHolder.runAsSystem(null, () -> tx.execute(s -> {
-            Map<String, Object> u = store.user(userId).orElseThrow(() -> ApiException.unauthorized("Unknown user"));
-            if (!"ACTIVE".equals(u.get("status"))) throw ApiException.forbidden("This account is disabled");
+            Map<String, Object> u = store.user(userId).orElseThrow(() -> ApiException.unauthorized("This account is no longer available. Sign in again."));
+            if (!"ACTIVE".equals(u.get("status"))) throw ApiException.forbidden("This account has been disabled. Contact your administrator.");
             store.org((UUID) u.get("org_id")).ifPresent(o -> {
                 if (!"ACTIVE".equals(o.get("status"))) throw ApiException.forbidden(com.propertyos.common.security.AuthFilter.SUSPENDED_MESSAGE);
             });
@@ -145,7 +145,7 @@ public class AuthService {
      * @throws ApiException (403) when demo mode is off
      */
     public Map<String, Object> demoLogin(UUID userId) {
-        if (!demoMode) throw ApiException.forbidden("Demo sign-in is disabled");
+        if (!demoMode) throw ApiException.forbidden("Demo sign-in isn't available in this environment.");
         return issue(userId, "DEMO_PERSONA");
     }
 
@@ -159,7 +159,7 @@ public class AuthService {
             if (stored != null) ok = verifyPassword(password, stored.toString());
             else ok = demoMode && MessageDigest.isEqual(password.getBytes(StandardCharsets.UTF_8), demoPassword.getBytes(StandardCharsets.UTF_8));
         }
-        if (!ok) throw ApiException.unauthorized("Incorrect email or password.");
+        if (!ok) throw ApiException.unauthorized("The email or password isn't right. Check them and try again.");
         if (Boolean.TRUE.equals(user.get("must_change_password")))
             throw new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, PASSWORD_CHANGE_REQUIRED, "You're signing in with a temporary password. Choose your own to continue.");
         return issue((UUID) user.get("id"), "PASSWORD");
@@ -187,7 +187,7 @@ public class AuthService {
             if (stored != null) ok = verifyPassword(currentPassword, stored.toString());
             else ok = demoMode && MessageDigest.isEqual(currentPassword.getBytes(StandardCharsets.UTF_8), demoPassword.getBytes(StandardCharsets.UTF_8));
         }
-        if (!ok) throw ApiException.unauthorized("Incorrect email or password.");
+        if (!ok) throw ApiException.unauthorized("The email or password isn't right. Check them and try again.");
         if (newPassword == null || newPassword.length() < 10) throw ApiException.badRequest("Your new password must be at least 10 characters.");
         if (newPassword.equals(currentPassword)) throw ApiException.badRequest("Choose a password that is different from the temporary one.");
         if (newPassword.equals(demoPassword)) throw ApiException.badRequest("That password is publicly known. Choose another.");
@@ -303,9 +303,9 @@ public class AuthService {
             store.deleteOtp(normalized);
             return (UUID) store.userByEmail(normalized).orElseThrow().get("id");
         }));
-        if ("EXPIRED".equals(outcome)) throw ApiException.unauthorized("Code expired. Request a new one.");
-        if ("LOCKED".equals(outcome)) throw ApiException.unauthorized("Too many attempts. Request a new code.");
-        if ("WRONG".equals(outcome)) throw ApiException.unauthorized("Incorrect code.");
+        if ("EXPIRED".equals(outcome)) throw ApiException.unauthorized("That code has expired. Request a new one.");
+        if ("LOCKED".equals(outcome)) throw ApiException.unauthorized("Too many wrong attempts. Request a new code.");
+        if ("WRONG".equals(outcome)) throw ApiException.unauthorized("That code isn't right. Check it and try again.");
         UUID userId = (UUID) outcome;
         return issue(userId, "EMAIL_OTP");
     }

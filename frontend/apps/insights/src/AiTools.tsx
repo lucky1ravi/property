@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, ShieldCheck, TriangleAlert, Camera, FileSearch, ScrollText, Users, Receipt, Scale } from 'lucide-react';
-import { PageHeader, Panel, Button, Badge, Field, Textarea, Select, Tabs, Skeleton, EmptyState, KeyValues, useApi, useAction, api, fmt } from '@propertyos/ui';
+import { PageHeader, Panel, Button, Badge, Field, Textarea, Select, Tabs, Skeleton, EmptyState, KeyValues, useApi, useAction, api, fmt, EntityPicker } from '@propertyos/ui';
 
 type Tool = 'billing' | 'outlook' | 'lease' | 'statement' | 'photo' | 'fair';
 
@@ -78,13 +78,13 @@ function Meter({ label, v }: { label: string; v: number }) {
 }
 
 function Lease() {
-  const { data: leases } = useApi<any[]>('/api/leasing/leases');
   const [id, setId] = useState('');
   const run = useAction((lid: string) => api.post<any>(`/api/ai/studio/lease-abstract/${lid}`), { silent: true });
   const r = run.data;
   return (<>
     <div className="flex flex-wrap items-end gap-3">
-      <Field label="Lease"><Select value={id} onChange={(e) => setId(e.target.value)}><option value="">Choose a lease</option>{(leases ?? []).map((l) => <option key={l.id} value={l.id}>{l.tenant_name} – {l.property_name} {l.unit_label}</option>)}</Select></Field>
+      <Field label="Lease"><div className="w-[26rem] max-w-full"><EntityPicker<any> endpoint="/api/leasing/leases" value={id || null} onChange={(v) => setId(v ?? '')} placeholder="Search by resident, property or unit"
+        label={(l) => l.tenant_name} sub={(l) => `${l.property_name} ${l.unit_label}`} /></div></Field>
       <Button variant="primary" icon={<Sparkles className="h-4 w-4" />} disabled={!id} loading={run.isPending} onClick={() => run.mutate(id)}>Summarise lease</Button>
     </div>
     {run.isPending && <Skeleton className="mt-4 h-40" />}
@@ -103,13 +103,13 @@ function Lease() {
 }
 
 function Statement() {
-  const { data: sts } = useApi<any[]>('/api/billing/statements');
   const [id, setId] = useState('');
   const run = useAction((sid: string) => api.post<any>(`/api/ai/studio/statement-narrative/${sid}`), { silent: true });
   const r = run.data;
   return (<>
     <div className="flex flex-wrap items-end gap-3">
-      <Field label="Owner statement"><Select value={id} onChange={(e) => setId(e.target.value)}><option value="">Choose a statement</option>{(sts ?? []).map((s) => <option key={s.id} value={s.id}>{s.owner_name} – {s.period}</option>)}</Select></Field>
+      <Field label="Owner statement"><div className="w-[26rem] max-w-full"><EntityPicker<any> endpoint="/api/billing/statements" value={id || null} onChange={(v) => setId(v ?? '')} placeholder="Search by owner or month"
+        label={(x) => x.owner_name} sub={(x) => x.period} /></div></Field>
       <Button variant="primary" icon={<Sparkles className="h-4 w-4" />} disabled={!id} loading={run.isPending} onClick={() => run.mutate(id)}>Write summary</Button>
     </div>
     {run.isPending && <Skeleton className="mt-4 h-32" />}

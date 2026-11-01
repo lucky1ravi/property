@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Send, X, ShieldCheck, Database, Download } from 'lucide-react';
-import { api, AiMark, RichText, Button, Spinner, toastError, type Persona } from '@propertyos/ui';
+import { api, AiMark, RichText, Button, Spinner, toast, toastError, type Persona } from '@propertyos/ui';
 
 interface Pending { id: string; tool: string; summary: string }
 interface Msg {
@@ -74,7 +74,7 @@ export function Assistant({ open, onClose, persona }: { open: boolean; onClose: 
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const html = `<html><head><title>PropertyOS chat</title><style>body{font:14px/1.5 system-ui,sans-serif;margin:32px;color:#1d2530}h1{font-size:20px}.m{margin:14px 0;padding:10px 12px;border-radius:6px;white-space:pre-wrap}.u{background:#e8eef8}.a{background:#f5f3ef}b{display:block;font-size:11px;color:#667;margin-bottom:4px}</style></head><body><h1>PropertyOS chat</h1><div>${esc(new Date().toLocaleString())}</div>${msgs.filter((m) => m.content).map((m) => `<div class="m ${m.role === 'user' ? 'u' : 'a'}"><b>${m.role === 'user' ? 'You' : 'PropertyOS'}</b>${esc(m.content)}</div>`).join('')}</body></html>`;
     const w = window.open('', '_blank');
-    if (!w) { toastError(new Error('Allow pop-ups to export as PDF, or use the Markdown export.')); return; }
+    if (!w) { toast('Pop-ups are blocked', { tone: 'warning', body: 'Allow pop-ups to export as PDF, or use the Markdown export.' }); return; }
     w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
     setExportOpen(false);
   };

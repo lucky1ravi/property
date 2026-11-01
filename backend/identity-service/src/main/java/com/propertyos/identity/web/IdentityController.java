@@ -1,5 +1,7 @@
 package com.propertyos.identity.web;
 
+import com.propertyos.common.rls.SqlPaging;
+import com.propertyos.common.web.PageParams;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.propertyos.common.audit.AuditService;
@@ -60,6 +62,7 @@ public class IdentityController {
         m.put("title", me.get("title"));
         m.put("phone", me.get("phone"));
         m.put("photo", me.get("photo"));
+        m.put("uiState", uiStateOf(ctx.userId()));
         m.put("roles", ctx.roles());
         m.put("permissions", new TreeSet<>(ctx.permissions()));
         m.put("scope", ctx.scope());
@@ -78,6 +81,37 @@ public class IdentityController {
     @PutMapping("/me/profile")
     public Map<String, Object> updateProfile(@RequestBody Map<String, Object> body) {
         return access.updateProfile(body);
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private ObjectNode uiStateOf(UUID userId) {
+        try {
+            JsonNode n = JSON.readTree(transactional(() -> store.uiState(userId)));
+            return n instanceof ObjectNode o ? o : JSON.createObjectNode();
+        } catch (Exception e) {
+            return JSON.createObjectNode();
+        }
+    }
+
+    /**
+     * Saves what the signed-in person has been shown (welcome and page tours, dismissed hints, the checklist) so it follows them
+     * to another device. The body is merged into what is stored: each top-level key is replaced, and a null value removes it.
+     */
+    @PutMapping("/me/ui-state")
+    public Map<String, Object> saveUiState(@RequestBody Map<String, Object> body) {
+        UUID id = UserContextHolder.require().userId();
+        if (body.size() > 40) throw ApiException.badRequest("Too many settings in one request.");
+        ObjectNode state = uiStateOf(id);
+        for (Map.Entry<String, Object> e : body.entrySet()) {
+            if (!e.getKey().matches("^[A-Za-z0-9_.:-]{1,60}$")) throw ApiException.badRequest("Not a valid setting name: " + e.getKey());
+            if (e.getValue() == null) state.remove(e.getKey());
+            else state.set(e.getKey(), JSON.valueToTree(e.getValue()));
+        }
+        String text = state.toString();
+        if (text.length() > 20_000) throw ApiException.badRequest("Too much saved state. Reset your tours from the Help panel.");
+        transactional(() -> { store.setUiState(id, text); return null; });
+        return Map.of("ok", true);
     }
 
     /** Re-issues a token with the latest roles and permissions (after an admin change). */
@@ -250,11 +284,12 @@ public class IdentityController {
     public List<Map<String, Object>> recent(@RequestParam(defaultValue = "100") int limit,
                                             @RequestParam(required = false) String entityType) {
         int n = Math.min(Math.max(limit, 1), 500);
+        // A screen that pages gets the whole log a page at a time; other callers get the latest `limit` entries.
+        String cap = PageParams.current().isPresent() ? "" : " limit " + n;
+        String cols = "select id, entity_type, entity_id, action, from_state, to_state, actor_name, details::text as details, created_at from platform.audit_event";
         return transactional(() -> entityType == null
-                ? jdbc.queryForList("select id, entity_type, entity_id, action, from_state, to_state, actor_name, details::text as details, created_at " +
-                "from platform.audit_event order by id desc limit ?", n)
-                : jdbc.queryForList("select id, entity_type, entity_id, action, from_state, to_state, actor_name, details::text as details, created_at " +
-                "from platform.audit_event where entity_type = ? order by id desc limit ?", entityType, n));
+                ? SqlPaging.page(jdbc, cols + " order by id desc" + cap)
+                : SqlPaging.page(jdbc, cols + " where entity_type = ? order by id desc" + cap, entityType));
     }
 
     // ---------------- demo ----------------
@@ -262,7 +297,7 @@ public class IdentityController {
     @PostMapping("/demo/reset")
     @RequiresPermission("SETTINGS:CONFIGURE")
     public Map<String, Object> resetDemo() {
-        if (!auth.demoMode()) throw ApiException.forbidden("Demo reset is disabled");
+        if (!auth.demoMode()) throw ApiException.forbidden("Demo data reset isn't available in this environment.");
         UUID org = UserContextHolder.orgId();
         transactional(() -> {
             events.publish("DemoResetRequested", "Organization", org, Map.of("requestedBy", UserContextHolder.require().name()));

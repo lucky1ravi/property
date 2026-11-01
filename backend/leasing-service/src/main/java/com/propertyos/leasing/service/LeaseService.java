@@ -56,7 +56,7 @@ public class LeaseService {
                 select id, unit_id, property_id, tenant_id, status, tenant_name, tenant_email, unit_label, property_name, rent, deposit, start_date, end_date, state,
                        (end_date - current_date) as days_left, renewal
                 from leasing.lease""";
-        return status == null ? db.list(sql + " order by end_date") : db.list(sql + " where status = ? order by end_date", status);
+        return status == null ? db.page(sql + " order by end_date") : db.page(sql + " where status = ? order by end_date", status);
     }
 
     /**

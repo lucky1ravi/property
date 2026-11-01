@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Minus } from 'lucide-react';
-import { Skeleton } from '@propertyos/ui';
+import { motion } from 'framer-motion';
+import { Parallax, Reveal, Skeleton, Stagger, StaggerItem } from '@propertyos/ui';
 import { usd, type SitePlan } from './data';
 
 export function Container({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -12,17 +13,21 @@ export function Container({ children, className = '' }: { children: ReactNode; c
 export function PageHero({ title, lead, children }: { title: string; lead: string; children?: ReactNode }) {
   return (
     <section className="relative overflow-hidden border-b border-federal-800 bg-federal-950 text-white">
-      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(156,195,193,.18)_1px,transparent_1px),linear-gradient(90deg,rgba(156,195,193,.18)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(ellipse_at_75%_0%,black,transparent_65%)]" />
-      <div aria-hidden className="absolute -right-24 top-0 h-80 w-80 rounded-full bg-federal-700/30 blur-3xl" />
+      <Parallax factor={0.22} className="pointer-events-none absolute inset-x-0 -top-28 bottom-[-7rem]"><div aria-hidden className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(156,195,193,.18)_1px,transparent_1px),linear-gradient(90deg,rgba(156,195,193,.18)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(ellipse_at_75%_0%,black,transparent_65%)]" /></Parallax>
+      <Parallax factor={0.45} className="absolute -right-24 top-0"><div aria-hidden className="h-80 w-80 rounded-full bg-federal-700/30 blur-3xl" /></Parallax>
       <Container className="relative py-16 sm:py-24">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-federal-300">PropertyOS platform</p>
-        <h1 className="mt-4 max-w-[18ch] text-[40px] font-black leading-[1.03] tracking-[-0.04em] sm:text-[58px]">{title}</h1>
-        <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-federal-100">{lead}</p>
-        {children && <div className="mt-8 flex flex-wrap gap-3">{children}</div>}
+        <Stagger gap={0.1} amount={0.1}>
+          <StaggerItem as="p" className="text-xs font-bold uppercase tracking-[0.16em] text-federal-300">PropertyOS platform</StaggerItem>
+          <StaggerItem as="h1" className="mt-4 max-w-[18ch] text-[40px] font-black leading-[1.03] tracking-[-0.04em] sm:text-[58px]">{title}</StaggerItem>
+          <StaggerItem as="p" className="mt-5 max-w-[58ch] text-lg leading-relaxed text-federal-100">{lead}</StaggerItem>
+          {children && <StaggerItem className="mt-8 flex flex-wrap gap-3">{children}</StaggerItem>}
+        </Stagger>
       </Container>
     </section>
   );
 }
+
+const MotionLink = motion.create(Link);
 
 export function ButtonLink({ to, children, variant = 'primary' }: { to: string; children: ReactNode; variant?: 'primary' | 'secondary' | 'light' }) {
   const styles = {
@@ -30,22 +35,22 @@ export function ButtonLink({ to, children, variant = 'primary' }: { to: string; 
     secondary: 'border border-federal-900 bg-white text-federal-900 hover:bg-federal-50',
     light: 'bg-white text-federal-900 shadow-sm hover:bg-federal-50',
   }[variant];
-  return <Link to={to} className={`inline-flex items-center justify-center rounded-md px-5 py-3 text-sm font-bold transition-colors ${styles}`}>{children}</Link>;
+  return <MotionLink to={to} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} transition={{ type: 'spring', stiffness: 500, damping: 28 }} className={`inline-flex items-center justify-center rounded-md px-5 py-3 text-sm font-bold transition-colors ${styles}`}>{children}</MotionLink>;
 }
 
 /** Closing call to action used at the bottom of most pages. */
 export function CtaBand({ title = 'See PropertyOS with your own portfolio in mind', body = 'Tell us how many doors you manage and what takes the most time. We’ll show you where PropertyOS fits.' }: { title?: string; body?: string }) {
   return (
     <section className="relative overflow-hidden bg-federal-950">
-      <div aria-hidden className="absolute inset-0 opacity-40 [background-image:linear-gradient(135deg,transparent_45%,rgba(156,195,193,.22)_45%,transparent_46%)] [background-size:24px_24px]" />
-      <Container className="relative flex flex-col gap-6 py-14 sm:flex-row sm:items-center sm:justify-between">
+      <Parallax within factor={0.1} className="absolute inset-x-0 -inset-y-10"><div aria-hidden className="absolute inset-0 opacity-40 [background-image:linear-gradient(135deg,transparent_45%,rgba(156,195,193,.22)_45%,transparent_46%)] [background-size:24px_24px]" /></Parallax>
+      <Container className="relative py-14"><Reveal className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-federal-300">See the operating model</p>
           <h2 className="mt-2 max-w-[26ch] text-3xl font-black tracking-[-0.02em] text-white">{title}</h2>
           <p className="mt-2 max-w-[56ch] text-federal-100">{body}</p>
         </div>
         <div className="flex shrink-0 gap-3"><ButtonLink to="/contact" variant="light">Request a demo</ButtonLink></div>
-      </Container>
+      </Reveal></Container>
     </section>
   );
 }
@@ -67,7 +72,7 @@ export function SiteError() {
 /** One plan as a card. The highlighted plan is the one the operator marked most popular. */
 export function PlanCard({ plan, titles }: { plan: SitePlan; titles: Record<string, string> }) {
   return (
-    <article className={`flex flex-col rounded-lg border bg-white p-7 ${plan.highlight ? 'border-federal-900 shadow-lift ring-1 ring-federal-900' : 'border-limestone-300'}`}>
+    <motion.article initial={{ opacity: 0, y: 34 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.15 }} whileHover={{ y: -6 }} transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }} className={`flex flex-col rounded-lg border bg-white p-7 ${plan.highlight ? 'border-federal-900 shadow-lift ring-1 ring-federal-900' : 'border-limestone-300'}`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-2xl font-black tracking-[-0.02em] text-graphite-950">{plan.name}</h2>
         {plan.highlight && <span className="rounded-full bg-federal-900 px-3 py-1 text-xs font-bold text-white">Most popular</span>}
@@ -83,7 +88,7 @@ export function PlanCard({ plan, titles }: { plan: SitePlan; titles: Record<stri
         ))}
       </ul>
       <div className="mt-7"><ButtonLink to={`/contact?topic=PRICING&plan=${plan.key}`} variant={plan.highlight ? 'primary' : 'secondary'}>Talk to us about {plan.name}</ButtonLink></div>
-    </article>
+    </motion.article>
   );
 }
 

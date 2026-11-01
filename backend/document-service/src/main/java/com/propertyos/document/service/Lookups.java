@@ -106,6 +106,26 @@ public class Lookups {
     }
 
     /**
+     * A narrower directory: only people matching {@code q}, only these {@code ids} or {@code parties} (owner, resident or vendor records),
+     * only staff, and at most {@code limit}. The identity service applies all of these, so a large company never sends everyone.
+     */
+    public List<JsonNode> directory(String q, java.util.Collection<String> ids, java.util.Collection<String> parties, boolean staffOnly, int limit) {
+        List<String> ps = new ArrayList<>();
+        if (q != null && !q.isBlank()) ps.add("q=" + org.springframework.web.util.UriUtils.encodeQueryParam(q.trim(), java.nio.charset.StandardCharsets.UTF_8));
+        if (ids != null && !ids.isEmpty()) ps.add("ids=" + String.join(",", ids));
+        if (parties != null && !parties.isEmpty()) ps.add("parties=" + String.join(",", parties));
+        if (staffOnly) ps.add("staff=true");
+        if (limit > 0) ps.add("limit=" + limit);
+        List<JsonNode> out = new ArrayList<>();
+        try {
+            for (JsonNode u : client.get(ServiceClient.Service.IDENTITY, "/internal/directory" + (ps.isEmpty() ? "" : "?" + String.join("&", ps)))) out.add(u);
+        } catch (RestClientException e) {
+            log.debug("Directory lookup failed: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /**
      * Calls another service for a list, returning an empty result if it is unavailable.
      */
     public JsonNode list(ServiceClient.Service s, String path) {

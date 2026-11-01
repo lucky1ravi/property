@@ -43,7 +43,7 @@ public class AuthController {
     @PostMapping("/demo-login")
     public Map<String, Object> demoLogin(@RequestBody Map<String, String> body) {
         String id = body.get("userId");
-        if (id == null) throw ApiException.badRequest("userId is required");
+        if (id == null) throw ApiException.badRequest("Choose a person.");
         return auth.demoLogin(UUID.fromString(id));
     }
 

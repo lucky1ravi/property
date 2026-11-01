@@ -67,7 +67,7 @@ public class Upstream {
             b = "GET".equals(method) ? b.GET() : b.method(method, HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body == null ? java.util.Map.of() : body)));
             HttpResponse<String> res = http.send(b.build(), HttpResponse.BodyHandlers.ofString());
             JsonNode n = res.body() == null || res.body().isBlank() ? mapper.nullNode() : mapper.readTree(res.body());
-            if (res.statusCode() / 100 != 2) throw new ApiException(org.springframework.http.HttpStatus.valueOf(res.statusCode()), "UPSTREAM", n.path("detail").asText("Request failed"));
+            if (res.statusCode() / 100 != 2) throw new ApiException(org.springframework.http.HttpStatus.valueOf(res.statusCode()), "UPSTREAM", n.path("detail").asText("The request couldn't be completed. Please try again."));
             return n;
         } catch (ApiException e) {
             throw e;

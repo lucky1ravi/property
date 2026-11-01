@@ -1,3 +1,4 @@
+import { Reveal, Stagger, StaggerItem } from '@propertyos/ui';
 import { useTitle } from './data';
 import { ButtonLink, Container, CtaBand, PageHero } from './parts';
 
@@ -21,10 +22,10 @@ export function Solutions() {
         <ul className="divide-y divide-limestone-200">
           {ROLES.map((r) => (
             <li key={r.id} id={r.id} className="grid scroll-mt-24 gap-6 py-12 lg:grid-cols-[1fr_1.2fr] lg:gap-16">
-              <div><h2 className="text-sm font-bold text-federal-700">{r.role}</h2><p className="mt-2 max-w-[20ch] text-[28px] font-black leading-tight tracking-[-0.025em] text-graphite-950">{r.headline}</p></div>
-              <ul className="space-y-3 self-center text-[16px] text-graphite-800">
-                {r.points.map((p) => <li key={p} className="flex gap-3 border-b border-limestone-200 pb-3 last:border-0"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-federal-700" />{p}</li>)}
-              </ul>
+              <Reveal direction="right" distance={34}><h2 className="text-sm font-bold text-federal-700">{r.role}</h2><p className="mt-2 max-w-[20ch] text-[28px] font-black leading-tight tracking-[-0.025em] text-graphite-950">{r.headline}</p></Reveal>
+              <Stagger as="ul" gap={0.08} delay={0.1} className="space-y-3 self-center text-[16px] text-graphite-800">
+                {r.points.map((p) => <StaggerItem as="li" key={p} className="flex gap-3 border-b border-limestone-200 pb-3 last:border-0"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-federal-700" />{p}</StaggerItem>)}
+              </Stagger>
             </li>
           ))}
         </ul>

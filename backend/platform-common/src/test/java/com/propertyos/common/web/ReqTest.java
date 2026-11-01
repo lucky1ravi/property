@@ -24,7 +24,7 @@ class ReqTest {
     @DisplayName("a required field that is missing gives a readable message")
     void required() {
         assertThatThrownBy(() -> Req.required(Map.of(), "firstName"))
-                .isInstanceOf(ApiException.class).hasMessage("First name is required");
+                .isInstanceOf(ApiException.class).hasMessage("First name is required.");
     }
 
     @Test
@@ -48,14 +48,14 @@ class ReqTest {
         assertThat(Req.uuid(Map.of("id", id.toString()), "id")).isEqualTo(id);
         assertThat(Req.date(Map.of("d", "2026-10-29T10:00:00Z"), "d")).isEqualTo(LocalDate.of(2026, 10, 29));
         assertThatThrownBy(() -> Req.uuid(Map.of("id", "nope"), "id")).isInstanceOf(ApiException.class);
-        assertThatThrownBy(() -> Req.date(Map.of("d", "29/10/2026"), "d")).hasMessageContaining("YYYY-MM-DD");
+        assertThatThrownBy(() -> Req.date(Map.of("d", "29/10/2026"), "d")).hasMessageContaining("must be a date");
     }
 
     @Test
     @DisplayName("email must look like an address and is lower-cased")
     void email() {
         assertThat(Req.email(Map.of("e", "Sarah@Example.COM"), "e")).isEqualTo("sarah@example.com");
-        assertThatThrownBy(() -> Req.email(Map.of("e", "not-an-email"), "e")).hasMessage("Enter a valid email address");
+        assertThatThrownBy(() -> Req.email(Map.of("e", "not-an-email"), "e")).hasMessage("Enter a valid email address.");
     }
 
     @Test

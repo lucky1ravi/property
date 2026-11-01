@@ -25,6 +25,7 @@ public class FallbackController {
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .header("Retry-After", "10")
                 .body(Map.of("status", 503, "title", "Service Unavailable",
-                        "detail", "The " + service + " service is temporarily unavailable. Please retry shortly."));
+                        "detail", "Part of PropertyOS is temporarily unavailable. Please try again in a minute. If it continues, contact support.",
+                        "code", "SERVICE_UNAVAILABLE", "service", service, "timestamp", java.time.Instant.now().toString()));
     }
 }

@@ -47,11 +47,25 @@ export function setToken(token: string | null) {
 export class ApiError extends Error {
   status: number;
   code?: string;
-  constructor(status: number, message: string, code?: string) {
+  /** Quote this to support: it finds the exact request in the logs. */
+  correlationId?: string;
+  /** For a validation failure: one entry per field, with the field's name as a person would say it. */
+  errors?: { field: string; label: string; message: string }[];
+  constructor(status: number, message: string, code?: string, extra?: { correlationId?: string; errors?: { field: string; label: string; message: string }[] }) {
     super(message);
     this.status = status;
     this.code = code;
+    this.correlationId = extra?.correlationId;
+    this.errors = extra?.errors;
   }
+}
+
+/** Builds the error for a failed response, keeping the support reference (from the body, or the response header). */
+function failure(res: Response, data: any): ApiError {
+  return new ApiError(res.status, friendlyMessage(res.status, data && (data.detail || data.title)), data?.code, {
+    correlationId: data?.correlationId ?? res.headers.get('X-Correlation-Id') ?? undefined,
+    errors: Array.isArray(data?.errors) ? data.errors : undefined,
+  });
 }
 
 const OFFLINE = 'We can’t connect to PropertyOS right now. Check your internet connection and try again in a moment.';
@@ -66,7 +80,7 @@ export function friendlyMessage(status: number, serverMessage?: string | null): 
   const m = (serverMessage ?? '').trim();
   const usable = m && !technical(m) && !/^request failed|^download failed|^upload failed|^internal server error$|^bad gateway$|^service unavailable$|^gateway timeout$|^(forbidden|unauthorized|not found|conflict|bad request|too many requests)\.?$/i.test(m);
   if (status === 0) return OFFLINE;
-  if (status >= 500) return status === 502 || status === 503 || status === 504 ? 'PropertyOS is temporarily unavailable. Please try again in a few minutes.' : 'Something went wrong on our side. Please try again, and contact support if it keeps happening.';
+  if (status >= 500) return status === 502 || status === 503 || status === 504 ? 'PropertyOS is temporarily unavailable. Please try again in a few minutes.' : 'Something went wrong on our side and your request wasn’t completed. Please try again. If it keeps happening, contact support and quote the reference.';
   if (usable) return m;
   if (status === 401) return 'Your session has ended. Please sign in again.';
   if (status === 403) return 'You don’t have access to do this. Ask an administrator if you need it.';
@@ -111,7 +125,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     if (!location.pathname.startsWith('/signin')) location.assign('/signin?suspended=1');
   }
   if (!res.ok) {
-    throw new ApiError(res.status, friendlyMessage(res.status, data && (data.detail || data.title)), data?.code);
+    throw failure(res, data);
   }
   return data as T;
 }
@@ -137,7 +151,7 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
   }
   const text = await res.text();
   const data = text ? safeJson(text) : null;
-  if (!res.ok) throw new ApiError(res.status, friendlyMessage(res.status, data && (data.detail || data.title)), data?.code);
+  if (!res.ok) throw failure(res, data);
   return data as T;
 }
 
@@ -156,7 +170,7 @@ async function blob(method: 'GET' | 'POST', path: string, body?: unknown): Promi
   if (!res.ok) {
     const t = await res.text();
     const d = t ? safeJson(t) : null;
-    throw new ApiError(res.status, friendlyMessage(res.status, d && (d.detail || d.title)));
+    throw failure(res, d);
   }
   const cd = res.headers.get('Content-Disposition') ?? '';
   const star = /filename\*=UTF-8''([^;]+)/i.exec(cd);

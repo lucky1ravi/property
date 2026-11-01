@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-rout
 import { Sparkles } from 'lucide-react';
 import {
   PageHeader, Panel, Button, StatusPill, Stat, StatStrip, DataTable, type Column, Tabs, KeyValues, ActionBar, WorkflowTrack, Timeline, Field, Input,
-  Modal, Select, ConfirmDialog, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge, QuickLink, PersonCell, DocumentsPanel, toast,
+  Modal, Select, ConfirmDialog, AiInsight, ConfidenceMeter, EmptyState, Skeleton, Section, useApi, useAction, api, fmt, useSession, Textarea, Badge, EntityPicker, errorText, QuickLink, PersonCell, DocumentsPanel, toast, usePagedApi
 } from '@propertyos/ui';
 import { useBase, APPLICATION_STEPS, LEASE_STEPS, LISTING_STEPS, labelOf } from '../common';
 
@@ -59,10 +59,10 @@ function AddOwner({ open, onClose, existing }: { open: boolean; onClose: () => v
     try {
       const roles = await api.get<any[]>('/api/identity/roles');
       const role = roles.find((r) => r.scope === 'OWNER');
-      if (!role) { toast('Owner added, but there is no owner role to sign in with. Create one under Users and roles.'); return owner; }
+      if (!role) { toast('Owner added, but no sign-in was created', { tone: 'warning', body: 'There is no owner role to sign in with. Create one under Users and roles, then add their sign-in from there.' }); return owner; }
       const user = await api.post<{ temporaryPassword: string }>('/api/identity/users', { name: f.contact.trim() || f.name.trim(), email, roleIds: [role.id], partyType: 'OWNER', partyId: owner.id });
       setIssued({ name: f.name.trim(), email, password: user.temporaryPassword });
-    } catch (e: any) { toast(`Owner added, but their sign-in could not be created: ${e?.message ?? 'try again from Users and roles'}`); }
+    } catch (e: any) { toast('Owner added, but no sign-in was created', { tone: 'warning', body: `${errorText(e)} You can add their sign-in from Users and roles.` }); }
     return owner;
   },
     { success: existing ? 'Owner updated' : 'Owner added', invalidate: ['/api/leasing/owners', '/api/leasing/properties', '/api/identity/users'], onSuccess: () => { setF(blank); onClose(); } });
@@ -93,7 +93,9 @@ Temporary password: ${issued.password}`)}>Copy both</Button></div>
 
 function AddProperty({ open, onClose, onNeedOwner, existing }: { open: boolean; onClose: () => void; onNeedOwner: () => void; existing?: any }) {
   const { can: canDo } = useSession();
-  const { data: owners } = useApi<any[]>(canDo('OWNER:VIEW') ? '/api/leasing/owners' : null);
+  // Only whether any owner exists is needed here; the owner is chosen by searching, never from a full list.
+  const { data: ownerCount } = useApi<any>(canDo('OWNER:VIEW') ? '/api/leasing/owners?page=1&size=1' : null);
+  const noOwners = !!ownerCount && ownerCount.total === 0;
   const blank = { ownerId: '', name: '', street: '', city: '', state: 'TX', zip: '', type: 'MULTIFAMILY', yearBuilt: '' };
   const [f, setF] = useState<any>(blank);
   useEffect(() => { if (open) setF(existing ? { ownerId: existing.owner_id, name: existing.name ?? '', street: existing.street ?? '', city: existing.city ?? '', state: existing.state ?? 'TX', zip: existing.zip ?? '', type: existing.type ?? 'MULTIFAMILY', yearBuilt: existing.year_built ? String(existing.year_built) : '' } : blank); }, [open, existing?.id]);
@@ -106,10 +108,11 @@ function AddProperty({ open, onClose, onNeedOwner, existing }: { open: boolean; 
   const { can } = useSession();
   return (<><AddDialog open={open} title={existing ? 'Edit property' : 'Add a property'} onClose={onClose} onSave={() => save.mutate(undefined as never)} saving={save.isPending} disabled={!ready}
     onArchive={existing && can('PROPERTY:DELETE') ? () => setConfirm(true) : undefined}>
-    <div className="sm:col-span-2"><Field label="Owner" required hint={existing ? 'The owner can’t be changed here.' : owners && owners.length === 0 ? undefined : 'Not in the list? Add the owner first.'}>
-      {existing ? <Input value={owners?.find((o) => o.id === f.ownerId)?.name ?? ''} disabled readOnly /> : owners && owners.length === 0
+    <div className="sm:col-span-2"><Field label="Owner" required hint={existing ? 'The owner can’t be changed here.' : noOwners ? undefined : 'Search by name, contact or email. Not found? Add the owner first.'}>
+      {existing ? <Input value={existing.owner_name ?? ''} disabled readOnly /> : noOwners
         ? (canDo('OWNER:CREATE') ? <Button variant="secondary" onClick={() => { onClose(); onNeedOwner(); }}>Add the first owner</Button> : <span className="text-sm text-graphite-600">There are no owners yet. Ask someone who can add owners.</span>)
-        : <Select value={f.ownerId} onChange={set('ownerId')}><option value="">Choose an owner</option>{(owners ?? []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</Select>}</Field></div>
+        : <EntityPicker<any> endpoint="/api/leasing/owners" value={f.ownerId || null} onChange={(id) => setF({ ...f, ownerId: id ?? '' })} placeholder="Search owners"
+            label={(o) => o.name} sub={(o) => [o.contact, o.email].filter(Boolean).join(' · ')} />}</Field></div>
     <div className="sm:col-span-2"><Field label="Property name" required><Input value={f.name} onChange={set('name')} /></Field></div>
     <div className="sm:col-span-2"><Field label="Street address" required><Input value={f.street} onChange={set('street')} /></Field></div>
     <Field label="City" required><Input value={f.city} onChange={set('city')} /></Field>
@@ -122,7 +125,6 @@ function AddProperty({ open, onClose, onNeedOwner, existing }: { open: boolean; 
 }
 
 function AddUnit({ open, onClose, propertyId, existing }: { open: boolean; onClose: () => void; propertyId?: string; existing?: any }) {
-  const { data: props } = useApi<any[]>('/api/leasing/properties');
   const blank = { propertyId: propertyId ?? '', number: '', beds: '1', baths: '1', sqft: '700', marketRent: '' };
   const [f, setF] = useState<any>(blank);
   useEffect(() => { if (open) setF(existing ? { propertyId: existing.property_id, number: existing.number ?? '', beds: String(existing.beds ?? ''), baths: String(existing.baths ?? ''), sqft: String(existing.sqft ?? ''), marketRent: String(existing.market_rent ?? '') } : blank); }, [open, existing?.id]);
@@ -137,7 +139,9 @@ function AddUnit({ open, onClose, propertyId, existing }: { open: boolean; onClo
   return (<><AddDialog open={open} title={existing ? 'Edit unit' : 'Add a unit'} onClose={onClose} onSave={() => save.mutate(undefined as never)} saving={save.isPending} disabled={!pid || !f.number.trim() || !(Number(f.marketRent) > 0)}
     onArchive={existing && can('PROPERTY:DELETE') ? () => setConfirm(true) : undefined}>
     <div className="sm:col-span-2"><Field label="Property" required>
-      <Select value={pid} disabled={!!existing} onChange={set('propertyId')}><option value="">Choose a property</option>{(props ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field></div>
+      <EntityPicker<any> endpoint="/api/leasing/properties" value={pid || null} disabled={!!existing} clearable={!existing} placeholder="Search properties by name or address"
+        selected={existing ? { id: existing.property_id, name: existing.property_name } : null}
+        onChange={(id) => setF({ ...f, propertyId: id ?? '' })} label={(p) => p.name} sub={(p) => [p.street, p.city, p.state].filter(Boolean).join(', ')} /></Field></div>
     <Field label="Unit number" required><Input value={f.number} onChange={set('number')} /></Field>
     <Field label="Market rent ($ per month)" required><Input type="number" min={0} value={f.marketRent} onChange={set('marketRent')} /></Field>
     <Field label="Bedrooms"><Input type="number" min={0} value={f.beds} onChange={set('beds')} /></Field>
@@ -168,7 +172,7 @@ function ArchivedList({ kind, perm }: { kind: 'owner' | 'property' | 'unit'; per
 }
 
 function Properties({ embedded }: { embedded?: boolean }) {
-  const { data, isLoading } = useApi<any[]>('/api/leasing/properties');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/properties');
   const { can } = useSession();
   const [adding, setAdding] = useState<'property' | 'owner' | 'unit' | null>(null);
   const [editing, setEditing] = useState<any>(null);
@@ -182,7 +186,7 @@ function Properties({ embedded }: { embedded?: boolean }) {
   ];
   const add = can('PROPERTY:CREATE');
   const t = (<Panel title="Properties" padded={false} actions={add && <><Button size="sm" variant="secondary" onClick={() => setAdding('unit')} disabled={!data?.length}>Add unit</Button><Button size="sm" variant="primary" onClick={() => setAdding('property')}>Add property</Button></>}>
-    <DataTable rows={data} columns={cols} rowKey={(p) => p.id} loading={isLoading} exportName="properties" onRowClick={(p) => add && setEditing(p)}
+    <DataTable rows={data} server={server} columns={cols} rowKey={(p) => p.id} loading={isLoading} exportName="properties" onRowClick={(p) => add && setEditing(p)}
       empty={{ title: 'No properties yet', body: add ? 'Add the owner, then the property, then its units.' : undefined, action: add ? <Button variant="primary" onClick={() => setAdding('property')}>Add your first property</Button> : undefined } as any} />
     <ArchivedList kind="property" perm="PROPERTY:DELETE" />
     {add && <><AddProperty open={adding === 'property'} onClose={() => setAdding(null)} onNeedOwner={() => setAdding('owner')} />{can('OWNER:CREATE') && <AddOwner open={adding === 'owner'} onClose={() => setAdding(null)} />}<AddUnit open={adding === 'unit'} onClose={() => setAdding(null)} />
@@ -191,7 +195,7 @@ function Properties({ embedded }: { embedded?: boolean }) {
 }
 
 function Units() {
-  const { data, isLoading } = useApi<any[]>('/api/leasing/units');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/units');
   const { can } = useSession();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -208,14 +212,14 @@ function Units() {
   ];
   return (<><PageHeader title="Units" description="Every door in your portfolio, with rent and vacancy." /><SubNav />
     <Panel padded={false} actions={can('PROPERTY:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add unit</Button>}>
-      <DataTable rows={data} columns={cols} rowKey={(u) => u.id} loading={isLoading} exportName="units" onRowClick={(u) => can('PROPERTY:EDIT') && setEditing(u)} empty={{ title: 'No units yet', body: can('PROPERTY:CREATE') ? 'Add a property first, then its units.' : undefined } as any} />
+      <DataTable rows={data} server={server} columns={cols} rowKey={(u) => u.id} loading={isLoading} exportName="units" onRowClick={(u) => can('PROPERTY:EDIT') && setEditing(u)} empty={{ title: 'No units yet', body: can('PROPERTY:CREATE') ? 'Add a property first, then its units.' : undefined } as any} />
       <ArchivedList kind="unit" perm="PROPERTY:DELETE" />
       {can('PROPERTY:CREATE') && <AddUnit open={adding} onClose={() => setAdding(false)} />}
       {can('PROPERTY:EDIT') && <AddUnit open={!!editing} existing={editing} onClose={() => setEditing(null)} />}</Panel></>);
 }
 
 function Owners() {
-  const { data, isLoading } = useApi<any[]>('/api/leasing/owners');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/owners');
   const { can } = useSession();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -230,24 +234,20 @@ function Owners() {
   ];
   return (<><PageHeader title="Owners" description="Property owners, their contacts and management terms." /><SubNav />
     <Panel padded={false} actions={can('OWNER:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>Add owner</Button>}>
-      <DataTable rows={data} columns={cols} rowKey={(o) => o.id} loading={isLoading} exportName="owners" onRowClick={(o) => can('OWNER:EDIT') && setEditing(o)} empty={{ title: 'No owners yet', body: can('OWNER:CREATE') ? 'Add the people or companies whose properties you manage.' : undefined } as any} />
+      <DataTable rows={data} server={server} columns={cols} rowKey={(o) => o.id} loading={isLoading} exportName="owners" onRowClick={(o) => can('OWNER:EDIT') && setEditing(o)} empty={{ title: 'No owners yet', body: can('OWNER:CREATE') ? 'Add the people or companies whose properties you manage.' : undefined } as any} />
       <ArchivedList kind="owner" perm="OWNER:DELETE" />
       {can('OWNER:CREATE') && <AddOwner open={adding} onClose={() => setAdding(false)} />}
       {can('OWNER:EDIT') && <AddOwner open={!!editing} existing={editing} onClose={() => setEditing(null)} />}</Panel></>);
 }
 
 function NewListing({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
-  const { data: units } = useApi<any[]>('/api/leasing/units?status=VACANT');
-  const { data: listed } = useApi<any[]>('/api/leasing/listings');
   const [unitId, setUnitId] = useState(''); const [rent, setRent] = useState('');
-  const taken = new Set((listed ?? []).filter((l) => l.status !== 'LEASED').map((l) => l.unit_id));
-  const free = (units ?? []).filter((u) => u.status === 'VACANT' && !taken.has(u.id));
   const save = useAction(() => api.post<{ id: string }>('/api/leasing/listings', { unitId, rent: rent ? Number(rent) : undefined }),
     { success: 'Draft listing created', invalidate: ['/api/leasing/listings'], onSuccess: (r: any) => { setUnitId(''); setRent(''); onClose(); onCreated(r.id); } });
   return (<AddDialog open={open} title="New listing" onClose={onClose} onSave={() => save.mutate(undefined as never)} saving={save.isPending} disabled={!unitId}>
-    <div className="sm:col-span-2"><Field label="Vacant unit" required hint={free.length === 0 ? 'No vacant unit without a listing. Add a unit first.' : 'Rent, details and photos are filled in from the unit.'}>
-      <Select value={unitId} onChange={(e) => { setUnitId(e.target.value); setRent(''); }}><option value="">Choose a unit</option>
-        {free.map((u) => <option key={u.id} value={u.id}>{u.property_name} · Unit {u.number} · {fmt.usd(u.market_rent)}</option>)}</Select></Field></div>
+    <div className="sm:col-span-2"><Field label="Vacant unit" required hint="Search by property or unit number. Only vacant units without a listing appear. Rent, details and photos are filled in from the unit.">
+      <EntityPicker<any> endpoint="/api/leasing/units" params={{ status: 'VACANT', unlisted: 'true' }} value={unitId || null} onChange={(id) => { setUnitId(id ?? ''); setRent(''); }} placeholder="Search vacant units"
+        label={(u) => `${u.property_name} · Unit ${u.number}`} sub={(u) => `${fmt.usd(u.market_rent)} a month · ${u.beds ?? '?'} bd / ${u.baths ?? '?'} ba`} /></Field></div>
     <Field label="Asking rent ($)" hint="Leave empty to use the unit’s market rent"><Input type="number" min={0} value={rent} onChange={(e) => setRent(e.target.value)} /></Field>
   </AddDialog>);
 }
@@ -256,7 +256,7 @@ function Listings() {
   const nav = useNavigate(); const base = useBase();
   const { can } = useSession();
   const [adding, setAdding] = useState(false);
-  const { data, isLoading } = useApi<any[]>('/api/leasing/listings');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/listings');
   const cols: Column<any>[] = [
     { key: 'title', header: 'Listing', render: (l) => (<div><div className="font-semibold">{l.title}</div><div className="text-xs text-graphite-500">Available {fmt.shortDate(l.available_date)}</div></div>) },
     { key: 'status', header: 'Status', render: (l) => <StatusPill status={l.status} /> },
@@ -266,7 +266,7 @@ function Listings() {
   ];
   return (<><PageHeader title="Listings" description="Draft with AI help, review, then publish to the public site." /><SubNav />
     <Panel padded={false} actions={can('LISTING:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>New listing</Button>}>
-      <DataTable rows={data} columns={cols} rowKey={(l) => l.id} loading={isLoading} onRowClick={(l) => nav(`${base}/listings/${l.id}`)} exportName="listings"
+      <DataTable rows={data} server={server} columns={cols} rowKey={(l) => l.id} loading={isLoading} onRowClick={(l) => nav(`${base}/listings/${l.id}`)} exportName="listings"
         empty={{ title: 'No listings yet', body: can('LISTING:CREATE') ? 'Create a listing from a vacant unit, review it, then publish it.' : undefined }} />
       {can('LISTING:CREATE') && <NewListing open={adding} onClose={() => setAdding(false)} onCreated={(id) => nav(`${base}/listings/${id}`)} />}</Panel></>);
 }
@@ -307,7 +307,7 @@ function ListingDetail() {
 }
 
 function Leads() {
-  const { data, isLoading } = useApi<any[]>('/api/leasing/leads');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/leads', { initialSort: { key: 'ai_score', dir: 'desc' } });
   const [open, setOpen] = useState<any>(null); const [reply, setReply] = useState('');
   const send = useAction(() => api.post(`/api/leasing/leads/${open.id}/respond`, { reply }), { success: 'Reply sent', invalidate: ['/api/leasing/leads'], onSuccess: () => setOpen(null) });
   const cols: Column<any>[] = [
@@ -318,7 +318,7 @@ function Leads() {
     { key: 'created_at', header: 'Received', value: (l) => l.created_at, render: (l) => fmt.date(l.created_at) },
   ];
   return (<><PageHeader title="Leads" description="Enquiries are scored and answered instantly; review the reply before it goes out." /><SubNav />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(l) => l.id} loading={isLoading} initialSort={{ key: 'ai_score', dir: 'desc' }} onRowClick={(l) => { setOpen(l); setReply(l.ai_reply ?? ''); }} /></Panel>
+    <Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(l) => l.id} loading={isLoading} initialSort={{ key: 'ai_score', dir: 'desc' }} onRowClick={(l) => { setOpen(l); setReply(l.ai_reply ?? ''); }} /></Panel>
     <Modal open={!!open} onClose={() => setOpen(null)} title={open?.name ?? ''} footer={<><Button variant="quiet" onClick={() => setOpen(null)}>Close</Button><Button variant="primary" loading={send.isPending} onClick={() => send.mutate(undefined)}>Send reply</Button></>}>
       <p className="mb-3 text-sm text-graphite-700">“{open?.message}”</p>
       <Field label="Reply drafted by AI" hint="Edit before sending."><Textarea rows={6} value={reply} onChange={(e) => setReply(e.target.value)} /></Field>
@@ -326,7 +326,7 @@ function Leads() {
 }
 
 function Showings() {
-  const { data, isLoading } = useApi<any[]>('/api/leasing/showings');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/showings');
   const act = useAction((v: { id: string; a: string }) => api.post(`/api/leasing/showings/${v.id}/actions/${v.a}`, {}), { success: 'Showing updated', invalidate: ['/api/leasing/showings'] });
   const cols: Column<any>[] = [
     { key: 'scheduled_at', header: 'When', value: (s) => s.scheduled_at, render: (s) => new Date(s.scheduled_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) },
@@ -334,12 +334,12 @@ function Showings() {
     { key: 'status', header: 'Status', render: (s) => <StatusPill status={s.status} /> },
     { key: 'a', header: '', align: 'right', render: (s) => <div className="flex justify-end gap-2"><ActionBar actions={s.actions} primary={['CONFIRM']} onAction={(a) => act.mutate({ id: s.id, a })} /></div> },
   ];
-  return (<><PageHeader title="Showings" /><SubNav /><Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(s) => s.id} loading={isLoading} empty={{ title: 'No showings scheduled' }} /></Panel></>);
+  return (<><PageHeader title="Showings" /><SubNav /><Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(s) => s.id} loading={isLoading} empty={{ title: 'No showings scheduled' }} /></Panel></>);
 }
 
 function Applications() {
   const nav = useNavigate(); const base = useBase();
-  const { data, isLoading } = useApi<any[]>('/api/leasing/applications');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/applications', { initialSort: { key: 'submitted_at', dir: 'desc' } });
   const cols: Column<any>[] = [
     { key: 'applicant_name', header: 'Applicant', render: (a) => (<div><div className="font-semibold"><QuickLink kind="applicant" id={a.id}>{a.applicant_name}</QuickLink></div><div className="text-xs text-graphite-500">{a.unit_label}</div></div>) },
     { key: 'status', header: 'Status', render: (a) => <StatusPill status={a.status} /> },
@@ -348,7 +348,7 @@ function Applications() {
     { key: 'credit_score', header: 'Credit', align: 'right', hideOnMobile: true, render: (a) => a.credit_score ?? '—' },
     { key: 'submitted_at', header: 'Submitted', value: (a) => a.submitted_at, render: (a) => fmt.date(a.submitted_at) },
   ];
-  return (<><PageHeader title="Applications" /><SubNav /><Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(a) => a.id} loading={isLoading} onRowClick={(a) => nav(`${base}/applications/${a.id}`)} initialSort={{ key: 'submitted_at', dir: 'desc' }} /></Panel></>);
+  return (<><PageHeader title="Applications" /><SubNav /><Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(a) => a.id} loading={isLoading} onRowClick={(a) => nav(`${base}/applications/${a.id}`)} initialSort={{ key: 'submitted_at', dir: 'desc' }} /></Panel></>);
 }
 
 function ApplicationDetail() {
@@ -396,7 +396,7 @@ function ApplicationDetail() {
 
 function Leases() {
   const nav = useNavigate(); const base = useBase();
-  const { data, isLoading } = useApi<any[]>('/api/leasing/leases');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/leases', { initialSort: { key: 'end_date', dir: 'asc' } });
   const cols: Column<any>[] = [
     { key: 'tenant_name', header: 'Resident', render: (l) => (<div><div className="font-semibold"><QuickLink kind="tenant" id={l.tenant_id} name={l.tenant_name}>{l.tenant_name}</QuickLink></div><div className="text-xs text-graphite-500"><QuickLink kind="property" id={l.property_id} className="font-medium">{l.property_name}</QuickLink> · <QuickLink kind="unit" id={l.unit_id} className="font-medium">{l.unit_label}</QuickLink></div></div>) },
     { key: 'status', header: 'Status', render: (l) => <StatusPill status={l.status} /> },
@@ -404,7 +404,7 @@ function Leases() {
     { key: 'end_date', header: 'Ends', value: (l) => l.end_date, render: (l) => fmt.date(l.end_date) },
     { key: 'days_left', header: 'Days left', align: 'right', hideOnMobile: true, render: (l) => (l.status === 'ACTIVE' ? <span className={l.days_left <= 60 ? 'font-semibold text-warn-700' : ''}>{l.days_left}</span> : '—') },
   ];
-  return (<><PageHeader title="Leases" /><SubNav /><Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(l) => l.id} loading={isLoading} onRowClick={(l) => nav(`${base}/leases/${l.id}`)} initialSort={{ key: 'end_date', dir: 'asc' }} /></Panel></>);
+  return (<><PageHeader title="Leases" /><SubNav /><Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(l) => l.id} loading={isLoading} onRowClick={(l) => nav(`${base}/leases/${l.id}`)} initialSort={{ key: 'end_date', dir: 'asc' }} /></Panel></>);
 }
 
 function LeaseView({ mine }: { mine?: boolean }) {

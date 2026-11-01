@@ -96,7 +96,7 @@ public class AuthFilter extends OncePerRequestFilter {
                     return;
                 }
                 if (ctx == null) {
-                    reject(res, 401, "Sign-in required");
+                    reject(res, 401, "Your session has ended. Sign in again to continue.");
                     return;
                 }
                 SuspendedOrgs gone = suspended.getIfAvailable();
@@ -125,6 +125,15 @@ public class AuthFilter extends OncePerRequestFilter {
     private void reject(HttpServletResponse res, int status, String message) throws IOException {
         res.setStatus(status);
         res.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        mapper.writeValue(res.getOutputStream(), Map.of("status", status, "title", "Unauthorized", "detail", message));
+        // Same shape as every other error, so the screen handles it the same way.
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("status", status);
+        body.put("title", "Unauthorized");
+        body.put("detail", message);
+        body.put("code", "UNAUTHORIZED");
+        String id = org.slf4j.MDC.get("correlationId");
+        if (id != null) body.put("correlationId", id);
+        body.put("timestamp", java.time.Instant.now().toString());
+        mapper.writeValue(res.getOutputStream(), body);
     }
 }

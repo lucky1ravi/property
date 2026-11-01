@@ -1,3 +1,4 @@
+import { Stagger, StaggerItem } from '@propertyos/ui';
 import { useTitle } from './data';
 import { ButtonLink, Container, CtaBand, PageHero } from './parts';
 
@@ -18,14 +19,14 @@ export function Security() {
         <ButtonLink to="/contact">Ask a security question</ButtonLink>
       </PageHero>
       <Container className="py-14">
-        <ul className="grid gap-x-12 gap-y-10 md:grid-cols-2">
+        <Stagger as="ul" gap={0.08} className="grid gap-x-12 gap-y-10 md:grid-cols-2">
           {POINTS.map((p) => (
-            <li key={p.title}>
+            <StaggerItem as="li" key={p.title}>
               <h2 className="text-xl font-extrabold tracking-[-0.01em] text-graphite-950">{p.title}</h2>
               <p className="mt-2 max-w-[56ch] leading-relaxed text-graphite-700">{p.body}</p>
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </Stagger>
       </Container>
       <CtaBand title="Need details for your own review?" body="Send us your security questionnaire or questions and we’ll answer them in writing." />
     </>

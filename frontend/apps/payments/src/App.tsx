@@ -4,7 +4,7 @@ import {
   DocumentsPanel,
   MicroApp, Tabs, PageHeader, Panel, Stat, StatStrip, Button, StatusPill, Badge, DataTable, type Column, Drawer, Modal, Field, Input, Select, KeyValues, Timeline,
   TrendChart, CompareChart, AiInsight, EmptyState, Skeleton, Toggle, ConfirmDialog, Money,
-  useApi, useAction, api, fmt, useSession, personaOf, QuickLink, InvoiceDownload } from '@propertyos/ui';
+  useApi, useAction, api, fmt, useSession, personaOf, QuickLink, InvoiceDownload, usePagedApi, EntityPicker } from '@propertyos/ui';
 
 const BASE = '/app/payments';
 const inv = ['/api/billing'];
@@ -77,7 +77,7 @@ function InvoiceDrawer({ id, onClose }: { id: string | null; onClose: () => void
 
 function Invoices() {
   const { can } = useSession();
-  const { data, isLoading } = useApi<any[]>('/api/billing/invoices');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/billing/invoices', { initialSort: { key: 'due_date', dir: 'desc' } });
   const [open, setOpen] = useState<string | null>(null); const [charge, setCharge] = useState(false);
   const cols: Column<any>[] = [
     { key: 'invoice_number', header: 'Invoice #', hideOnMobile: true },
@@ -88,18 +88,18 @@ function Invoices() {
     { key: 'balance', header: 'Balance', align: 'right', value: (r) => Number(r.balance), render: (r) => fmt.usd(r.balance, true) },
   ];
   return (<><PageHeader title="Invoices" actions={can('INVOICE:CREATE') && <Button variant="primary" onClick={() => setCharge(true)}>New charge</Button>} /><SubNav />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => setOpen(r.id)} exportName="invoices" initialSort={{ key: 'due_date', dir: 'desc' }} /></Panel>
+    <Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={(r) => setOpen(r.id)} exportName="invoices" initialSort={{ key: 'due_date', dir: 'desc' }} /></Panel>
     <InvoiceDrawer id={open} onClose={() => setOpen(null)} /><ChargeModal open={charge} onClose={() => setCharge(false)} /></>);
 }
 
 function ChargeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { data: leases } = useApi<any[]>(open ? '/api/leasing/leases?status=ACTIVE' : null);
   const [f, setF] = useState<any>({ tenantId: '', kind: 'FEE', description: '', amount: '', dueDate: '' });
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const go = useAction(() => api.post('/api/billing/invoices', { ...f, amount: Number(f.amount) }), { success: 'Charge added', invalidate: inv, onSuccess: onClose });
   return (<Modal open={open} onClose={onClose} title="New charge" footer={<><Button variant="quiet" onClick={onClose}>Cancel</Button><Button variant="primary" loading={go.isPending} disabled={!f.tenantId || !f.amount || !f.description} onClick={() => go.mutate(undefined)}>Add charge</Button></>}>
     <div className="space-y-3">
-      <Field label="Resident" required><Select value={f.tenantId} onChange={set('tenantId')}><option value="">Choose a resident</option>{(leases ?? []).map((l) => <option key={l.id} value={l.tenant_id}>{l.tenant_name} · {l.unit_label}</option>)}</Select></Field>
+      <Field label="Resident" required hint="Search by name, property or unit."><EntityPicker<any> endpoint="/api/leasing/leases" params={{ status: 'ACTIVE' }} value={f.tenantId || null} onChange={(id) => setF({ ...f, tenantId: id ?? '' })} avatar
+        getId={(l) => l.tenant_id} label={(l) => l.tenant_name} sub={(l) => `${l.property_name} · ${l.unit_label}`} placeholder="Search residents" /></Field>
       <Field label="Type"><Select value={f.kind} onChange={set('kind')}><option value="FEE">Fee</option><option value="LATE_FEE">Late fee (state cap applies)</option><option value="UTILITY">Utility</option><option value="OTHER">Other</option></Select></Field>
       <Field label="Description" required><Input value={f.description} onChange={set('description')} /></Field>
       <div className="grid grid-cols-2 gap-3"><Field label="Amount (USD)" required><Input type="number" min="0" step="0.01" value={f.amount} onChange={set('amount')} /></Field><Field label="Due date"><Input type="date" value={f.dueDate} onChange={set('dueDate')} /></Field></div>
@@ -122,7 +122,7 @@ function Collections() {
 }
 
 function Payments() {
-  const { data, isLoading } = useApi<any[]>('/api/billing/payments');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/billing/payments', { initialSort: { key: 'created_at', dir: 'desc' } });
   const cols: Column<any>[] = [
     { key: 'created_at', header: 'Date', value: (r) => r.created_at, render: (r) => fmt.date(r.created_at) },
     { key: 'tenant_name', header: 'Resident', render: (r) => <QuickLink kind="tenant" id={r.tenant_id} name={r.tenant_name}>{r.tenant_name}</QuickLink> }, { key: 'reference', header: 'Reference', hideOnMobile: true, render: (r) => <QuickLink kind="payment" id={r.id}>{r.reference}</QuickLink> },
@@ -130,24 +130,23 @@ function Payments() {
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status} /> },
     { key: 'amount', header: 'Amount', align: 'right', value: (r) => Number(r.amount), render: (r) => fmt.usd(r.amount, true) },
   ];
-  return (<><PageHeader title="Payments" /><SubNav /><Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} exportName="payments" initialSort={{ key: 'created_at', dir: 'desc' }} /></Panel></>);
+  return (<><PageHeader title="Payments" /><SubNav /><Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} exportName="payments" initialSort={{ key: 'created_at', dir: 'desc' }} /></Panel></>);
 }
 
 function Statements() {
   const { can } = useSession();
-  const { data, isLoading } = useApi<any[]>('/api/billing/statements');
-  const { data: owners } = useApi<any[]>(can('OWNER:VIEW') ? '/api/leasing/owners' : null);
-  const { data: props } = useApi<any[]>(can('PROPERTY:VIEW') ? '/api/leasing/properties' : null);
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/billing/statements');
   const [exp, setExp] = useState(false);
+  const [pickedProperty, setPickedProperty] = useState<any>(null);
+  const [pickedOwner, setPickedOwner] = useState<any>(null);
   const blankExp = { propertyId: '', description: '', category: 'REPAIRS', amount: '', date: new Date().toISOString().slice(0, 10) };
   const [e, setE] = useState(blankExp);
   const addExpense = useAction(() => {
-    const p = props?.find((x) => x.id === e.propertyId);
-    return api.post('/api/billing/expenses', { propertyId: e.propertyId, ownerId: p?.owner_id, description: e.description, category: e.category, amount: Number(e.amount), date: e.date });
+    return api.post('/api/billing/expenses', { propertyId: e.propertyId, ownerId: pickedProperty?.owner_id, description: e.description, category: e.category, amount: Number(e.amount), date: e.date });
   }, { success: 'Expense recorded. It appears on the next owner statement.', invalidate: inv, onSuccess: () => { setE(blankExp); setExp(false); } });
   const [open, setOpen] = useState<any>(null); const [gen, setGen] = useState(false);
   const [g, setG] = useState({ ownerId: '', period: new Date().toISOString().slice(0, 7) });
-  const create = useAction(() => api.post('/api/billing/statements', { ownerId: g.ownerId, period: g.period, ownerName: owners?.find((o) => o.id === g.ownerId)?.name ?? 'Owner' }), { success: 'Statement drafted', invalidate: inv, onSuccess: () => setGen(false) });
+  const create = useAction(() => api.post('/api/billing/statements', { ownerId: g.ownerId, period: g.period, ownerName: pickedOwner?.name ?? 'Owner' }), { success: 'Statement drafted', invalidate: inv, onSuccess: () => setGen(false) });
   const publish = useAction((id: string) => api.post(`/api/billing/statements/${id}/publish`), { success: 'Published to the owner', invalidate: inv, onSuccess: () => setOpen(null) });
   const cols: Column<any>[] = [
     { key: 'owner_name', header: 'Owner' }, { key: 'period', header: 'Period' },
@@ -158,26 +157,28 @@ function Statements() {
     { key: 'status', header: 'Status', render: (r) => <StatusPill status={r.status ?? 'DRAFT'} /> },
   ];
   return (<><PageHeader title="Owner statements" description="Rent collected, fees and repairs, with the net payout for each owner." actions={can('OWNER_STATEMENT:CREATE') && <><Button variant="secondary" onClick={() => setExp(true)}>Record expense</Button><Button variant="primary" onClick={() => setGen(true)}>Generate statement</Button></>} /><SubNav />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={setOpen} exportName="statements" /></Panel>
+    <Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} onRowClick={setOpen} exportName="statements" /></Panel>
     <Drawer open={!!open} onClose={() => setOpen(null)} title={open ? `${open.owner_name} · ${open.period}` : ''}>
       {open && <div className="space-y-5"><KeyValues cols={2} items={[{ label: 'Rent collected', value: fmt.usd(open.rent_collected, true) }, { label: 'Fees collected', value: fmt.usd(open.fees_collected, true) }, { label: 'Management fee', value: fmt.usd(open.mgmt_fee, true) }, { label: 'Expenses', value: fmt.usd(open.expenses, true) }, { label: 'Net payout', value: <b>{fmt.usd(open.net_payout, true)}</b> }]} />
         <Panel title="Detail" padded={false}><ul className="divide-y divide-limestone-200 text-sm">{(open.lines ?? []).map((l: any, i: number) => <li key={i} className="flex justify-between gap-3 px-5 py-2"><span>{fmt.shortDate(l.date)} · {l.type} · {l.description}</span><Money value={l.amount} cents /></li>)}</ul></Panel>
         {can('OWNER_STATEMENT:CREATE') && open.status !== 'PUBLISHED' && <Button variant="primary" loading={publish.isPending} onClick={() => publish.mutate(open.id)}>Publish to owner</Button>}</div>}
     </Drawer>
     <Modal open={exp} onClose={() => setExp(false)} title="Record an expense" footer={<><Button variant="quiet" onClick={() => setExp(false)}>Cancel</Button><Button variant="primary" disabled={!e.propertyId || !e.description.trim() || !(Number(e.amount) > 0)} loading={addExpense.isPending} onClick={() => addExpense.mutate(undefined as never)}>Save</Button></>}>
-      <div className="space-y-3"><Field label="Property" required><Select value={e.propertyId} onChange={(ev) => setE({ ...e, propertyId: ev.target.value })}><option value="">Choose a property</option>{(props ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
+      <div className="space-y-3"><Field label="Property" required hint="Search by name or address."><EntityPicker<any> endpoint="/api/leasing/properties" value={e.propertyId || null} onChange={(id, p) => { setE({ ...e, propertyId: id ?? '' }); setPickedProperty(p); }} placeholder="Search properties"
+          label={(p) => p.name} sub={(p) => [p.street, p.city, p.state].filter(Boolean).join(', ')} /></Field>
         <Field label="What was it for?" required><Input value={e.description} onChange={(ev) => setE({ ...e, description: ev.target.value })} /></Field>
         <div className="grid grid-cols-3 gap-3"><Field label="Category"><Select value={e.category} onChange={(ev) => setE({ ...e, category: ev.target.value })}><option value="REPAIRS">Repairs</option><option value="UTILITIES">Utilities</option><option value="INSURANCE">Insurance</option><option value="TAXES">Taxes</option><option value="LANDSCAPING">Landscaping</option><option value="OTHER">Other</option></Select></Field>
           <Field label="Amount (USD)" required><Input type="number" min="0" step="0.01" value={e.amount} onChange={(ev) => setE({ ...e, amount: ev.target.value })} /></Field>
           <Field label="Date"><Input type="date" value={e.date} onChange={(ev) => setE({ ...e, date: ev.target.value })} /></Field></div></div></Modal>
     <Modal open={gen} onClose={() => setGen(false)} title="Generate statement" footer={<><Button variant="quiet" onClick={() => setGen(false)}>Cancel</Button><Button variant="primary" disabled={!g.ownerId} loading={create.isPending} onClick={() => create.mutate(undefined)}>Generate</Button></>}>
-      <div className="space-y-3"><Field label="Owner"><Select value={g.ownerId} onChange={(e) => setG({ ...g, ownerId: e.target.value })}><option value="">Choose an owner</option>{(owners ?? []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</Select></Field>
+      <div className="space-y-3"><Field label="Owner" hint="Search by name, contact or email."><EntityPicker<any> endpoint="/api/leasing/owners" value={g.ownerId || null} onChange={(id, o) => { setG({ ...g, ownerId: id ?? '' }); setPickedOwner(o); }} placeholder="Search owners"
+          label={(o) => o.name} sub={(o) => [o.contact, o.email].filter(Boolean).join(' · ')} /></Field>
         <Field label="Month"><Input type="month" value={g.period} onChange={(e) => setG({ ...g, period: e.target.value })} /></Field></div></Modal></>);
 }
 
 function Deposits() {
   const { can } = useSession();
-  const { data, isLoading } = useApi<any[]>('/api/billing/deposits');
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/billing/deposits');
   const [d, setD] = useState<any>(null); const [ded, setDed] = useState({ description: '', amount: '' });
   const settle = useAction(() => api.post(`/api/billing/deposits/${d.id}/settle`, { deductions: ded.amount ? [{ description: ded.description || 'Deduction', amount: Number(ded.amount) }] : [] }), { success: 'Deposit settled', invalidate: inv, onSuccess: () => setD(null) });
   const cols: Column<any>[] = [
@@ -188,7 +189,7 @@ function Deposits() {
     { key: 'a', header: '', align: 'right', render: (r) => (can('PAYMENT:APPROVE') && r.status === 'REFUND_DUE' ? <Button size="sm" variant="primary" onClick={() => setD(r)}>Settle</Button> : null) },
   ];
   return (<><PageHeader title="Security deposits" description="Held in trust. Move-out refunds must follow your state’s deadline." /><SubNav />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(r) => r.id} loading={isLoading} /></Panel>
+    <Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(r) => r.id} loading={isLoading} /></Panel>
     <Modal open={!!d} onClose={() => setD(null)} title="Settle deposit" footer={<><Button variant="quiet" onClick={() => setD(null)}>Cancel</Button><Button variant="primary" loading={settle.isPending} onClick={() => settle.mutate(undefined)}>Settle and refund</Button></>}>
       <p className="mb-3 text-sm text-graphite-700">{d?.tenant_name} has {fmt.usd(d?.held)} on deposit. Itemise any lawful deduction; the rest is refunded.</p>
       <div className="grid grid-cols-[1fr_120px] gap-3"><Field label="Deduction"><Input value={ded.description} onChange={(e) => setDed({ ...ded, description: e.target.value })} placeholder="e.g. Carpet cleaning" /></Field><Field label="Amount"><Input type="number" value={ded.amount} onChange={(e) => setDed({ ...ded, amount: e.target.value })} /></Field></div></Modal></>);

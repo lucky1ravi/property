@@ -39,10 +39,15 @@ public class InternalController {
     /** Which properties each owner and resident is connected to, so messaging can be limited to people on the same properties. */
     @GetMapping("/party-directory")
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> partyDirectory() {
+    public List<Map<String, Object>> partyDirectory(@RequestParam(required = false) String partyIds) {
+        // Optionally only these owners and residents, so a search for a few people does not load every party in the company.
+        boolean only = partyIds != null && !partyIds.isBlank();
+        String ownerFilter = only ? " where owner_id = any (string_to_array(?, ',')::uuid[])" : "";
+        String tenantFilter = only ? " and tenant_id = any (string_to_array(?, ',')::uuid[])" : "";
+        Object[] args = only ? new Object[] { partyIds } : new Object[0];
         List<Map<String, Object>> out = new java.util.ArrayList<>();
-        out.addAll(db.list("select owner_id as party_id, 'OWNER' as type, array_to_string(array_agg(id), ',') as property_ids from leasing.property group by owner_id"));
-        out.addAll(db.list("select tenant_id as party_id, 'TENANT' as type, array_to_string(array_agg(distinct property_id), ',') as property_ids from leasing.lease where status in ('ACTIVE','RENEWAL_OFFERED','NOTICE_GIVEN') group by tenant_id"));
+        out.addAll(db.list("select owner_id as party_id, 'OWNER' as type, array_to_string(array_agg(id), ',') as property_ids from leasing.property" + ownerFilter + " group by owner_id", args));
+        out.addAll(db.list("select tenant_id as party_id, 'TENANT' as type, array_to_string(array_agg(distinct property_id), ',') as property_ids from leasing.lease where status in ('ACTIVE','RENEWAL_OFFERED','NOTICE_GIVEN')" + tenantFilter + " group by tenant_id", args));
         return out;
     }
 

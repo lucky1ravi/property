@@ -1,6 +1,7 @@
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, Download, SlidersHorizontal, X } from 'lucide-react';
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, Download, SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import type { ServerPaging } from '../lib/hooks';
 import { Skeleton, Select } from './primitives';
 import { EmptyState } from './layout';
 
@@ -40,7 +41,16 @@ export interface DataTableProps<T> {
   dense?: boolean;
   rowClassName?: (row: T) => string | undefined;
   initialSort?: { key: string; dir: 'asc' | 'desc' };
+  /**
+   * Set for lists the server pages (see `usePagedApi`): the table then asks the server for each page and sends it the sort,
+   * search and filters, and `rows` is just the current page. Without it the table pages the rows it was given.
+   */
+  server?: ServerPaging<T>;
+  /** Rows-per-page choices. The first is the default. */
+  pageSizes?: number[];
 }
+
+export const PAGE_SIZES = [20, 50, 100];
 
 
 // ---------------- Smart column filters ----------------
@@ -114,6 +124,66 @@ function matches(spec: Spec, f: FilterState, v: unknown): boolean {
   }
 }
 
+/** The query-string form of the table's page, sort, search and filters, as the list endpoints expect it. */
+function toParams(page: number, size: number, sort: { key: string; dir: 'asc' | 'desc' } | null, q: string, filters: Record<string, FilterState>, specs: Record<string, Spec>): Record<string, string> {
+  const p: Record<string, string> = { page: String(page), size: String(size) };
+  if (sort) { p.sort = sort.key; p.dir = sort.dir; }
+  if (q.trim()) p.q = q.trim();
+  for (const [key, spec] of Object.entries(specs)) {
+    const f = filters[key];
+    if (!isActive(f)) continue;
+    if (spec.kind === 'text' && f.text?.trim()) p[`f.${key}`] = f.text.trim();
+    else if (spec.kind === 'select' && f.select) p[`f.${key}`] = f.select;
+    else if (spec.kind === 'date') {
+      let from = f.from || null, to = f.to || null;
+      if (f.preset && f.preset !== 'custom') [from, to] = DATE_PRESETS.find((x) => x.id === f.preset)?.range() ?? [null, null];
+      if (from) p[`from.${key}`] = from;
+      if (to) p[`to.${key}`] = to;
+    } else if (spec.kind === 'number' && f.op && (f.a ?? '') !== '') {
+      p[`num.${key}`] = f.op === 'between' ? ((f.b ?? '') !== '' ? `between:${f.a}:${f.b}` : `ge:${f.a}`) : `${f.op}:${f.a}`;
+    }
+  }
+  return p;
+}
+
+/** Page numbers to show: the first, the last and a window around the current page, with gaps marked as null. */
+function pageWindow(current: number, count: number): (number | null)[] {
+  const keep = new Set([1, count, current - 1, current, current + 1].filter((n) => n >= 1 && n <= count));
+  const out: (number | null)[] = [];
+  [...keep].sort((a, b) => a - b).forEach((n, i, all) => { if (i > 0 && n - all[i - 1] > 1) out.push(null); out.push(n); });
+  return out;
+}
+
+function PageFooter({ total, page, size, sizes, onPage, onSize }: { total: number; page: number; size: number; sizes: number[]; onPage: (p: number) => void; onSize: (s: number) => void }) {
+  const count = Math.max(1, Math.ceil(total / size));
+  const from = total === 0 ? 0 : (page - 1) * size + 1;
+  const to = Math.min(total, page * size);
+  const btn = 'inline-flex h-8 min-w-8 items-center justify-center rounded px-2 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40';
+  return (
+    <div data-tour="table-paging" className="flex flex-wrap items-center justify-between gap-3 border-t border-limestone-200 px-3 py-2.5 text-[13px] text-graphite-600">
+      <span aria-live="polite">{total === 0 ? 'No rows' : `Showing ${from.toLocaleString()}–${to.toLocaleString()} of ${total.toLocaleString()}`}</span>
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2">Rows per page
+          <select value={size} onChange={(e) => onSize(Number(e.target.value))} aria-label="Rows per page"
+            className="h-8 rounded border border-limestone-300 bg-white px-2 text-[13px] font-semibold text-graphite-800 focus:border-federal-700 focus:outline-none focus:ring-2 focus:ring-federal-700/15">
+            {sizes.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+        <nav aria-label="Pagination" className="flex items-center gap-1">
+          <button type="button" className={clsx(btn, 'text-graphite-700 hover:bg-limestone-100')} disabled={page <= 1} onClick={() => onPage(1)} aria-label="First page"><ChevronsLeft className="h-4 w-4" /></button>
+          <button type="button" className={clsx(btn, 'text-graphite-700 hover:bg-limestone-100')} disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page"><ChevronLeft className="h-4 w-4" /></button>
+          {pageWindow(page, count).map((n, i) => n === null
+            ? <span key={`gap${i}`} className="px-1 text-graphite-400" aria-hidden>…</span>
+            : <button key={n} type="button" onClick={() => onPage(n)} aria-label={`Page ${n}`} aria-current={n === page ? 'page' : undefined}
+                className={clsx(btn, n === page ? 'bg-federal-800 text-white shadow-sm' : 'text-graphite-700 hover:bg-limestone-100')}>{n}</button>)}
+          <button type="button" className={clsx(btn, 'text-graphite-700 hover:bg-limestone-100')} disabled={page >= count} onClick={() => onPage(page + 1)} aria-label="Next page"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" className={clsx(btn, 'text-graphite-700 hover:bg-limestone-100')} disabled={page >= count} onClick={() => onPage(count)} aria-label="Last page"><ChevronsRight className="h-4 w-4" /></button>
+        </nav>
+      </div>
+    </div>
+  );
+}
+
 const fieldCls = 'h-10 md:h-7 w-full min-w-0 rounded border border-limestone-300 bg-white px-1.5 text-xs text-graphite-800 focus:border-federal-700 focus:outline-none focus:ring-2 focus:ring-federal-700/15';
 
 function FilterCell({ spec, state, onChange, label }: { spec: Spec; state: FilterState; onChange: (s: FilterState) => void; label: string }) {
@@ -154,26 +224,37 @@ function FilterCell({ spec, state, onChange, label }: { spec: Spec; state: Filte
 
 /** Enterprise data grid: search, sort, bulk selection, CSV export, keyboard-accessible rows. */
 export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searchable = true, searchPlaceholder = 'Search', toolbar, empty,
-  selectable, bulkActions, exportName, dense, rowClassName, initialSort }: DataTableProps<T>) {
+  selectable, bulkActions, exportName, dense, rowClassName, initialSort, server, pageSizes = PAGE_SIZES }: DataTableProps<T>) {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(initialSort ?? null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<Record<string, FilterState>>({});
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(pageSizes[0] ?? 20);
   // Filters start open on desktop; on a phone they sit behind the Filters button so the list is visible first.
   const [showFilters, setShowFilters] = useState(() => (typeof window === 'undefined' || !window.matchMedia ? true : window.matchMedia('(min-width: 768px)').matches));
   const cell = (c: Column<T>, row: T) => (c.render ? c.render(row) : String(valueOf(c, row) ?? '—'));
 
   const valueOf = (col: Column<T>, row: T) => (col.value ? col.value(row) : (row as any)[col.key]);
 
+  // When the server pages the list, filters are worked out from the first page and then kept, so they don't change under you
+  // as you move between pages. Pick-lists become "contains" boxes because the other pages' values aren't known here.
+  const frozen = useRef<Record<string, Spec>>({});
   const specs = useMemo(() => {
     const m: Record<string, Spec> = {};
-    for (const c of columns) { const sp = inferSpec(c, rows ?? [], valueOf); if (sp) m[c.key] = sp; }
+    for (const c of columns) {
+      if (server) {
+        if (!frozen.current[c.key]) { const sp = inferSpec(c, rows ?? [], valueOf); if (sp) frozen.current[c.key] = sp.kind === 'select' ? { kind: 'text' } : sp; }
+        if (frozen.current[c.key]) m[c.key] = frozen.current[c.key];
+      } else { const sp = inferSpec(c, rows ?? [], valueOf); if (sp) m[c.key] = sp; }
+    }
     return m;
-  }, [rows, columns]);
+  }, [rows, columns, server]);
   const activeCount = Object.keys(specs).filter((k) => isActive(filters[k])).length;
 
   const filtered = useMemo(() => {
     let r = rows ?? [];
+    if (server) return r; // the server has already searched, filtered and sorted
     for (const c of columns) {
       const sp = specs[c.key], f = filters[c.key];
       if (sp && isActive(f)) r = r.filter((row) => matches(sp, f!, valueOf(c, row)));
@@ -193,14 +274,33 @@ export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searc
       }
     }
     return r;
-  }, [rows, q, sort, columns, filters, specs]);
+  }, [rows, q, sort, columns, filters, specs, server]);
+
+  // ---- Paging ----
+  const total = server ? server.total : filtered.length;
+  const pageCount = Math.max(1, Math.ceil(total / size));
+  const current = Math.min(page, pageCount);
+  const pageRows = server ? filtered : filtered.slice((current - 1) * size, current * size);
+  // Searching, filtering, sorting or changing the page size starts again from the first page.
+  const firstRender = useRef(true);
+  const filtersKey = JSON.stringify(filters);
+  useEffect(() => { if (firstRender.current) { firstRender.current = false; return; } setPage(1); }, [q, filtersKey, sort?.key, sort?.dir, size]);
+  // Server mode: ask for the page, once typing has paused.
+  const [debounced, setDebounced] = useState({ q, filtersKey });
+  useEffect(() => { const t = setTimeout(() => setDebounced({ q, filtersKey }), 300); return () => clearTimeout(t); }, [q, filtersKey]);
+  useEffect(() => {
+    if (!server) return;
+    server.onQuery(toParams(current, size, sort, debounced.q, JSON.parse(debounced.filtersKey) as Record<string, FilterState>, specs));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, size, sort?.key, sort?.dir, debounced, specs]);
 
   const selectedRows = filtered.filter((r) => selected.has(rowKey(r)));
-  const allChecked = filtered.length > 0 && selectedRows.length === filtered.length;
+  const allChecked = pageRows.length > 0 && pageRows.every((r) => selected.has(rowKey(r)));
 
-  const exportCsv = () => {
+  const exportCsv = async () => {
+    const all = server ? await server.exportAll() : filtered;
     const header = columns.map((c) => (typeof c.header === 'string' ? c.header : c.key));
-    const lines = filtered.map((row) => columns.map((c) => `"${String(valueOf(c, row) ?? '').replace(/"/g, '""')}"`).join(','));
+    const lines = all.map((row) => columns.map((c) => `"${String(valueOf(c, row) ?? '').replace(/"/g, '""')}"`).join(','));
     const blob = new Blob([[header.join(','), ...lines].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -209,11 +309,11 @@ export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searc
   };
 
   return (
-    <div className="rounded-md border border-limestone-200 bg-white shadow-panel">
+    <div className="rounded-md border border-limestone-200 bg-white shadow-panel" data-tour="table">
       {(searchable || toolbar || exportName) && (
         <div className="flex flex-wrap items-center gap-2 border-b border-limestone-200 px-3 py-2.5">
           {searchable && (
-            <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+            <div className="relative min-w-[200px] flex-1 sm:max-w-xs" data-tour="table-search">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} aria-label={searchPlaceholder}
                 className="h-8 w-full rounded border border-limestone-300 bg-limestone-50 pl-8 pr-3 text-sm focus:border-federal-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-federal-700/15" />
@@ -222,7 +322,7 @@ export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searc
           <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
             {toolbar}
             {Object.keys(specs).length > 0 && (
-              <button onClick={() => setShowFilters(!showFilters)} aria-pressed={showFilters}
+              <button data-tour="table-filters" onClick={() => setShowFilters(!showFilters)} aria-pressed={showFilters}
                 className={clsx('inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-[13px] font-semibold hover:bg-limestone-100', activeCount ? 'text-federal-800' : 'text-graphite-600')}>
                 <SlidersHorizontal className="h-3.5 w-3.5" /> Filters{activeCount > 0 && <span className="rounded-full bg-federal-800 px-1.5 text-[11px] text-white">{activeCount}</span>}
               </button>
@@ -231,7 +331,7 @@ export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searc
               <button onClick={() => setFilters({})} className="inline-flex h-8 items-center gap-1 rounded px-2 text-[13px] font-semibold text-graphite-600 hover:bg-limestone-100"><X className="h-3.5 w-3.5" /> Clear</button>
             )}
             {exportName && (
-              <button onClick={exportCsv} className="inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-[13px] font-semibold text-graphite-600 hover:bg-limestone-100 hover:text-graphite-900">
+              <button data-tour="table-export" onClick={exportCsv} className="inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-[13px] font-semibold text-graphite-600 hover:bg-limestone-100 hover:text-graphite-900">
                 <Download className="h-3.5 w-3.5" /> Export CSV
               </button>
             )}
@@ -275,7 +375,7 @@ export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searc
               {selectable && (
                 <th className="w-10 px-3">
                   <input type="checkbox" aria-label="Select all" checked={allChecked}
-                    onChange={() => setSelected(allChecked ? new Set() : new Set(filtered.map(rowKey)))} className="h-4 w-4 accent-federal-900" />
+                    onChange={() => setSelected(allChecked ? new Set() : new Set(pageRows.map(rowKey)))} className="h-4 w-4 accent-federal-900" />
                 </th>
               )}
               {columns.map((c) => {
@@ -315,14 +415,14 @@ export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searc
                 {columns.map((c) => <td key={c.key} className="px-3 py-3"><Skeleton className="h-4 w-3/4" /></td>)}
               </tr>
             ))}
-            {!loading && filtered.map((row) => {
+            {!loading && pageRows.map((row, ri) => {
               const k = rowKey(row);
               return (
-                <tr key={k}
+                <tr key={k} style={{ animationDelay: `${Math.min(ri, 14) * 16}ms` }}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter') onRowClick(row); } : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
-                  className={clsx('border-b border-limestone-100 last:border-0', onRowClick && 'cursor-pointer hover:bg-federal-50/40 focus:bg-federal-50/60 focus:outline-none', selected.has(k) && 'bg-federal-50/60', rowClassName?.(row))}>
+                  className={clsx('border-b border-limestone-100 last:border-0 motion-safe:animate-row-in', onRowClick && 'cursor-pointer hover:bg-federal-50/40 focus:bg-federal-50/60 focus:outline-none', selected.has(k) && 'bg-federal-50/60', rowClassName?.(row))}>
                   {selectable && (
                     <td className="px-3" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" aria-label="Select row" checked={selected.has(k)} className="h-4 w-4 accent-federal-900"
@@ -344,15 +444,15 @@ export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searc
           {loading && Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="space-y-2 border-b border-limestone-100 p-4"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-3/4" /></div>
           ))}
-          {!loading && filtered.map((row) => {
+          {!loading && pageRows.map((row, ri) => {
             const k = rowKey(row);
             const [first, ...rest] = columns;
             return (
-              <div key={k}
+              <div key={k} style={{ animationDelay: `${Math.min(ri, 10) * 20}ms` }}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter') onRowClick(row); } : undefined}
                 role={onRowClick ? 'button' : undefined} tabIndex={onRowClick ? 0 : undefined}
-                className={clsx('border-b border-limestone-100 p-4 last:border-0', onRowClick && 'cursor-pointer active:bg-federal-50/60', selected.has(k) && 'bg-federal-50/60', rowClassName?.(row))}>
+                className={clsx('border-b border-limestone-100 p-4 last:border-0 motion-safe:animate-row-in', onRowClick && 'cursor-pointer active:bg-federal-50/60', selected.has(k) && 'bg-federal-50/60', rowClassName?.(row))}>
                 <div className="flex items-start gap-3">
                   {selectable && (
                     <input type="checkbox" aria-label="Select row" checked={selected.has(k)} className="mt-1 h-5 w-5 shrink-0 accent-federal-900" onClick={(e) => e.stopPropagation()}
@@ -375,10 +475,11 @@ export function DataTable<T>({ rows, columns, rowKey, loading, onRowClick, searc
             );
           })}
         </div>
-        {!loading && filtered.length === 0 && (
+        {!loading && total === 0 && (
           <EmptyState title={q ? `Nothing matches “${q}”` : activeCount ? 'No rows match these filters' : empty?.title ?? 'Nothing here yet'} body={q ? 'Try a different search.' : activeCount ? 'Adjust or clear the column filters.' : empty?.body} action={q || activeCount ? undefined : empty?.action} />
         )}
       </div>
+      {!loading && total > 0 && <PageFooter total={total} page={current} size={size} sizes={pageSizes} onPage={setPage} onSize={setSize} />}
     </div>
   );
 }

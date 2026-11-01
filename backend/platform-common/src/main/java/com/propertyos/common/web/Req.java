@@ -34,7 +34,7 @@ public final class Req {
      */
     public static String required(Map<String, ?> b, String k) {
         String v = str(b, k);
-        if (v == null) throw ApiException.badRequest(label(k) + " is required");
+        if (v == null) throw ApiException.badRequest(label(k) + " is required.");
         return v;
     }
 
@@ -51,10 +51,10 @@ public final class Req {
         if (v == null) return null;
         try {
             BigDecimal d = new BigDecimal(v.replace("$", "").replace(",", ""));
-            if (d.signum() < 0) throw ApiException.badRequest(label(k) + " can't be negative");
+            if (d.signum() < 0) throw ApiException.badRequest(label(k) + " can't be negative.");
             return d.setScale(2, java.math.RoundingMode.HALF_UP);
         } catch (NumberFormatException e) {
-            throw ApiException.badRequest(label(k) + " must be a number");
+            throw ApiException.badRequest(label(k) + " must be a number.");
         }
     }
 
@@ -68,7 +68,7 @@ public final class Req {
      */
     public static BigDecimal requiredMoney(Map<String, ?> b, String k) {
         BigDecimal v = money(b, k);
-        if (v == null) throw ApiException.badRequest(label(k) + " is required");
+        if (v == null) throw ApiException.badRequest(label(k) + " is required.");
         return v;
     }
 
@@ -86,7 +86,7 @@ public final class Req {
         try {
             return Integer.parseInt(v);
         } catch (NumberFormatException e) {
-            throw ApiException.badRequest(label(k) + " must be a whole number");
+            throw ApiException.badRequest(label(k) + " must be a whole number.");
         }
     }
 
@@ -104,7 +104,7 @@ public final class Req {
         try {
             return UUID.fromString(v);
         } catch (IllegalArgumentException e) {
-            throw ApiException.badRequest(label(k) + " is not a valid id");
+            throw ApiException.badRequest(label(k) + " isn't valid. Refresh the page and try again.");
         }
     }
 
@@ -118,7 +118,7 @@ public final class Req {
      */
     public static UUID requiredUuid(Map<String, ?> b, String k) {
         UUID v = uuid(b, k);
-        if (v == null) throw ApiException.badRequest(label(k) + " is required");
+        if (v == null) throw ApiException.badRequest(label(k) + " is required.");
         return v;
     }
 
@@ -136,7 +136,7 @@ public final class Req {
         try {
             return LocalDate.parse(v.length() > 10 ? v.substring(0, 10) : v);
         } catch (java.time.format.DateTimeParseException e) {
-            throw ApiException.badRequest(label(k) + " must be a date (YYYY-MM-DD)");
+            throw ApiException.badRequest(label(k) + " must be a date, for example 2026-03-31.");
         }
     }
 
@@ -175,11 +175,12 @@ public final class Req {
      */
     public static String email(Map<String, ?> b, String k) {
         String v = required(b, k).toLowerCase();
-        if (!v.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address");
+        if (!v.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address.");
         return v;
     }
 
-    private static String label(String k) {
+    /** A field name as a person would say it: {@code adminEmail} becomes "Admin email". */
+    public static String label(String k) {
         String s = k.replaceAll("([A-Z])", " $1").toLowerCase();
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }

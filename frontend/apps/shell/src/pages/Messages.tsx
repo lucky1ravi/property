@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Download, MessageSquarePlus, Send, Sparkles, RotateCcw } from 'lucide-react';
-import { PageHeader, Button, Avatar, Badge, Field, Input, Select, Textarea, Modal, Skeleton, EmptyState, Spinner, useApi, useAction, api, fmt, useSession } from '@propertyos/ui';
+import { keepPreviousData } from '@tanstack/react-query';
+import { ArrowLeft, CheckCircle2, Download, MessageSquarePlus, Send, Sparkles, RotateCcw, Search } from 'lucide-react';
+import { PageHeader, Button, Avatar, Badge, Field, Input, Select, Textarea, Modal, Skeleton, EmptyState, Spinner, MultiEntityPicker, useApi, useAction, api, fmt, useSession } from '@propertyos/ui';
 
 const KIND_LABEL: Record<string, string> = { STAFF: 'Staff', TENANT: 'Resident', OWNER: 'Owner', VENDOR: 'Vendor' };
 const CONTEXT_LABEL: Record<string, string> = { GENERAL: 'General', WORK_ORDER: 'Work order', INVOICE: 'Invoice', LEASE: 'Lease', APPLICATION: 'Application', PROPERTY: 'Property' };
@@ -16,16 +17,9 @@ function ago(ts: string) {
 }
 
 function NewConversation({ open, onClose, preset, onCreated }: { open: boolean; onClose: () => void; preset: any; onCreated: (id: string) => void }) {
-  const { data: contacts, isLoading } = useApi<any[]>(open ? '/api/workflow/chat/contacts' : null);
   const [f, setF] = useState<any>({ subject: '', body: '', contextType: 'GENERAL', contextId: '', contextLabel: '', memberIds: [] as string[] });
   useEffect(() => { if (open) setF((x: any) => ({ ...x, subject: preset?.subject ?? '', contextType: preset?.contextType ?? 'GENERAL', contextId: preset?.contextId ?? '', contextLabel: preset?.contextLabel ?? '', memberIds: [], body: '' })); }, [open, preset]);
   const go = useAction(() => api.post<any>('/api/workflow/chat/conversations', f), { success: 'Conversation started', invalidate: inv, onSuccess: (r: any) => { onClose(); onCreated(r.id); } });
-  const toggle = (id: string) => setF({ ...f, memberIds: f.memberIds.includes(id) ? f.memberIds.filter((x: string) => x !== id) : [...f.memberIds, id] });
-  const groups = useMemo(() => {
-    const g: Record<string, any[]> = {};
-    (contacts ?? []).forEach((c) => { (g[c.kind] ??= []).push(c); });
-    return g;
-  }, [contacts]);
   return (
     <Modal open={open} onClose={onClose} title="New conversation" size="lg"
       footer={<><Button variant="quiet" onClick={onClose}>Cancel</Button><Button variant="primary" loading={go.isPending} disabled={!f.subject.trim() || !f.body.trim() || f.memberIds.length === 0} onClick={() => go.mutate(undefined)}>Send</Button></>}>
@@ -34,17 +28,9 @@ function NewConversation({ open, onClose, preset, onCreated }: { open: boolean; 
         <Field label="Subject" required><Input value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder="What is this about?" /></Field>
         <div>
           <span className="mb-1 block text-[13px] font-semibold text-graphite-800">Who to message<span className="text-brick-600"> *</span></span>
-          {isLoading ? <Skeleton className="h-24" /> : (contacts ?? []).length === 0
-            ? <p className="rounded border border-limestone-200 p-3 text-sm text-graphite-600">No one is available to message. Your company’s messaging rules decide who you can reach.</p>
-            : <div className="max-h-52 space-y-3 overflow-y-auto rounded border border-limestone-200 p-3">
-              {Object.entries(groups).map(([kind, list]) => (
-                <div key={kind}><div className="mb-1 text-xs font-bold text-graphite-600">{KIND_LABEL[kind] ?? kind}</div>
-                  <div className="grid gap-1 sm:grid-cols-2">{list.map((c) => (
-                    <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-limestone-100">
-                      <input type="checkbox" checked={f.memberIds.includes(c.id)} onChange={() => toggle(c.id)} />
-                      <Avatar name={c.name} size={24} seed={c.id} /><span className="min-w-0 truncate">{c.name}</span>
-                    </label>))}</div></div>))}
-            </div>}
+          <MultiEntityPicker<any> endpoint="/api/workflow/chat/contacts" value={f.memberIds} onChange={(ids) => setF({ ...f, memberIds: ids })} avatar
+            label={(c) => c.name} sub={(c) => c.title} tag={(c) => KIND_LABEL[c.kind] ?? c.kind}
+            placeholder="Search people by name or title" hint="Your company’s messaging rules decide who you can reach." />
         </div>
         <Field label="Message" required><Textarea rows={4} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} placeholder="Write your message" /></Field>
       </div>
@@ -57,7 +43,12 @@ export function Messages() {
   const [sp, setSp] = useSearchParams();
   const nav = useNavigate();
   const sel = sp.get('c');
-  const { data: list, isLoading, refetch: refetchList } = useApi<any>('/api/workflow/chat/conversations', { refetchInterval: 15_000 });
+  // The inbox is searched and paged on the server: 30 at a time, and "Show more" for the rest.
+  const [convQ, setConvQ] = useState('');
+  const [convLimit, setConvLimit] = useState(30);
+  const [convTerm, setConvTerm] = useState('');
+  useEffect(() => { const t = setTimeout(() => { setConvTerm(convQ.trim()); setConvLimit(30); }, 300); return () => clearTimeout(t); }, [convQ]);
+  const { data: list, isLoading, refetch: refetchList } = useApi<any>(`/api/workflow/chat/conversations?limit=${convLimit}${convTerm ? `&q=${encodeURIComponent(convTerm)}` : ''}`, { refetchInterval: 15_000, placeholderData: keepPreviousData });
   const { data: conv, refetch: refetchConv } = useApi<any>(sel ? `/api/workflow/chat/conversations/${sel}` : null, { refetchInterval: 8_000 });
   const [text, setText] = useState('');
   const [newOpen, setNewOpen] = useState(false);
@@ -89,8 +80,13 @@ export function Messages() {
       actions={can('CONVERSATION:CREATE') && <Button variant="primary" onClick={() => setNewOpen(true)}><MessageSquarePlus className="mr-1.5 h-4 w-4" />New conversation</Button>} />
     <div className="grid gap-4 md:grid-cols-[320px_1fr]" style={{ minHeight: '60vh' }}>
       <section className={`rounded-md border border-limestone-200 bg-white ${sel ? 'hidden md:block' : ''}`} aria-label="Conversations">
+        <div className="border-b border-limestone-200 p-2">
+          <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite-400" aria-hidden />
+            <input value={convQ} onChange={(e) => setConvQ(e.target.value)} placeholder="Search conversations" aria-label="Search conversations"
+              className="h-9 w-full rounded border border-limestone-300 bg-limestone-50 pl-8 pr-3 text-sm focus:border-federal-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-federal-700/15" /></div>
+        </div>
         {isLoading ? <div className="p-4"><Skeleton className="h-40" /></div> : items.length === 0
-          ? <EmptyState title="No conversations yet" body="Start one from here, or from an invoice or work order." />
+          ? <EmptyState title={convTerm ? `Nothing matches “${convTerm}”` : 'No conversations yet'} body={convTerm ? 'Try a different name or word.' : 'Start one from here, or from an invoice or work order.'} />
           : <ul className="divide-y divide-limestone-200">{items.map((c) => (
             <li key={c.id}><button onClick={() => open(c.id)} className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-limestone-50 ${sel === c.id ? 'bg-federal-50' : ''}`}>
               <Avatar name={c.with_names || c.subject} size={36} seed={c.id} />
@@ -100,6 +96,10 @@ export function Messages() {
                 <span className="block truncate text-xs text-graphite-600">{c.last_sender ? `${c.last_sender}: ` : ''}{c.last_body}</span>
                 <span className="mt-1 flex items-center gap-1.5">{c.context_type !== 'GENERAL' && <Badge>{CONTEXT_LABEL[c.context_type]}</Badge>}{c.status === 'RESOLVED' && <Badge tone="good">Resolved</Badge>}{Number(c.unread) > 0 && <span className="rounded-full bg-brick-600 px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}</span>
               </span></button></li>))}</ul>}
+        {items.length > 0 && <div className="flex items-center justify-between gap-2 border-t border-limestone-200 px-3 py-2 text-xs text-graphite-500">
+          <span>Showing {items.length} of {Number(list?.total ?? items.length).toLocaleString()}</span>
+          {Number(list?.total ?? 0) > items.length && <button type="button" className="font-semibold text-federal-800 hover:underline" onClick={() => setConvLimit((n) => Math.min(n + 30, 200))}>Show more</button>}
+        </div>}
       </section>
       <section className={`flex min-h-[60vh] flex-col rounded-md border border-limestone-200 bg-white ${sel ? '' : 'hidden md:flex'}`} aria-label="Conversation">
         {!sel ? <div className="m-auto p-8 text-center text-sm text-graphite-500">Choose a conversation to read it.</div> : !conv ? <div className="p-4"><Skeleton className="h-40" /></div> : (<>

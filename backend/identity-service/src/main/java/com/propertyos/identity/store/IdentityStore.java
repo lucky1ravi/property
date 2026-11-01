@@ -1,5 +1,6 @@
 package com.propertyos.identity.store;
 
+import com.propertyos.common.rls.SqlPaging;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -38,7 +39,7 @@ public class IdentityStore {
     public List<Map<String, Object>> orgs(Collection<String> statuses) {
         List<String> selected = statuses == null || statuses.isEmpty() ? List.of("ACTIVE") : statuses.stream().distinct().toList();
         String placeholders = String.join(", ", Collections.nCopies(selected.size(), "?"));
-        return jdbc.queryForList("select o.*, (select count(*) from identity.app_user u where u.org_id = o.id) as user_count " +
+        return SqlPaging.page(jdbc, "select o.*, (select count(*) from identity.app_user u where u.org_id = o.id) as user_count " +
                 "from identity.organization o where o.status in (" + placeholders + ") order by o.created_at", selected.toArray());
     }
 
@@ -94,12 +95,41 @@ public class IdentityStore {
      * Lists users with role names and property counts.
      */
     public List<Map<String, Object>> users() {
-        return jdbc.queryForList("select u.id, u.email, u.name, u.title, u.phone, u.party_type, u.party_id, u.status, u.persona, " +
+        return SqlPaging.page(jdbc, "select u.id, u.email, u.name, u.title, u.phone, u.party_type, u.party_id, u.status, u.persona, " +
                 "u.mfa_enabled, u.last_login_at, u.created_at, " +
                 "coalesce((select json_agg(json_build_object('id', r.id, 'name', r.name, 'color', r.color, 'scope', r.scope)) " +
                 "  from identity.user_role ur join identity.role r on r.id = ur.role_id where ur.user_id = u.id), '[]')::text as roles, " +
                 "coalesce((select json_agg(up.property_id) from identity.user_property up where up.user_id = u.id), '[]')::text as property_ids " +
                 "from identity.app_user u order by u.name");
+    }
+
+    /**
+     * Active people for pickers and messaging rules: optionally only those matching a search, only certain people, and at most
+     * {@code limit} of them (0 means no limit). Lighter than {@link #users()}, which also loads every user's roles and properties.
+     */
+    public List<Map<String, Object>> directory(String q, Collection<UUID> ids, Collection<UUID> partyIds, boolean staffOnly, int limit) {
+        StringBuilder sql = new StringBuilder("select u.id, u.name, u.title, u.email, u.persona, u.party_type, u.party_id, " +
+                "coalesce((select json_agg(json_build_object('id', r.id, 'name', r.name, 'scope', r.scope)) from identity.user_role ur join identity.role r on r.id = ur.role_id where ur.user_id = u.id), '[]')::text as roles, " +
+                "coalesce((select json_agg(up.property_id) from identity.user_property up where up.user_id = u.id), '[]')::text as property_ids " +
+                "from identity.app_user u where u.status = 'ACTIVE'");
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            String like = "%" + q.trim().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+            sql.append(" and (u.name ilike ? or u.email ilike ? or coalesce(u.title, '') ilike ?)");
+            args.add(like); args.add(like); args.add(like);
+        }
+        if (ids != null && !ids.isEmpty()) {
+            sql.append(" and u.id = any (string_to_array(?, ',')::uuid[])");
+            args.add(String.join(",", ids.stream().map(UUID::toString).toList()));
+        }
+        if (partyIds != null && !partyIds.isEmpty()) {
+            sql.append(" and u.party_id = any (string_to_array(?, ',')::uuid[])");
+            args.add(String.join(",", partyIds.stream().map(UUID::toString).toList()));
+        }
+        if (staffOnly) sql.append(" and u.party_type is null");
+        sql.append(" order by u.name");
+        if (limit > 0) { sql.append(" limit ?"); args.add(limit); }
+        return jdbc.queryForList(sql.toString(), args.toArray());
     }
 
     /**
@@ -127,6 +157,17 @@ public class IdentityStore {
     /** Sets a person's own name, title, phone and photo (null photo removes it). Email is never touched. */
     public void updateProfile(UUID id, String name, String title, String phone, String photo) {
         jdbc.update("update identity.app_user set name = ?, title = ?, phone = ?, photo = ?, updated_at = now() where id = ?", name, title, phone, photo, id);
+    }
+
+    /** The JSON text of what a person has already been shown in the product (tours, hints, checklist). */
+    public String uiState(UUID id) {
+        List<String> rows = jdbc.queryForList("select ui_state from identity.app_user where id = ?", String.class, id);
+        return rows.isEmpty() || rows.get(0) == null ? "{}" : rows.get(0);
+    }
+
+    /** Replaces a person's saved product-guidance state. */
+    public void setUiState(UUID id, String json) {
+        jdbc.update("update identity.app_user set ui_state = ? where id = ?", json, id);
     }
 
     /**

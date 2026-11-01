@@ -94,7 +94,7 @@ class PlatformGovernanceIT extends IdentityIntegrationTest {
     void wrongPassword() {
         Reply r = api.post(null, "/api/identity/public/login", Map.of("email", SUMMIT_ADMIN, "password", "wrong"));
         assertThat(r.status()).isEqualTo(401);
-        assertThat(r.body().path("detail").asText()).isEqualTo("Incorrect email or password.");
+        assertThat(r.body().path("detail").asText()).isEqualTo("The email or password isn't right. Check them and try again.");
     }
 
     @Test

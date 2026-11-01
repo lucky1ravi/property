@@ -21,6 +21,8 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/boom") String boom() { throw new IllegalStateException("secret internal detail"); }
         @PostMapping("/echo") String echo(@RequestBody java.util.Map<String, Object> body) { return "ok"; }
         @GetMapping("/number/{n}") String number(@PathVariable int n) { return "ok"; }
+        record Form(@jakarta.validation.constraints.NotBlank String adminEmail) { }
+        @PostMapping("/form") String form(@jakarta.validation.Valid @RequestBody Form f) { return "ok"; }
     }
 
     private MockMvc mvc;
@@ -34,7 +36,7 @@ class GlobalExceptionHandlerTest {
     @DisplayName("a business error becomes problem details with its status and code")
     void apiException() throws Exception {
         mvc.perform(get("/missing")).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND")).andExpect(jsonPath("$.detail").value("Lease not found"));
+                .andExpect(jsonPath("$.code").value("NOT_FOUND")).andExpect(jsonPath("$.detail").value("We couldn't find that lease. It may have been removed, or you may not have access to it."));
         mvc.perform(get("/clash")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CONFLICT"));
     }
 
@@ -43,7 +45,20 @@ class GlobalExceptionHandlerTest {
     void unexpected() throws Exception {
         mvc.perform(get("/boom")).andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("INTERNAL"))
-                .andExpect(jsonPath("$.detail").value("Something went wrong. The error has been logged."));
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.startsWith("Something went wrong on our side")))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("secret"))));
+    }
+
+    @Test
+    @DisplayName("a validation failure names the field in plain words and lists each problem")
+    void validation() throws Exception {
+        mvc.perform(post("/form").contentType(MediaType.APPLICATION_JSON).content("{\"adminEmail\":\"\"}")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION"))
+                .andExpect(jsonPath("$.detail").value("Admin email is required."))
+                .andExpect(jsonPath("$.errors[0].field").value("adminEmail"))
+                .andExpect(jsonPath("$.errors[0].label").value("Admin email"))
+                .andExpect(jsonPath("$.errors[0].message").value("is required"));
     }
 
     @Test

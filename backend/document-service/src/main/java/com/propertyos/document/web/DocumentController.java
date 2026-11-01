@@ -204,7 +204,7 @@ public class DocumentController {
      * Lists people who can be asked to sign a document.
      */
     @GetMapping("/{id}/signers") @RequiresPermission("ESIGN:CREATE")
-    public Object signers(@PathVariable UUID id) { return signatures.candidates(id); }
+    public Object signers(@PathVariable UUID id, @RequestParam(required = false) String q, @RequestParam(defaultValue = "20") int size) { return signatures.candidates(id, q, size); }
 
     /**
      * Sends a PDF for signature to the chosen signers.

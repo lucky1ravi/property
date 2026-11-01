@@ -12,6 +12,7 @@ import com.propertyos.common.rls.Db;
 import com.propertyos.common.security.UserContext;
 import com.propertyos.common.security.UserContextHolder;
 import com.propertyos.common.web.ApiException;
+import com.propertyos.common.web.PageParams;
 import com.propertyos.common.web.Req;
 import com.propertyos.common.workflow.StateMachine;
 import com.propertyos.common.workflow.WorkflowEngine;
@@ -71,8 +72,9 @@ public class MaintenanceService {
             else { sql.append(" and w.status = ?"); a.add(status); }
         }
         if (priority != null) { sql.append(" and w.priority = ?"); a.add(priority); }
-        sql.append(" order by case w.priority when 'EMERGENCY' then 0 when 'HIGH' then 1 when 'NORMAL' then 2 else 3 end, w.created_at desc limit 300");
-        return db.list(sql.toString(), a.toArray());
+        sql.append(" order by case w.priority when 'EMERGENCY' then 0 when 'HIGH' then 1 when 'NORMAL' then 2 else 3 end, w.created_at desc");
+        if (PageParams.current().isEmpty()) sql.append(" limit 300"); // a screen that pages gets every matching row, a page at a time
+        return db.page(sql.toString(), a.toArray());
     }
 
     /**
@@ -253,12 +255,19 @@ public class MaintenanceService {
     /**
      * Lists vendors with open job counts and recent ratings.
      */
+    /** Lists vendors with their open jobs and recent rating. */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> vendors() {
-        return db.list("""
+        return vendors(false);
+    }
+
+    /** Lists vendors, optionally only the active ones that can be assigned work. */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> vendors(boolean activeOnly) {
+        return db.page("""
                 select v.*, (select count(*) from maintenance.work_order w where w.vendor_id = v.id and w.status in ('ASSIGNED','SCHEDULED','IN_PROGRESS')) as open_jobs,
                        (select round(avg(rating), 2) from maintenance.work_order w where w.vendor_id = v.id and w.rating is not null) as recent_rating
-                from maintenance.vendor v order by v.name""");
+                from maintenance.vendor v""" + (activeOnly ? " where v.active" : "") + " order by v.name");
     }
 
     // ---------- Actions ----------
@@ -422,7 +431,7 @@ public class MaintenanceService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> recurring() {
-        return db.list("select * from maintenance.recurring_task order by next_due");
+        return db.page("select * from maintenance.recurring_task order by next_due");
     }
 
     /**
@@ -498,7 +507,7 @@ public class MaintenanceService {
     @Transactional
     public Map<String, Object> createVendor(Map<String, Object> b) {
         List<String> trades = Req.strings(b, "trades");
-        if (trades.isEmpty()) throw ApiException.badRequest("Choose at least one trade");
+        if (trades.isEmpty()) throw ApiException.badRequest("Choose at least one trade.");
         UUID id = UUID.randomUUID();
         db.update("""
                 insert into maintenance.vendor (id, org_id, name, contact, phone, email, trades, cities, insurance_expires)
@@ -512,7 +521,7 @@ public class MaintenanceService {
     private static String optionalEmail(Map<String, Object> b) {
         String e = Req.str(b, "email");
         if (e == null || e.isBlank()) return null;
-        if (!e.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address");
+        if (!e.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address.");
         return e.toLowerCase();
     }
 
@@ -524,7 +533,7 @@ public class MaintenanceService {
             Long open = db.value(Long.class, "select count(*) from maintenance.work_order where vendor_id = ? and status in ('ASSIGNED','SCHEDULED','IN_PROGRESS')", id);
             if (open != null && open > 0) throw ApiException.conflict("This vendor has " + open + (open == 1 ? " open job" : " open jobs") + ". Reassign or finish them before archiving.");
         }
-        if (email != null && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address");
+        if (email != null && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address.");
         if (db.update("""
                 update maintenance.vendor set name = coalesce(?, name), contact = coalesce(?, contact), phone = coalesce(?, phone), email = coalesce(?, email),
                        trades = coalesce(?::jsonb, trades), cities = coalesce(?::jsonb, cities), insurance_expires = coalesce(?, insurance_expires),

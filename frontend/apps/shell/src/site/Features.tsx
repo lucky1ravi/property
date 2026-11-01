@@ -1,3 +1,4 @@
+import { Reveal, Stagger, StaggerItem } from '@propertyos/ui';
 import { PRODUCTS, useSite, useTitle } from './data';
 import { ButtonLink, Container, CtaBand, LoadingBlock, PageHero, SiteError } from './parts';
 
@@ -18,21 +19,21 @@ export function Features() {
             if (!items.length) return null;
             return (
               <section key={p.key} aria-labelledby={`h-${p.key}`}>
-                <h2 id={`h-${p.key}`} className="border-b-2 border-federal-900 pb-2 text-2xl font-black tracking-[-0.02em] text-federal-900">{p.name}</h2>
-                <ul className="mt-6 grid gap-x-10 gap-y-7 md:grid-cols-2">
+                <Reveal as="div"><h2 id={`h-${p.key}`} className="border-b-2 border-federal-900 pb-2 text-2xl font-black tracking-[-0.02em] text-federal-900">{p.name}</h2></Reveal>
+                <Stagger as="ul" gap={0.06} className="mt-6 grid gap-x-10 gap-y-7 md:grid-cols-2">
                   {items.map((f) => {
                     const lowest = data.plans.find((pl) => pl.allFeatures || pl.features.includes(f.key));
                     return (
-                      <li key={f.key}>
+                      <StaggerItem as="li" key={f.key}>
                         <div className="flex flex-wrap items-baseline gap-x-3">
                           <h3 className="text-lg font-extrabold text-graphite-950">{f.title}</h3>
                           <span className="text-xs font-semibold text-federal-800">{lowest ? `From ${lowest.name}` : 'On request'}</span>
                         </div>
                         <p className="mt-1.5 max-w-[52ch] leading-relaxed text-graphite-700">{f.summary}</p>
-                      </li>
+                      </StaggerItem>
                     );
                   })}
-                </ul>
+                </Stagger>
               </section>
             );
           })}

@@ -99,7 +99,7 @@ public class PlanService {
      * @throws ApiException (404) for an unknown plan, (400) for a bad value
      */
     public List<Map<String, Object>> update(String key, Map<String, Object> body) {
-        if (!exists(key)) throw ApiException.notFound("Plan not found.");
+        if (!exists(key)) throw ApiException.notFound("Plan");
         if (body.containsKey("name")) {
             String n = text(body, "name");
             if (n.length() < 2 || n.length() > 60) throw ApiException.badRequest("The plan name needs 2 to 60 characters.");
@@ -129,7 +129,7 @@ public class PlanService {
      * @throws ApiException (404) for an unknown plan, (409) when companies are still on it or it is the last plan
      */
     public List<Map<String, Object>> delete(String key) {
-        if (!exists(key)) throw ApiException.notFound("Plan not found.");
+        if (!exists(key)) throw ApiException.notFound("Plan");
         int companies = jdbc.queryForObject("select count(*) from identity.organization where plan = ?", Integer.class, key);
         if (companies > 0) throw ApiException.conflict(companies + (companies == 1 ? " company is" : " companies are") + " on this plan. Move them to another plan first.");
         if (jdbc.queryForObject("select count(*) from identity.plan", Integer.class) <= 1) throw ApiException.conflict("You can't delete the last plan.");
@@ -159,7 +159,7 @@ public class PlanService {
     }
 
     private List<String> features(Object raw) {
-        if (!(raw instanceof Collection<?> c)) throw ApiException.badRequest("Features must be a list.");
+        if (!(raw instanceof Collection<?> c)) throw ApiException.badRequest("Choose the features from the list.");
         Set<String> known = new HashSet<>();
         config.defaults().path("features").fieldNames().forEachRemaining(known::add);
         List<String> out = new ArrayList<>();

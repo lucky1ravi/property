@@ -38,7 +38,7 @@ public class StatementService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> statements() {
-        return db.list("select * from billing.owner_statement order by period desc, owner_name");
+        return db.page("select * from billing.owner_statement order by period desc, owner_name");
     }
 
     /**
@@ -123,7 +123,7 @@ public class StatementService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> deposits() {
-        return db.list("select * from billing.deposit order by created_at desc");
+        return db.page("select * from billing.deposit order by created_at desc");
     }
 
     /** Settles a deposit: itemised deductions, refund of the remainder, and the legal return deadline recorded. */

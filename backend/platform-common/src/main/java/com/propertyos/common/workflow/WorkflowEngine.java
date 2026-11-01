@@ -79,9 +79,9 @@ public class WorkflowEngine {
                 .filter(x -> x.action().equals(action) && x.from().contains(currentState))
                 .findFirst()
                 .orElseThrow(() -> ApiException.conflict("This step isn't allowed while the record is " + def.label(currentState).toLowerCase() + "."));
-        if (t.system() && !ctx.system()) throw ApiException.forbidden("This step is performed automatically by the system.");
+        if (t.system() && !ctx.system()) throw ApiException.forbidden("The system does this step automatically, so it can't be done by hand.");
         if (t.permission() != null && !ctx.has(t.permission()))
-            throw ApiException.forbidden("Your role can't perform '" + t.label() + "' (needs " + t.permission() + ").");
+            throw ApiException.forbidden("You don't have permission to " + t.label().toLowerCase() + ". Ask an administrator to give you access.");
         if (t.requiresReason() && (reason == null || reason.isBlank()))
             throw ApiException.badRequest("A reason is required for '" + t.label() + "'.");
         if (t.limitKey() != null && amount != null) {

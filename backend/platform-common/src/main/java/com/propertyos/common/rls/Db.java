@@ -3,6 +3,7 @@ package com.propertyos.common.rls;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.propertyos.common.web.ApiException;
+import com.propertyos.common.web.PageParams;
 import org.postgresql.util.PGobject;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -56,6 +57,21 @@ public class Db {
     public List<Map<String, Object>> list(String sql, Object... args) {
         requireTransaction();
         return jdbc.queryForList(sql, args).stream().map(this::clean).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+    }
+
+    /**
+     * Like {@link #list}, but answers one page when the request asked for one ({@code page}, {@code size}, {@code sort},
+     * {@code q} and column filters; see {@link PageParams}). The query is wrapped as a sub-select, so it may keep its own
+     * {@code order by} (used when no sort is requested) and any joins. Filtering, sorting, counting and the {@code limit}
+     * all happen in the database. A request that did not ask for a page gets every row, exactly like {@link #list}.
+     *
+     * @param sql  the SQL with {@code ?} placeholders, without a trailing semicolon
+     * @param args values for the placeholders
+     * @return the requested page, or all rows when the request was not paged
+     */
+    public List<Map<String, Object>> page(String sql, Object... args) {
+        requireTransaction();
+        return SqlPaging.page(jdbc, sql, args).stream().map(this::clean).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     /**

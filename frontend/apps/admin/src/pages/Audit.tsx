@@ -1,17 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { PageHeader, Panel, DataTable, type Column, Select, useApi, fmt, Stat, StatStrip, Button, Field, Input, Modal, Badge, useAction, api, TrendChart, Skeleton, US_STATE_OPTIONS, Toggle, ConfirmDialog, RowActions } from '@propertyos/ui';
+import { PageHeader, Panel, DataTable, type Column, Select, useApi, fmt, Stat, StatStrip, Button, Field, Input, Modal, Badge, useAction, api, TrendChart, Skeleton, US_STATE_OPTIONS, Toggle, ConfirmDialog, RowActions, usePagedApi } from '@propertyos/ui';
 
 export function Audit() {
   const [type, setType] = useState('');
-  const { data, isLoading } = useApi<any[]>(`/api/identity/audit?limit=300${type ? `&entityType=${type}` : ''}`);
+  const { rows: data, isLoading, server } = usePagedApi<any>(`/api/identity/audit${type ? `?entityType=${type}` : ''}`, { initialSort: { key: 'created_at', dir: 'desc' } });
   const cols: Column<any>[] = [
     { key: 'created_at', header: 'When', value: (r) => r.created_at, render: (r) => new Date(r.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) },
     { key: 'actor_name', header: 'Who' }, { key: 'entity_type', header: 'Record' }, { key: 'action', header: 'Action', render: (r) => <Badge>{r.action.replace(/_/g, ' ').toLowerCase()}</Badge> },
     { key: 'change', header: 'Change', hideOnMobile: true, value: (r) => `${r.from_state ?? ''} ${r.to_state ?? ''}`, render: (r) => (r.from_state || r.to_state ? `${r.from_state ?? '—'} → ${r.to_state ?? '—'}` : '') },
   ];
   return (<><PageHeader title="Audit log" description="Who did what and when. Entries can’t be edited or deleted." />
-    <Panel padded={false}><DataTable rows={data} columns={cols} rowKey={(r) => String(r.id)} loading={isLoading} exportName="audit-log" initialSort={{ key: 'created_at', dir: 'desc' }}
+    <Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(r) => String(r.id)} loading={isLoading} exportName="audit-log" initialSort={{ key: 'created_at', dir: 'desc' }}
       toolbar={<Select value={type} onChange={(e) => setType(e.target.value)} aria-label="Record type"><option value="">All records</option>{['User', 'Role', 'Organization', 'Invoice', 'Lease', 'Application', 'WorkOrder', 'Listing', 'Config'].map((t) => <option key={t}>{t}</option>)}</Select>} /></Panel></>);
 }
 
@@ -139,7 +139,7 @@ export function Platform() {
   const { data: s } = useApi<any>('/api/identity/platform/summary');
   const [statuses, setStatuses] = useState<string[]>(['ACTIVE']);
   const orgQuery = statuses.map((status) => `status=${encodeURIComponent(status)}`).join('&');
-  const { data: orgs, isLoading } = useApi<any[]>(`/api/identity/platform/orgs?${orgQuery}`);
+  const { rows: orgs, isLoading, server: orgServer } = usePagedApi<any>(`/api/identity/platform/orgs?${orgQuery}`);
   const { data: planList } = useApi<any[]>('/api/identity/platform/plans');
   const planOptions = (planList ?? []).map((p) => <option key={p.plan_key} value={p.plan_key}>{p.name}</option>);
   const [open, setOpen] = useState(false); const [f, setF] = useState({ name: '', state: 'TX', plan: 'GROWTH', adminName: '', adminEmail: '' });
@@ -157,7 +157,7 @@ export function Platform() {
     { key: 'manage', header: '', render: (r) => <RowActions name={r.name} onView={() => setDetails(r)} onEdit={r.status !== 'DELETED' ? () => setEditing(r) : undefined} onDelete={r.status !== 'DELETED' ? () => setDeleting(r) : undefined} /> }];
   return (<><PageHeader title="Platform" description="Every company on PropertyOS. Data stays isolated per company." actions={<Button variant="primary" onClick={() => setOpen(true)}>Onboard company</Button>} />
     {s && <StatStrip className="mb-6"><Stat label="Companies" value={s.organizations} emphasis /><Stat label="Users" value={s.users} /><Stat label="Active, last 7 days" value={s.activeUsers7d} /><Stat label="Config changes, 30 days" value={s.configChanges30d} /></StatStrip>}
-    <Panel padded={false}><DataTable rows={orgs} columns={cols} rowKey={(r) => r.id} loading={isLoading} toolbar={<CompanyStatusFilter value={statuses} onChange={setStatuses} />} /></Panel>
+    <Panel padded={false}><DataTable rows={orgs} server={orgServer} columns={cols} rowKey={(r) => r.id} loading={isLoading} toolbar={<CompanyStatusFilter value={statuses} onChange={setStatuses} />} /></Panel>
     <Modal open={!!created} onClose={() => setCreated(null)} title="Give this to the administrator" footer={<Button variant="primary" onClick={() => setCreated(null)}>Done</Button>}>
       <p className="text-sm text-graphite-700">They sign in with this email and temporary password, then choose their own. PropertyOS shows the password only now, so copy it before you close this.</p>
       <dl className="mt-3 space-y-2 rounded bg-limestone-100 p-3 text-sm">

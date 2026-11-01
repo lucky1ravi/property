@@ -23,6 +23,6 @@ public class PermissionInterceptor implements HandlerInterceptor {
         for (String p : rp.value()) {
             if (ctx.has(p)) return true;
         }
-        throw ApiException.forbidden("You don't have permission to do this (" + String.join(" or ", rp.value()) + ")");
+        throw new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "FORBIDDEN", "You don't have permission to do this. Ask an administrator to give you access.");
     }
 }

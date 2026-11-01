@@ -59,7 +59,7 @@ public class ProductDefaultsService {
     /** Sets one section for every company that has not changed it itself. */
     public Map<String, Object> save(String section, JsonNode value) {
         check(section);
-        if (value == null || !value.isObject()) throw ApiException.badRequest("Send the section as an object.");
+        if (value == null || !value.isObject()) throw ApiException.badRequest("The settings in this section weren't in the expected form. Refresh the page and try again.");
         store.saveProductDefault(section, value.toString(), UserContextHolder.require().name());
         audit.record("ProductDefaults", UUID.nameUUIDFromBytes(section.getBytes()), "PRODUCT_DEFAULT_UPDATED", null, null, Map.of("after", value.toString()));
         refreshAll(section);

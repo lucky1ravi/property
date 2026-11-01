@@ -48,7 +48,7 @@ public class LeadService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> leads() {
-        return db.list("""
+        return db.page("""
                 select l.*, li.title as listing_title, p.name as property_name from leasing.lead l
                 left join leasing.listing li on li.id = l.listing_id left join leasing.property p on p.id = l.property_id
                 order by l.created_at desc""");
@@ -100,7 +100,7 @@ public class LeadService {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> showings() {
-        List<Map<String, Object>> rows = db.list("""
+        List<Map<String, Object>> rows = db.page("""
                 select s.*, li.title as listing_title, p.name as property_name from leasing.showing s
                 join leasing.listing li on li.id = s.listing_id join leasing.property p on p.id = s.property_id order by s.scheduled_at""");
         rows.forEach(r -> r.put("actions", wf.availableActions("SHOWING", (String) r.get("status"))));

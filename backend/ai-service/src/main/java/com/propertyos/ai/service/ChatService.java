@@ -335,7 +335,7 @@ public class ChatService {
             return Map.of("status", "CANCELLED", "message", "Cancelled. Nothing was changed.");
         }
         Tool tool = tools().stream().filter(t -> t.name().equals(p.get("tool"))).findFirst().orElseThrow(() -> ApiException.notFound("Action"));
-        if (!ctx.has(tool.permission())) throw ApiException.forbidden("Your role can't do this.");
+        if (!ctx.has(tool.permission())) throw ApiException.forbidden("You don't have permission to do this. Ask an administrator to give you access.");
         try {
             JsonNode r = tool.run().apply(bearer, db.tree(p.get("args")));
             db.update("update ai.pending_action set status = 'CONFIRMED', result = ? where id = ?", trim(r.toString(), 500), id);

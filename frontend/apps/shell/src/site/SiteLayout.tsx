@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { getToken } from '@propertyos/ui';
+import { motion, useScroll, useTransform } from 'framer-motion';
+import { PageTransition, ScrollProgress, getToken } from '@propertyos/ui';
 import { Logo } from '../layout/Logo';
 
 const NAV = [
@@ -21,6 +22,10 @@ export function SiteLayout() {
   const [open, setOpen] = useState(false);
   const { pathname, hash } = useLocation();
   const signedIn = !!getToken();
+  // The bar slims down and gains a shadow once the page has moved, so it stays out of the way while reading.
+  const { scrollY } = useScroll();
+  const barHeight = useTransform(scrollY, [0, 90], [68, 56]);
+  const barShadow = useTransform(scrollY, [0, 90], ['0 1px 0 rgba(15,61,62,0.05)', '0 10px 28px -14px rgba(8,36,37,0.35)']);
   useEffect(() => {
     setOpen(false);
     if (!hash) { window.scrollTo(0, 0); return; }
@@ -31,14 +36,15 @@ export function SiteLayout() {
 
   return (
     <div className="min-h-screen bg-limestone-50 text-graphite-900">
+      <ScrollProgress />
       <a href="#content" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2">Skip to content</a>
       <div className="hidden bg-federal-950 text-federal-100 lg:block">
         <div className="mx-auto flex h-8 max-w-[1280px] items-center justify-between px-6 text-[11px] font-semibold tracking-[0.08em]">
           <span>PROPERTYOS / ENTERPRISE PROPERTY OPERATIONS</span><span className="text-federal-300">Leasing · Payments · Maintenance · Intelligence</span>
         </div>
       </div>
-      <header className="sticky top-0 z-40 border-b border-limestone-200 bg-white/95 shadow-[0_1px_0_rgba(15,61,62,0.05)] backdrop-blur">
-        <div className="mx-auto flex h-[68px] max-w-[1280px] items-center justify-between gap-4 px-6">
+      <motion.header style={{ boxShadow: barShadow }} className="sticky top-0 z-40 border-b border-limestone-200 bg-white/95 backdrop-blur">
+        <motion.div style={{ height: barHeight }} className="mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-6">
           <Link to="/" aria-label="PropertyOS home"><Logo /></Link>
           <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
             {NAV.map((n) => <NavLink key={n.to} to={n.to} className={link}>{n.label}</NavLink>)}
@@ -50,7 +56,7 @@ export function SiteLayout() {
           <button type="button" className="rounded p-2 text-graphite-800 lg:hidden" aria-expanded={open} aria-controls="mobile-nav" aria-label={open ? 'Close menu' : 'Open menu'} onClick={() => setOpen(!open)}>
             {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
-        </div>
+        </motion.div>
         {open && (
           <nav id="mobile-nav" aria-label="Main" className="border-t border-limestone-200 bg-white px-6 pb-4 pt-2 lg:hidden">
             <ul className="flex flex-col">
@@ -59,9 +65,9 @@ export function SiteLayout() {
             <div className="mt-4 grid grid-cols-2 gap-3"><Link to={signedIn ? '/app' : '/signin'} className="rounded border border-federal-900 px-4 py-3 text-center text-sm font-semibold text-federal-900">{signedIn ? 'Open app' : 'Sign in'}</Link><Link to="/contact" className="rounded bg-federal-900 px-4 py-3 text-center text-sm font-semibold text-white">Request a demo</Link></div>
           </nav>
         )}
-      </header>
+      </motion.header>
 
-      <main id="content"><Outlet /></main>
+      <main id="content"><PageTransition id={pathname}><Outlet /></PageTransition></main>
 
       <footer className="bg-federal-950 text-federal-100">
         <div className="mx-auto grid max-w-[1280px] gap-10 px-6 py-16 md:grid-cols-[1.5fr_1fr_1fr_1fr_1fr]">

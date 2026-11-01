@@ -67,7 +67,7 @@ public class AccessAdminService {
     public Map<String, Object> createUser(Map<String, Object> body) {
         UUID orgId = UserContextHolder.orgId();
         String email = req(body, "email").trim().toLowerCase();
-        if (!email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address");
+        if (!email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw ApiException.badRequest("Enter a valid email address.");
         UUID id = UUID.randomUUID();
         store.insertUser(id, orgId, email, req(body, "name"), str(body, "title"), str(body, "phone"),
                 str(body, "partyType"), uuid(body.get("partyId")), str(body, "title"));
@@ -89,7 +89,7 @@ public class AccessAdminService {
      */
     @Transactional
     public Map<String, Object> resetPassword(UUID id) {
-        if (id.equals(UserContextHolder.require().userId())) throw ApiException.badRequest("Change your own password from the sign-in page");
+        if (id.equals(UserContextHolder.require().userId())) throw ApiException.badRequest("You can't reset your own password here. Use Change password when you sign in.");
         store.user(id).orElseThrow(() -> ApiException.notFound("User"));
         String temporaryPassword = AuthService.temporaryPassword();
         store.setTemporaryPassword(id, AuthService.hashPassword(temporaryPassword));
@@ -106,15 +106,15 @@ public class AccessAdminService {
     public Map<String, Object> updateProfile(Map<String, Object> body) {
         UUID id = UserContextHolder.require().userId();
         String name = str(body, "name");
-        if (name == null || name.isBlank()) throw ApiException.badRequest("Name is required");
-        if (name.length() > 160) throw ApiException.badRequest("Name is too long");
+        if (name == null || name.isBlank()) throw ApiException.badRequest("Enter a name.");
+        if (name.length() > 160) throw ApiException.badRequest("That name is too long. Use 160 characters or fewer.");
         String title = str(body, "title"), phone = str(body, "phone");
-        if (title != null && title.length() > 160) throw ApiException.badRequest("Job title is too long");
-        if (phone != null && phone.length() > 40) throw ApiException.badRequest("Phone is too long");
+        if (title != null && title.length() > 160) throw ApiException.badRequest("That job title is too long. Use 160 characters or fewer.");
+        if (phone != null && phone.length() > 40) throw ApiException.badRequest("That phone number is too long. Use 40 characters or fewer.");
         String photo = str(body, "photo");
         boolean hasPhoto = photo != null && !photo.isBlank();
         if (hasPhoto) {
-            if (!photo.matches("^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")) throw ApiException.badRequest("Photo must be a JPG, PNG or WebP image");
+            if (!photo.matches("^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")) throw ApiException.badRequest("Use a JPG, PNG or WebP photo.");
             if (photo.length() > 150_000) throw ApiException.badRequest("Photo is too large. Choose a smaller picture.");
         }
         store.updateProfile(id, name.trim(), title == null ? null : title.trim(), phone == null ? null : phone.trim(), hasPhoto ? photo : null);
@@ -135,7 +135,7 @@ public class AccessAdminService {
         store.updateUser(id, str(body, "name"), str(body, "title"), str(body, "phone"), str(body, "status"));
         if (body.containsKey("roleIds")) {
             if (id.equals(UserContextHolder.require().userId()) && uuids(body.get("roleIds")).isEmpty())
-                throw ApiException.badRequest("You can't remove all of your own roles");
+                throw ApiException.badRequest("You can't remove all of your own roles, or you would lose access. Keep at least one.");
             store.setUserRoles(id, orgId, uuids(body.get("roleIds")));
         }
         if (body.containsKey("propertyIds")) store.setUserProperties(id, orgId, uuids(body.get("propertyIds")));
@@ -150,7 +150,7 @@ public class AccessAdminService {
      */
     @Transactional
     public void deleteUser(UUID id) {
-        if (id.equals(UserContextHolder.require().userId())) throw ApiException.badRequest("You can't delete your own account");
+        if (id.equals(UserContextHolder.require().userId())) throw ApiException.badRequest("You can't delete your own account. Ask another administrator to do it.");
         if (store.deleteUser(id) == 0) throw ApiException.notFound("User");
         audit.record("User", id, "USER_DELETED", "ACTIVE", "DELETED", Map.of());
     }
@@ -219,7 +219,7 @@ public class AccessAdminService {
             try {
                 fieldRules = mapper.writeValueAsString(body.get("fieldRules"));
             } catch (Exception e) {
-                throw ApiException.badRequest("Invalid field rules");
+                throw ApiException.badRequest("One of the field rules isn't valid. Check the values and try again.");
             }
         }
         store.updateRole(id, str(body, "name"), str(body, "description"), scope, str(body, "color"), fieldRules);
@@ -235,10 +235,10 @@ public class AccessAdminService {
         for (Map<String, Object> g : grants) {
             String f = String.valueOf(g.get("feature")), a = String.valueOf(g.get("action"));
             if (!FeatureCatalog.valid(f, a)) throw ApiException.badRequest("Unknown permission " + f + ":" + a);
-            if ("PLATFORM".equals(f) && !me.isPlatformAdmin()) throw ApiException.forbidden("Platform permissions can't be granted here");
+            if ("PLATFORM".equals(f) && !me.isPlatformAdmin()) throw ApiException.forbidden("Platform-level permissions can't be given to a company role.");
         }
         if ("ORG_ADMIN".equals(role.get("role_key")) && grants.stream().noneMatch(g -> "ROLE".equals(g.get("feature")) && "CONFIGURE".equals(g.get("action"))))
-            throw ApiException.badRequest("The Org Admin role must keep ROLE:CONFIGURE so the account can't be locked out");
+            throw ApiException.badRequest("The Org Admin role must keep permission to manage roles, so the company can't be locked out.");
         List<Map<String, Object>> before = store.permissions(roleId);
         store.replacePermissions(roleId, orgId, grants);
         store.updateRole(roleId, null, null, null, null, null);
@@ -258,7 +258,7 @@ public class AccessAdminService {
     @Transactional
     public void deleteRole(UUID id) {
         Map<String, Object> role = store.role(id).orElseThrow(() -> ApiException.notFound("Role"));
-        if (Boolean.TRUE.equals(role.get("system_role"))) throw ApiException.badRequest("Default roles can be edited but not deleted");
+        if (Boolean.TRUE.equals(role.get("system_role"))) throw ApiException.badRequest("Built-in roles can be edited but not deleted.");
         store.deleteRole(id);
         audit.record("Role", id, "ROLE_DELETED", null, null, Map.of("role", role.get("name")));
     }

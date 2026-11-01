@@ -12,6 +12,8 @@ export interface Session {
   title?: string;
   phone?: string;
   photo?: string | null;
+  /** What this person has already been shown (tours, hints, checklist). Saved on their account. */
+  uiState?: Record<string, any>;
   roles: string[];
   permissions: string[];
   scope: 'PLATFORM' | 'ORG' | 'PROPERTY' | 'OWNER' | 'TENANT' | 'VENDOR';

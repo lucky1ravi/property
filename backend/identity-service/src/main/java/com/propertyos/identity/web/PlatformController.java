@@ -49,7 +49,7 @@ public class PlatformController {
         List<String> selected = status == null || status.isEmpty() ? List.of("ACTIVE") : status.stream()
                 .map(String::toUpperCase).distinct().toList();
         if (selected.stream().anyMatch(s -> !List.of("ACTIVE", "SUSPENDED", "DELETED").contains(s)))
-            throw ApiException.badRequest("Status must be ACTIVE, SUSPENDED or DELETED.");
+            throw ApiException.badRequest("Choose Active, Suspended or Deleted.");
         return tx.read(() -> store.orgs(selected));
     }
 
@@ -78,7 +78,7 @@ public class PlatformController {
         String name = body.get("name"), state = body.get("state"), plan = body.get("plan");
         String adminName = body.get("adminName"), adminEmail = body.get("adminEmail");
         if (name == null || state == null || adminName == null || adminEmail == null)
-            throw ApiException.badRequest("name, state, adminName and adminEmail are required");
+            throw ApiException.badRequest("Enter the company name and state, and the administrator's name and email.");
         if (plan == null || plan.isBlank()) plan = tx.read(plans::defaultPlan);
         String chosenPlan = plan;
         if (!tx.read(() -> plans.exists(chosenPlan))) throw ApiException.badRequest("That plan doesn't exist. Pick one from the plans list.");
@@ -86,7 +86,7 @@ public class PlatformController {
         UUID adminId = UUID.randomUUID();
         String temporaryPassword = AuthService.temporaryPassword();
         tx.run(() -> {
-            if (store.userByEmail(adminEmail).isPresent()) throw ApiException.conflict("A user with this email already exists");
+            if (store.userByEmail(adminEmail).isPresent()) throw ApiException.conflict("A user with this email already exists.");
             store.insertOrg(orgId, name, body.getOrDefault("legalName", name), state.toUpperCase(), chosenPlan);
             seeder.seedOrg(orgId);
             store.insertUser(adminId, orgId, adminEmail, adminName, "Administrator", null, null, null, "Company owner / admin");
@@ -110,7 +110,7 @@ public class PlatformController {
     @GetMapping("/orgs/{id}")
     public Map<String, Object> orgDetails(@PathVariable UUID id) {
         return tx.read(() -> {
-            Map<String, Object> org = store.org(id).orElseThrow(() -> ApiException.notFound("Company not found."));
+            Map<String, Object> org = store.org(id).orElseThrow(() -> ApiException.notFound("Company"));
             Map<String, Object> m = new LinkedHashMap<>(org);
             List<Map<String, Object>> admins = jdbc.queryForList(
                     "select u.id, u.name, u.email, u.title, u.phone, u.status, u.mfa_enabled, u.last_login_at, u.created_at, u.must_change_password " +
@@ -156,12 +156,12 @@ public class PlatformController {
         if (state != null && !state.trim().matches("[A-Za-z]{2}")) throw ApiException.badRequest("State must be a two-letter code.");
         String normalizedState = state == null ? null : state.trim().toUpperCase(Locale.ROOT);
         if (plan != null && !tx.read(() -> plans.exists(plan))) throw ApiException.badRequest("That plan doesn't exist.");
-        if (status != null && !List.of("ACTIVE", "SUSPENDED").contains(status)) throw ApiException.badRequest("Status must be ACTIVE or SUSPENDED.");
+        if (status != null && !List.of("ACTIVE", "SUSPENDED").contains(status)) throw ApiException.badRequest("Choose Active or Suspended.");
         if (id.equals(com.propertyos.common.demo.DemoData.PLATFORM.id()) && status != null && !"ACTIVE".equals(status))
             throw ApiException.badRequest("The platform's own account can't be suspended.");
         if ("SUSPENDED".equals(status) && (reason == null || reason.isBlank())) throw ApiException.badRequest("Say why the company is being suspended, for the audit trail.");
         tx.run(() -> {
-            Map<String, Object> current = store.org(id).orElseThrow(() -> ApiException.notFound("Company not found."));
+            Map<String, Object> current = store.org(id).orElseThrow(() -> ApiException.notFound("Company"));
             if ("DELETED".equals(current.get("status"))) throw ApiException.conflict("A deleted company can't be changed.");
             String by = UserContextHolder.require().name();
             Map<String, Object> changed = new LinkedHashMap<>();
@@ -187,7 +187,7 @@ public class PlatformController {
         if (id.equals(com.propertyos.common.demo.DemoData.PLATFORM.id()))
             throw ApiException.badRequest("The platform's own account can't be deleted.");
         tx.run(() -> {
-            Map<String, Object> org = store.org(id).orElseThrow(() -> ApiException.notFound("Company not found."));
+            Map<String, Object> org = store.org(id).orElseThrow(() -> ApiException.notFound("Company"));
             if ("DELETED".equals(org.get("status"))) throw ApiException.conflict("This company is already deleted.");
             String by = UserContextHolder.require().name();
             store.softDeleteOrg(id, by);

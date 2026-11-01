@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PageHeader, Panel, DataTable, type Column, Select, useApi, fmt, Button, Field, Input, Textarea, Modal, Badge, useAction, api, Toggle, RowActions } from '@propertyos/ui';
+import { PageHeader, Panel, DataTable, type Column, Select, useApi, fmt, Button, Field, Input, Textarea, Modal, Badge, useAction, api, Toggle, RowActions, usePagedApi } from '@propertyos/ui';
 
 const STATUS_TONE: Record<string, 'warn' | 'brand' | 'neutral'> = { NEW: 'warn', CONTACTED: 'brand', CLOSED: 'neutral' };
 
@@ -19,7 +19,7 @@ function FeatureEditor({ feature, onClose }: { feature: any; onClose: () => void
 export function Website() {
   const features = useApi<any[]>('/api/identity/platform/site/features');
   const [status, setStatus] = useState('');
-  const inbox = useApi<any[]>(`/api/identity/platform/site/contact-requests${status ? `?status=${status}` : ''}`);
+  const inbox = usePagedApi<any>(`/api/identity/platform/site/contact-requests${status ? `?status=${status}` : ''}`, { initialSort: { key: 'created_at', dir: 'desc' } });
   const [feature, setFeature] = useState<any | null>(null);
   const [open, setOpen] = useState<any | null>(null);
   const changeFeature = useAction((v: { key: string; body: any }) => api.put(`/api/identity/platform/site/features/${v.key}`, v.body), { success: 'Feature updated', invalidate: ['/api/identity/platform/site'] });
@@ -43,7 +43,7 @@ export function Website() {
   return (<>
     <PageHeader title="Website" description="How features are described on the public pages, and the enquiries from the contact form. Plans and prices are managed under Plans." />
     <Panel title="Enquiries" description="Sent from the Contact us page." padded={false} className="mb-6">
-      <DataTable rows={inbox.data} columns={inboxCols} rowKey={(r) => r.id} loading={inbox.isLoading} initialSort={{ key: 'created_at', dir: 'desc' }}
+      <DataTable rows={inbox.rows} server={inbox.server} columns={inboxCols} rowKey={(r) => r.id} loading={inbox.isLoading} initialSort={{ key: 'created_at', dir: 'desc' }}
         toolbar={<Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">All enquiries</option><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CLOSED">Closed</option></Select>} />
     </Panel>
     <Panel title="Features" description="Hidden features disappear from the Features, Products and Plans pages." padded={false}><DataTable rows={features.data} columns={featureCols} rowKey={(r) => r.feature_key} loading={features.isLoading} /></Panel>

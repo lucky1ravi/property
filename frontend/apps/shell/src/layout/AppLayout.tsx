@@ -3,12 +3,15 @@ import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-route
 import { AnimatePresence, motion } from 'framer-motion';
 import { UserCircle, Bell, Menu, LogOut, RefreshCw, MessageSquareText, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import clsx from 'clsx';
-import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast, QuickViewHost } from '@propertyos/ui';
+import { api, setToken, useSession, personaOf, Avatar, Spinner, useApi, fmt, toast, QuickViewHost, PageTransition } from '@propertyos/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Logo } from './Logo';
 import { visibleNav, breadcrumbs, isBlockedPage, type NavItem } from './nav';
 import { Assistant } from './Assistant';
 import { ErrorBoundary } from './ErrorBoundary';
+import { GuideProvider } from '../guide/GuideProvider';
+import { GuideHeaderButtons } from '../guide/HeaderButtons';
+import { GettingStarted } from '../guide/GettingStarted';
 
 /** Every visible menu entry, refreshed on each render of the layout. Used to decide which entry is the most specific match for a path. */
 let navPool: NavItem[] = [];
@@ -26,6 +29,7 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('pos.navCollapsed') === '1'; } catch { return false; } });
   const toggleCollapsed = () => setCollapsed((c) => { const n = !c; try { localStorage.setItem('pos.navCollapsed', n ? '1' : '0'); } catch { /* storage unavailable */ } return n; });
   useEffect(() => setMobileNav(false), [loc.pathname]);
+  useEffect(() => { const open = () => setAssistant(true); window.addEventListener('pos:open-assistant', open); return () => window.removeEventListener('pos:open-assistant', open); }, []);
 
   if (!token) return <Navigate to="/signin" replace />;
   if (loading || !session) {
@@ -38,7 +42,7 @@ export function AppLayout() {
   const aiEnabled = feature('AI_ASSISTANT') && can('AI_ASSISTANT:VIEW') && persona !== 'platform';
 
   const renderSidebar = (slim: boolean) => (
-    <nav className="flex h-full flex-col bg-federal-900 text-federal-100" aria-label="Main">
+    <nav className="flex h-full flex-col bg-federal-900 text-federal-100" aria-label="Main" data-tour="sidebar">
       <div className={clsx('flex h-16 items-center', slim ? 'justify-center' : 'justify-between pl-5 pr-3')}>
         {slim ? <Logo light compact /> : <Logo light />}
         {!slim && <button onClick={toggleCollapsed} aria-label="Collapse menu" title="Collapse menu" className="hidden rounded p-1.5 text-federal-300 hover:bg-federal-800 hover:text-white lg:block"><PanelLeftClose className="h-[18px] w-[18px]" /></button>}
@@ -64,6 +68,7 @@ export function AppLayout() {
   );
 
   return (
+    <GuideProvider groups={groups} persona={persona} aiEnabled={aiEnabled}>
     <div className="flex h-screen overflow-hidden">
       <aside className={clsx('hidden shrink-0 transition-[width] duration-200 lg:block', collapsed ? 'w-[68px]' : 'w-[248px]')}>{renderSidebar(collapsed)}</aside>
       <AnimatePresence>
@@ -79,6 +84,7 @@ export function AppLayout() {
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-limestone-200 bg-white px-4 lg:px-8">
           <button className="rounded p-2 text-graphite-600 hover:bg-limestone-100 lg:hidden" aria-label="Open navigation" onClick={() => setMobileNav(true)}><Menu className="h-5 w-5" /></button>
           <div className="min-w-0 flex-1 truncate text-sm text-graphite-500">{session.organization.name}</div>
+          <GuideHeaderButtons />
           <Notifications />
           <UserMenu name={session.name} email={session.email} photo={session.photo} subtitle={session.roles.join(', ')} />
         </header>
@@ -86,13 +92,14 @@ export function AppLayout() {
           <div className="mx-auto max-w-[1360px] px-4 py-6 lg:px-8 lg:py-8">
             <Breadcrumbs pathname={loc.pathname} groups={groups} />
             <SectionTabs pathname={loc.pathname} groups={groups} />
-            <ErrorBoundary label="page" key={loc.pathname}>{isBlockedPage(loc.pathname, session, persona, can, feature) ? <NoAccess /> : <Outlet />}</ErrorBoundary>
+            {loc.pathname === '/app' && <GettingStarted persona={persona} groups={groups} />}
+            <PageTransition id={loc.pathname}><ErrorBoundary label="page" key={loc.pathname}>{isBlockedPage(loc.pathname, session, persona, can, feature) ? <NoAccess /> : <Outlet />}</ErrorBoundary></PageTransition>
           </div>
         </main>
       </div>
       <ErrorBoundary label="quick view" compact><QuickViewHost /></ErrorBoundary>
       {aiEnabled && !assistant && (
-        <button onClick={() => setAssistant(true)} aria-label="Ask PropertyOS" title="Chat"
+        <button data-tour="assistant" onClick={() => setAssistant(true)} aria-label="Ask PropertyOS" title="Chat"
           style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))', right: 'max(1rem, env(safe-area-inset-right))' }}
           className="fixed z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-federal-800 text-white shadow-[0_8px_24px_rgba(20,50,120,0.4)] ring-2 ring-white transition hover:bg-federal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slateblue-600">
           <MessageSquareText className="h-5 w-5" />
@@ -100,6 +107,7 @@ export function AppLayout() {
       )}
       {aiEnabled && <ErrorBoundary label="assistant" compact><Assistant open={assistant} onClose={() => setAssistant(false)} persona={persona} /></ErrorBoundary>}
     </div>
+    </GuideProvider>
   );
 }
 
@@ -177,7 +185,7 @@ function NavEntry({ item, slim, pathname }: { item: NavItem; slim: boolean; path
 
   if (!kids) {
     return (
-      <NavLink to={item.to} title={slim ? item.label : undefined} aria-label={slim ? item.label : undefined} end={isExactRoot(item.to)} className={({ isActive }) => linkCls(isActive)}>
+      <NavLink data-nav={item.to} to={item.to} title={slim ? item.label : undefined} aria-label={slim ? item.label : undefined} end={isExactRoot(item.to)} className={({ isActive }) => linkCls(isActive)}>
         {({ isActive }) => (
           <>
             {isActive && <motion.span layoutId="nav-active" className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brick-500" />}
@@ -195,7 +203,7 @@ function NavEntry({ item, slim, pathname }: { item: NavItem; slim: boolean; path
   if (slim) {
     return (
       <div onMouseLeave={() => setFly(null)} onMouseEnter={(e) => setFly(e.currentTarget.getBoundingClientRect().top)}>
-        <NavLink to={kids[0].to} aria-label={item.label} aria-haspopup="menu" aria-expanded={fly !== null} className={parentCls} onFocus={(e) => setFly(e.currentTarget.getBoundingClientRect().top)}>
+        <NavLink data-nav={item.to} to={kids[0].to} aria-label={item.label} aria-haspopup="menu" aria-expanded={fly !== null} className={parentCls} onFocus={(e) => setFly(e.currentTarget.getBoundingClientRect().top)}>
           {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brick-500" />}
           <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.25 : 1.75} />
         </NavLink>
@@ -219,24 +227,28 @@ function NavEntry({ item, slim, pathname }: { item: NavItem; slim: boolean; path
 
   return (
     <div>
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={parentCls}>
+      <button type="button" data-nav={item.to} onClick={() => setOpen(!open)} aria-expanded={open} className={parentCls}>
         {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brick-500" />}
         <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.25 : 1.75} />
         <span className="flex-1">{item.label}</span>
         <ChevronDown className={clsx('h-4 w-4 text-federal-300 transition-transform', !open && '-rotate-90')} />
       </button>
+      <AnimatePresence initial={false}>
       {open && (
+        <motion.div key="kids" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
         <div className="mb-1 ml-[21px] border-l border-white/10 pl-2">
           {kids.map((c) => {
             const on = childActive(c, kids, pathname);
             return (
-              <NavLink key={c.label + c.to} to={c.to} aria-current={on ? 'page' : 'false'} className={() => linkCls(on, true)}>
+              <NavLink key={c.label + c.to} data-nav={c.to} to={c.to} aria-current={on ? 'page' : 'false'} className={() => linkCls(on, true)}>
                 <c.icon className="h-4 w-4 shrink-0" strokeWidth={on ? 2.25 : 1.75} />{c.label}
               </NavLink>
             );
           })}
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -254,7 +266,7 @@ function UserMenu({ name, email, photo, subtitle }: { name: string; email?: stri
   };
   return (
     <div className="relative">
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-limestone-100" aria-expanded={open}>
+      <button data-tour="header-user" onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-limestone-100" aria-expanded={open}>
         <Avatar name={name} size={34} seed={email} src={photo} ring />
         <span className="hidden text-left md:block">
           <span className="block text-sm font-semibold leading-tight text-graphite-900">{name}</span>
@@ -265,12 +277,12 @@ function UserMenu({ name, email, photo, subtitle }: { name: string; email?: stri
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-40 mt-2 w-56 rounded-md border border-limestone-200 bg-white py-1 shadow-lift">
+          <motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.14 }} className="absolute right-0 z-40 mt-2 w-56 origin-top-right rounded-md border border-limestone-200 bg-white py-1 shadow-lift">
             <button onClick={() => { setOpen(false); nav('/app/profile'); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><UserCircle className="h-4 w-4" /> My profile</button>
             <button onClick={() => { setOpen(false); nav('/app/preferences'); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><Bell className="h-4 w-4" /> Notification preferences</button>
             <button onClick={refresh} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><RefreshCw className="h-4 w-4" /> Refresh permissions</button>
             <button onClick={() => { setToken(null); qc.clear(); nav('/signin'); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-graphite-700 hover:bg-limestone-100"><LogOut className="h-4 w-4" /> Sign out</button>
-          </div>
+          </motion.div>
         </>
       )}
     </div>
@@ -291,7 +303,7 @@ function Notifications() {
   };
   return (
     <div className="relative">
-      <button onClick={() => setOpen(!open)} className="relative rounded p-2 text-graphite-600 hover:bg-limestone-100" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
+      <button data-tour="header-notifications" onClick={() => setOpen(!open)} className="relative rounded p-2 text-graphite-600 hover:bg-limestone-100" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
         <Bell className="h-5 w-5" />
         {unread > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick-600 px-1 text-[10px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
       </button>

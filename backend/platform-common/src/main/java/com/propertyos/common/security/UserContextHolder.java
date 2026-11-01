@@ -29,7 +29,7 @@ public final class UserContextHolder {
      */
     public static UserContext require() {
         UserContext ctx = CURRENT.get();
-        if (ctx == null) throw ApiException.unauthorized("Sign-in required");
+        if (ctx == null) throw ApiException.unauthorized("Your session has ended. Sign in again to continue.");
         return ctx;
     }
 

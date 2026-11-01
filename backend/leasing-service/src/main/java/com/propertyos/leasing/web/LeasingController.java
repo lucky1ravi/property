@@ -150,7 +150,7 @@ public class LeasingController {
      * Lists units, optionally only those with a status such as VACANT.
      */
     @GetMapping("/units") @RequiresPermission("PROPERTY:VIEW")
-    public Object units(@RequestParam(required = false) String status) { return portfolio.units(status); }
+    public Object units(@RequestParam(required = false) String status, @RequestParam(defaultValue = "false") boolean unlisted) { return portfolio.units(status, unlisted); }
 
     /**
      * Lists owners with their properties and fee terms.

@@ -58,8 +58,8 @@ public class ListingService {
                        (select count(*) from leasing.application a where a.listing_id = l.id and a.status not in ('REJECTED','WITHDRAWN')) as applications,
                        (current_date - coalesce(u.vacant_since, current_date)) as days_vacant
                 from leasing.listing l join leasing.property p on p.id = l.property_id join leasing.unit u on u.id = l.unit_id""";
-        return status == null ? db.list(base + " order by l.created_at desc")
-                : db.list(base + " where l.status = ? order by l.created_at desc", status);
+        return status == null ? db.page(base + " order by l.created_at desc")
+                : db.page(base + " where l.status = ? order by l.created_at desc", status);
     }
 
     /**

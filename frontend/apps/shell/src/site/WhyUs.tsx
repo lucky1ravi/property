@@ -1,3 +1,4 @@
+import { Reveal, Stagger, StaggerItem } from '@propertyos/ui';
 import { useTitle } from './data';
 import { ButtonLink, Container, CtaBand, PageHero } from './parts';
 
@@ -20,21 +21,21 @@ export function WhyUs() {
       <Container className="py-6">
         <ul className="divide-y divide-limestone-200">
           {REASONS.map((r) => (
-            <li key={r.title} className="grid gap-3 py-9 lg:grid-cols-[1fr_1.2fr] lg:gap-14">
+            <li key={r.title}><Reveal className="grid gap-3 py-9 lg:grid-cols-[1fr_1.2fr] lg:gap-14">
               <h2 className="max-w-[24ch] text-2xl font-black leading-tight tracking-[-0.02em] text-graphite-950">{r.title}</h2>
               <p className="max-w-[60ch] text-[17px] leading-relaxed text-graphite-700">{r.body}</p>
-            </li>
+            </Reveal></li>
           ))}
         </ul>
       </Container>
       <section className="bg-limestone-100">
         <Container className="py-16">
           <h2 className="text-3xl font-black tracking-[-0.02em] text-graphite-950">Where a person stays in charge</h2>
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
+          <Stagger gap={0.12} className="mt-8 grid gap-6 md:grid-cols-3">
             {[['Leasing', 'The broker approves the applicant.'], ['Rent', 'The accountant waives or approves exceptions.'], ['Maintenance', 'The broker handles emergencies.']].map(([a, b]) => (
-              <div key={a} className="rounded-lg border border-limestone-300 bg-white p-6"><h3 className="text-lg font-extrabold text-federal-900">{a}</h3><p className="mt-2 text-graphite-700">{b}</p></div>
+              <StaggerItem key={a} className="rounded-lg border border-limestone-300 bg-white p-6"><h3 className="text-lg font-extrabold text-federal-900">{a}</h3><p className="mt-2 text-graphite-700">{b}</p></StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </Container>
       </section>
       <CtaBand />
