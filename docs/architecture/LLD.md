@@ -10,9 +10,9 @@ Every service has the same shape, so a developer can move between them without r
 
 ```mermaid
 flowchart TB
-  REQ[HTTP request] --> AF[AuthFilter: verify JWT, refuse a suspended company]
-  AF --> FG[FeatureGateFilter: plan and entitlement,<br/>operators limited to operator paths]
-  FG --> PI[PermissionInterceptor:<br/>@RequiresPermission FEATURE:ACTION]
+  REQ[HTTP request] --> AF["AuthFilter: verify JWT, refuse a suspended company"]
+  AF --> FG["FeatureGateFilter: plan and entitlement,<br/>operators limited to operator paths"]
+  FG --> PI["PermissionInterceptor:<br/>RequiresPermission FEATURE:ACTION"]
   PI --> C["web/ controller<br/>parse, delegate, shape the response"]
   C --> SV["service/ business rules<br/>one class per responsibility"]
   SV --> ST["Db helper: SQL, no rules"]
