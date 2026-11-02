@@ -1,4 +1,4 @@
-// Checks every ```mermaid diagram in the given Markdown files with the real Mermaid parser, in a real browser, and names each one that
+// Checks every ```mermaid diagram in the given Markdown files by parsing AND drawing it with the real Mermaid library, in a real browser, and names each one that
 // would not draw (GitHub shows "Unable to render" for those). A semicolon inside a sequence-diagram message is the usual cause: Mermaid
 // reads it as the end of a statement.
 //   node tools/check-diagrams.mjs JOURNEYS.md ../docs/architecture/HLD.md ...
@@ -24,7 +24,7 @@ for (const file of files) {
   for (const m of md.matchAll(/```mermaid\n([\s\S]*?)```/g)) {
     total++;
     const line = md.slice(0, m.index).split('\n').length + 1;
-    const err = await page.evaluate(async (code) => { try { await window.mermaid.parse(code); return null; } catch (e) { return String(e.message ?? e).split('\n').slice(0, 3).join(' | '); } }, m[1]);
+    const err = await page.evaluate(async (code) => { try { await window.mermaid.parse(code); await window.mermaid.render('d' + Math.random().toString(36).slice(2), code); return null; } catch (e) { return String(e.message ?? e).split('\n').slice(0, 3).join(' | '); } }, m[1]);
     if (err) { bad++; console.error(`${file}:${line}  ${m[1].split('\n')[0]}\n    ${err}`); }
   }
 }
