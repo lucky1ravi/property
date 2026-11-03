@@ -269,7 +269,15 @@ class NewCompanyJourneyIT {
             if (!cutOff) Thread.sleep(1000);
         }
         check(cutOff, "people already signed in are turned away; last answer: " + leasing.get(admin, "/api/leasing/properties").status());
-        check(maintenance.get(admin, "/api/maintenance/vendors").status() == 403, "every service turns them away");
+        // Each service reloads the suspended-company list on its own timer, so the others can lag the one checked above by a few seconds.
+        boolean everyService = false;
+        for (int i = 0; i < 40 && !everyService; i++) {
+            everyService = maintenance.get(admin, "/api/maintenance/vendors").status() == 403
+                    && billing.get(admin, "/api/billing/invoices").status() == 403
+                    && workflow.get(admin, "/api/workflow/notifications").status() == 403;
+            if (!everyService) Thread.sleep(1000);
+        }
+        check(everyService, "every service turns them away");
         boolean stillPublic = false;
         for (JsonNode l : leasing.get(null, "/api/leasing/public/listings").body()) if (listingId.equals(l.path("id").asText())) stillPublic = true;
         check(!stillPublic, "a suspended company's homes are hidden from the public site");

@@ -108,7 +108,7 @@ Seven business services behind one gateway, each owning a database schema, talki
 Prerequisites: Docker, JDK 21 or newer, Maven 3.9+, Node 20+.
 
 ```powershell
-.\scripts\start-local.ps1        # PostgreSQL in Docker plus all eight services (stop: .\scripts\stop-local.ps1)
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1    # PostgreSQL in Docker plus all eight services (stop with stop-local.ps1, run the same way)
 cd frontend; npm install; npm run build; npm run preview      # http://localhost:4173
 ```
 

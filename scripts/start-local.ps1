@@ -108,6 +108,10 @@ if (Test-Path $envFile) {
     }
     Write-Host "Loaded settings from .env.local"
 }
+# Local runs give each service a bigger database connection pool than the shipped default of 4, so a load test is not limited by it.
+# Seven services x 20 = 140 connections, within the 300 the local Postgres allows (infra/docker-compose.yml). Set DB_POOL_SIZE
+# yourself (or in .env.local) to override. AWS is not affected: there the pool size comes from the db_pool_size Terraform variable.
+if (-not $env:DB_POOL_SIZE) { $env:DB_POOL_SIZE = "20" }
 $env:PGHOST = "localhost"; $env:PGPORT = "5433"; $env:PGDATABASE = "propertyos"
 $env:PGUSER = "postgres"; $env:PGPASSWORD = "postgres"
 
@@ -168,4 +172,4 @@ foreach ($name in $services.Keys) {
 }
 Write-Host ""
 if ($bad -gt 0) { Fail "$bad service(s) are not running." }
-Write-Host "All services are up. Gateway: http://localhost:8080   Stop them with: .\scripts\stop-local.ps1" -ForegroundColor Green
+Write-Host "All services are up. Gateway: http://localhost:8080   Stop them with: powershell -ExecutionPolicy Bypass -File .\scripts\stop-local.ps1" -ForegroundColor Green

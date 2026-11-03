@@ -3,6 +3,8 @@ services:
   postgres:
     image: postgres:16
     container_name: propertyos-db
+    # Local only: room for seven services with a bigger connection pool each (see DB_POOL_SIZE in scripts/start-local.ps1), such as during load tests.
+    command: ["postgres", "-c", "max_connections=300"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
