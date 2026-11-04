@@ -78,6 +78,17 @@ class InsightWordingTest {
     }
 
     @Test
+    @DisplayName("only the top cards are sent to the model")
+    void onlyTheTop() throws Exception {
+        List<Map<String, Object>> many = new ArrayList<>();
+        for (int i = 0; i < 10; i++) many.add(new LinkedHashMap<>(Map.of("title", "T" + i, "detail", "Detail " + i + " costs " + (100 + i))));
+        wording(true, "{\"items\":[]}").rewrite(many);
+        org.mockito.ArgumentCaptor<String> sent = org.mockito.ArgumentCaptor.forClass(String.class);
+        Mockito.verify(runner).ask(anyString(), anyString(), sent.capture());
+        assertThat(sent.getValue()).contains("Detail 5").doesNotContain("Detail 6");
+    }
+
+    @Test
     @DisplayName("the check wants the same numbers, ignores commas and refuses long or unchanged text")
     void check() {
         assertThat(InsightWording.acceptable("Owed $21,103 by 5 residents.", "5 residents owe $21103.")).isTrue();
