@@ -190,10 +190,10 @@ A company administrator can pay to boost a live listing for 7, 14 or 30 days (pr
 
 A company makes a campaign for each ad, listing-site push or email (Facebook ads, Google ads, Zillow, Apartments.com, email, other), with an optional budget and dates. Two things tie leads and applications to it:
 
-- **A tracking link** (`/homes?cmp=CODE`). A visitor who arrives through it and later enquires or applies on the public site is counted for the campaign.
+- **A tracking link** (`/homes?cmp=CODE`). A visitor who arrives through it and later enquires, asks for a tour or applies on the public site is counted for the campaign. An enquiry makes a lead; a tour request makes a showing and an application makes an application, and each of those also makes a lead for that person and home (unless they already have one), so every prospect shows on the Leads page and in the campaign's lead count.
 - **A signed inbound address** (`POST /api/leasing/public/inbound/{key}`) for ad platforms and form tools. The sender signs the exact JSON body with the campaign's secret (HMAC-SHA256, hex, in the `X-Signature` header). A missing or wrong signature is refused (401), an unknown key is 404, and a paused or ended campaign accepts nothing. A post names a live home of the company (`listingId` or `unitId`), so a campaign can never create leads for another company. The same person asking about the same home again is reported as a duplicate, not entered twice. Leasing agents are notified; an application is high priority.
 
-The campaigns list shows leads, applications and cost per lead for each. A secret is shown once, when it is made or rotated. Rotating it stops the old one at once (rotating the address as well stops the old address); the tracking link never changes.
+The campaigns list shows leads, tours, applications and cost per lead for each, and a campaign's recent activity lists its leads, tours and applications. A secret is shown once, when it is made or rotated. Rotating it stops the old one at once (rotating the address as well stops the old address); the tracking link never changes.
 
 Who can do what: `CAMPAIGN:VIEW` to see them, `CAMPAIGN:CREATE` and `CAMPAIGN:EDIT` to make, edit, pause and rotate. Brokers, managers and administrators run campaigns; leasing agents and accountants can look. Campaigns are the `CAMPAIGNS` plan feature (on Growth and Enterprise; the operator can add it to Starter or switch it per company), and the per-minute limit is the operator's `campaigns` setting.
 

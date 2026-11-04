@@ -60,10 +60,12 @@ public class CampaignService {
                  when c.starts_on is not null and c.starts_on > current_date then 'SCHEDULED' else 'ACTIVE' end as state,
             (select count(*) from leasing.lead l where l.campaign_id = c.id) as leads,
             (select count(*) from leasing.application a where a.campaign_id = c.id) as applications,
+            (select count(*) from leasing.showing s where s.campaign_id = c.id) as showings,
             (select count(distinct le.id) from leasing.lease le join leasing.application a on a.id = le.application_id
               where a.campaign_id = c.id and le.status in ('TENANT_SIGNED', 'ACTIVE', 'RENEWAL_OFFERED', 'NOTICE_GIVEN', 'ENDED')) as leases,
             (select count(*) from (select lower(email) from leasing.lead where campaign_id = c.id
-                                   union select lower(applicant_email) from leasing.application where campaign_id = c.id) p) as people""";
+                                   union select lower(applicant_email) from leasing.application where campaign_id = c.id
+                                   union select lower(prospect_email) from leasing.showing where campaign_id = c.id) p) as people""";
 
     /** The company's campaigns, newest first, with what each has brought in and the cost per lead. */
     @Transactional(readOnly = true)
@@ -167,7 +169,7 @@ public class CampaignService {
         return v == null ? null : v instanceof java.sql.Date d ? d.toLocalDate() : LocalDate.parse(String.valueOf(v));
     }
 
-    /** One campaign with its numbers and its recent activity: the newest leads and applications that came in through it. */
+    /** One campaign with its numbers and its recent activity: the newest leads, tours and applications that came in through it. */
     @Transactional(readOnly = true)
     public Map<String, Object> get(UUID id) {
         requirePlan();
@@ -179,7 +181,10 @@ public class CampaignService {
                   union all
                   select 'APPLICATION', a.id, a.created_at, a.applicant_name, a.applicant_email, li.title, a.status, a.source
                   from leasing.application a join leasing.listing li on li.id = a.listing_id where a.campaign_id = ?
-                ) x order by created_at desc limit 15""", id, id));
+                  union all
+                  select 'SHOWING', sh.id, sh.created_at, sh.prospect_name, sh.prospect_email, li.title, sh.status, sh.source
+                  from leasing.showing sh join leasing.listing li on li.id = sh.listing_id where sh.campaign_id = ?
+                ) x order by created_at desc limit 15""", id, id, id));
         return out;
     }
 

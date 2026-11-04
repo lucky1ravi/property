@@ -203,6 +203,7 @@ public class PublicService {
                 li.get("pname") + " " + li.get("number"), Req.money(b, "monthlyIncome"), Req.str(b, "employer"), Req.integer(b, "monthsEmployed"),
                 Req.money(b, "currentRent"), Req.str(b, "landlordReference"), Optional.ofNullable(Req.integer(b, "occupants")).orElse(1),
                 Req.str(b, "pets"), Req.date(b, "moveInDate"), db.json(Req.strings(b, "documents")), source, campaign);
+        leads.ensureLead(li, first + " " + last, email, Req.str(b, "phone"), "Submitted an application.", source, campaign, 90, "APPLY");
         events.publish(orgId, "ApplicationSubmitted", "Application", id,
                 Map.of("listingId", listingId.toString(), "applicantName", first + " " + last, "applicantEmail", email, "unit", li.get("number").toString()));
         // The leasing team hears about it straight away; the applicant has no account, so this is the only way staff learn of a new application.

@@ -96,6 +96,22 @@ class NewFeaturesIT {
         // A website enquiry that carries the tracking code counts for the campaign too.
         Flow.ok(leasing.post(null, "/api/leasing/public/listings/" + listing2 + "/enquiries",
                 Flow.map("name", "Web Visitor", "email", "web." + id.substring(0, 6) + "@example.com", "message", "Hello", "campaign", tracking)), "tracked enquiry");
+        // A tour asked for through the tracking link counts as a tour and as a lead; an application counts as an application and as a lead.
+        String tourist = "tour." + id.substring(0, 6) + "@example.com", applicant = "applicant." + id.substring(0, 6) + "@example.com";
+        String when = java.time.OffsetDateTime.now().plusDays(3 + (long) (Math.random() * 20)).withMinute(0).withSecond(0).withNano(0).toString();
+        Flow.ok(leasing.post(null, "/api/leasing/public/listings/" + listing2 + "/showings", Flow.map("name", "Tina Tourist", "email", tourist, "type", "SELF_GUIDED", "scheduledAt", when, "campaign", tracking)), "tracked tour");
+        Flow.ok(leasing.post(null, "/api/leasing/public/listings/" + listing2 + "/applications", Flow.map("firstName", "Apple", "lastName", "Applicant", "email", applicant, "consent", true, "monthlyIncome", 6000, "campaign", tracking)), "tracked application");
+        JsonNode counted = Flow.ok(leasing.get(admin, "/api/leasing/campaigns/" + id), "counts").body();
+        assertEquals(1, counted.path("showings").asInt(), "the tour is counted: " + counted);
+        assertTrue(counted.path("applications").asInt() >= 2, "the applications are counted: " + counted);
+        assertTrue(counted.path("leads").asInt() >= 4, "the tour and the application also made leads: " + counted);
+        assertTrue(counted.path("activity").toString().contains("SHOWING"), "the tour is in the recent activity");
+        boolean tourLead = false, applyLead = false;
+        for (JsonNode l : Flow.rows(Flow.ok(leasing.get(admin, "/api/leasing/leads"), "leads"))) {
+            if (tourist.equals(l.path("email").asText())) tourLead = true;
+            if (applicant.equals(l.path("email").asText())) applyLead = true;
+        }
+        assertTrue(tourLead && applyLead, "both people are on the Leads page");
         JsonNode detail = Flow.ok(leasing.get(admin, "/api/leasing/campaigns/" + id), "detail again").body();
         assertTrue(detail.toString().contains("Dana Prospect") || detail.path("leads").asInt(detail.path("lead_count").asInt(0)) >= 1, "the lead is counted: " + detail);
 

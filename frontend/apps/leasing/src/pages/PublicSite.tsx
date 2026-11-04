@@ -90,7 +90,7 @@ function Detail() {
   const [f, setF] = useState<any>({ name: '', email: '', phone: '', message: '', scheduledAt: '' });
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const enquire = useAction(() => api.post<any>(`/api/leasing/public/listings/${id}/enquiries`, { name: f.name, email: f.email, phone: f.phone, message: f.message, campaign: trackedCampaign() }), { silent: true, onSuccess: (r) => setDone(r.reply) });
-  const tour = useAction(() => api.post<any>(`/api/leasing/public/listings/${id}/showings`, { name: f.name, email: f.email, type: 'SELF_GUIDED', scheduledAt: new Date(f.scheduledAt).toISOString() }), { silent: true, onSuccess: () => setDone('Tour requested. We’ll confirm the time by email.') });
+  const tour = useAction(() => api.post<any>(`/api/leasing/public/listings/${id}/showings`, { name: f.name, email: f.email, type: 'SELF_GUIDED', scheduledAt: new Date(f.scheduledAt).toISOString(), campaign: trackedCampaign() }), { silent: true, onSuccess: () => setDone('Tour requested. We’ll confirm the time by email.') });
   if (isLoading) return <Skeleton className="h-96" />;
   if (!l) return <EmptyState title="This home is no longer available" action={<Link to={base}><Button>See other homes</Button></Link>} />;
   const amenities: string[] = Array.isArray(l.amenities) ? l.amenities : [];

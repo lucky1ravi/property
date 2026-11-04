@@ -149,13 +149,35 @@ public class LeadService {
         Long clash = db.value(Long.class, "select count(*) from leasing.showing where listing_id = ? and status in ('REQUESTED','CONFIRMED') and scheduled_at = ?", listingId, at);
         if (clash != null && clash > 0) throw ApiException.conflict("That time is already taken. Pick another slot.");
         UUID id = UUID.randomUUID();
+        String name = Req.required(b, "name"), email = Req.email(b, "email");
+        // A tour asked for through a campaign's tracking link counts for the campaign (only the public form sends the code).
+        UUID campaign = publicRequest ? campaigns.forTrackingCode(Req.str(b, "campaign"), (UUID) li.get("org_id")) : null;
         db.update("""
-                insert into leasing.showing (id, org_id, listing_id, property_id, owner_id, prospect_name, prospect_email, scheduled_at, type, status, notes)
-                values (?,?,?,?,?,?,?,?,?,'REQUESTED',?)""",
-                id, li.get("org_id"), listingId, li.get("property_id"), li.get("owner_id"), Req.required(b, "name"), Req.email(b, "email"), at,
-                Optional.ofNullable(Req.str(b, "type")).orElse("BROKER_LED"), Req.str(b, "notes"));
+                insert into leasing.showing (id, org_id, listing_id, property_id, owner_id, prospect_name, prospect_email, scheduled_at, type, status, notes, campaign_id)
+                values (?,?,?,?,?,?,?,?,?,'REQUESTED',?,?)""",
+                id, li.get("org_id"), listingId, li.get("property_id"), li.get("owner_id"), name, email, at,
+                Optional.ofNullable(Req.str(b, "type")).orElse("BROKER_LED"), Req.str(b, "notes"), campaign);
+        if (publicRequest) ensureLead(li, name, email, Req.str(b, "phone"), "Asked for a tour on " + at.toLocalDate() + ".", "WEBSITE", campaign, 80, "BOOK_SHOWING");
         events.publish((UUID) li.get("org_id"), "ShowingRequested", "Showing", id, Map.of("listingId", listingId.toString(), "at", at.toString()));
         return Map.of("id", id);
+    }
+
+    /**
+     * Makes sure the person has a lead for this home. A tour request or an application is a prospect too, so it shows on the Leads page and counts for its campaign.
+     * An existing lead for the same home and email is kept (it only gains the campaign if it had none), so nobody is listed twice. Staff already hear about the
+     * showing or application itself, so this adds no second alert and no AI reply.
+     */
+    public void ensureLead(Map<String, Object> li, String name, String email, String phone, String message, String source, UUID campaign, int score, String intent) {
+        List<Map<String, Object>> found = db.list("select id, campaign_id from leasing.lead where listing_id = ? and lower(email) = lower(?) limit 1", li.get("id"), email);
+        if (!found.isEmpty()) {
+            if (campaign != null && found.get(0).get("campaign_id") == null)
+                db.update("update leasing.lead set campaign_id = ?, updated_at = now() where id = ?", campaign, found.get(0).get("id"));
+            return;
+        }
+        db.update("""
+                insert into leasing.lead (id, org_id, listing_id, property_id, owner_id, name, email, phone, message, source, status, ai_score, ai_intent, campaign_id)
+                values (?,?,?,?,?,?,?,?,?,?,'NEW',?,?,?)""",
+                UUID.randomUUID(), li.get("org_id"), li.get("id"), li.get("property_id"), li.get("owner_id"), name, email, phone, message, source, score, intent, campaign);
     }
 
     /**
