@@ -273,6 +273,8 @@ What is in it:
 - **Ready to apply.** Tessa Nguyen (Facebook campaign) toured yesterday, scored 94 and asked how to apply. She has no application yet.
 - **Resident.** Jamie Rivera came from the Facebook campaign; their lease starts in four days and a $1,725 deposit and $1,322.50 of prorated rent are open, made by the normal billing process.
 
+**Campaign sender page.** Open <http://localhost:4173/campaign-sender.html> (after a full front-end build) for a small page that plays the ad platform: paste a campaign's key and secret (or press *Use pitch campaign*), fill in a person, and press *Send to PropertyOS*. It signs the message in the browser, posts it to the inbound address, and shows the request, the signature header and PropertyOS's answer. *Try breaking it* shows a wrong secret, a changed message and a missing signature being refused. It is for demos only: a real sender signs on its own server and the secret never goes near a browser. For the browser to be allowed to send the signature header the gateway must be the version that lists `X-Signature` among its allowed headers.
+
 To post a signed lead live: the Facebook campaign is `cmp_pitch_facebook` with secret `whsec_pitch_facebook_demo` (Zillow: `cmp_pitch_zillow`, `whsec_pitch_zillow_demo`). Their tracking links are `/homes?cmp=fbriver26` and `/homes?cmp=zlriver26`. These secrets are public demo values; never reuse them anywhere real.
 
 #### Demoing the integrations

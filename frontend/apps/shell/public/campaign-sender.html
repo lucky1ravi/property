@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campaign sender demo</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+  :root { --brand: #0f3d3a; --accent: #2e7d5b; --ink: #1d2524; --muted: #66726f; --line: #e8ecea; --paper: #f5f7fa; --good: #225e44; --good-bg: #ddf0e6; --crit: #8c1d17; --crit-bg: #f7dcda; --warn-bg: #fcf6ea; --warn: #8a5a13; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { background: var(--brand); color: #fff; padding: 16px 20px; border-bottom: 4px solid var(--accent); }
+  header b { font-size: 20px; letter-spacing: -.01em; } header b span { color: #8fd3b4; }
+  header small { display: block; opacity: .8; }
+  main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 48px; }
+  .note { background: var(--warn-bg); color: var(--warn); border: 1px solid #f8ebd3; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; }
+  .grid { display: grid; gap: 18px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+  section { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; }
+  h2 { margin: 0 0 4px; font-size: 16px; } p.sub { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 12px 0 4px; }
+  input, select, textarea { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid #d5dcd9; border-radius: 6px; background: #fff; color: var(--ink); }
+  input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; } .row > div > label:first-child { margin-top: 12px; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; } .check input { width: auto; } .check label { margin: 0; text-transform: none; font-size: 14px; color: var(--ink); letter-spacing: 0; font-weight: 500; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 6px; border: 1px solid var(--brand); background: var(--brand); color: #fff; cursor: pointer; }
+  button.secondary { background: #fff; color: var(--brand); } button:disabled { opacity: .6; cursor: wait; }
+  pre { margin: 0; background: #121817; color: #e6ecea; border-radius: 6px; padding: 12px; overflow-x: auto; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+  .badge.ok { background: var(--good-bg); color: var(--good); } .badge.bad { background: var(--crit-bg); color: var(--crit); }
+  .meaning { margin: 8px 0 12px; font-size: 14px; }
+  h3 { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  a { color: var(--brand); font-weight: 600; } .links { margin-top: 14px; font-size: 14px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+<header><b>Property<span>OS</span></b> <small>Campaign sender: plays the part of an ad platform or form tool posting a signed lead</small></header>
+<main>
+  <div class="note"><b>Demo only.</b> A real ad platform signs on its own server and the campaign secret never goes near a browser. This page holds the secret so you can see, step by step, what such a system sends and how PropertyOS answers.</div>
+  <div class="grid">
+    <section aria-labelledby="h-send">
+      <h2 id="h-send">1. What the ad platform sends</h2>
+      <p class="sub">Create a campaign under Leasing, Campaigns, copy its inbound key and secret, then fill this in.</p>
+      <div class="actions" style="margin-top:0">
+        <button type="button" class="secondary" id="pitch-fb">Use pitch campaign: Facebook</button>
+        <button type="button" class="secondary" id="pitch-zl">Use pitch campaign: Zillow</button>
+        <button type="button" class="secondary" id="sample">Fill a sample person</button>
+      </div>
+      <label for="api">API address</label><input id="api" autocomplete="off">
+      <div class="row">
+        <div><label for="key">Campaign key</label><input id="key" placeholder="cmp_..." autocomplete="off"></div>
+        <div><label for="secret">Campaign secret</label><input id="secret" placeholder="whsec_..." autocomplete="off" type="password"></div>
+      </div>
+      <div class="row">
+        <div><label for="type">What it sends</label><select id="type"><option value="lead">A lead</option><option value="application">An application</option></select></div>
+        <div><label for="home">Home (of the campaign's company)</label><select id="home"><option value="">Loading homes...</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="name">Name</label><input id="name" autocomplete="off"></div>
+        <div><label for="email">Email</label><input id="email" type="email" autocomplete="off"></div>
+      </div>
+      <div class="row">
+        <div><label for="phone">Phone</label><input id="phone" autocomplete="off"></div>
+        <div id="income-wrap" hidden><label for="income">Monthly income ($)</label><input id="income" type="number" min="0" value="6500"></div>
+      </div>
+      <label for="message">Message</label><textarea id="message" rows="3"></textarea>
+      <div class="check" id="consent-wrap" hidden><input type="checkbox" id="consent" checked><label for="consent">The applicant agreed to a credit and background check</label></div>
+      <label for="break">Try breaking it</label>
+      <select id="break">
+        <option value="none">Send it correctly</option>
+        <option value="wrong">Sign with the wrong secret</option>
+        <option value="tamper">Change the message after signing</option>
+        <option value="nosig">Leave the signature out</option>
+      </select>
+      <div class="hint">The first is what a real sender does. The others show that PropertyOS refuses anything it cannot trust.</div>
+      <div class="actions"><button type="button" id="send">Send to PropertyOS</button></div>
+    </section>
+    <section aria-labelledby="h-result" aria-live="polite">
+      <h2 id="h-result">2. What PropertyOS answers</h2>
+      <p class="sub">Send something to see the request and the answer.</p>
+      <div id="result" hidden>
+        <span class="badge" id="status"></span>
+        <div class="meaning" id="meaning"></div>
+        <h3>The request</h3><pre id="req"></pre>
+        <h3>The answer</h3><pre id="res"></pre>
+      </div>
+      <div class="links">Then look at it in PropertyOS: <a href="/app/leasing/campaigns" target="_blank" rel="noopener">Campaigns</a> · <a href="/app/leasing/leads" target="_blank" rel="noopener">Leads</a> · <a href="/app/leasing/applications" target="_blank" rel="noopener">Applications</a></div>
+    </section>
+  </div>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var origin = location.origin;
+  // Locally the site is on 4173 and the API on 8080; on AWS the same address serves both.
+  $('api').value = location.port === '4173' ? 'http://localhost:8080' : origin;
+
+  var homes = [];
+  function loadHomes() {
+    fetch($('api').value.replace(/\/$/, '') + '/api/leasing/public/listings?page=1&size=100')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        homes = d.rows || d;
+        var sel = $('home'); sel.innerHTML = '';
+        homes.forEach(function (h) {
+          var o = document.createElement('option'); o.value = h.id;
+          o.textContent = (h.company_name ? h.company_name + ': ' : '') + h.title; sel.appendChild(o);
+        });
+        if (!homes.length) sel.innerHTML = '<option value="">No homes found</option>';
+      })
+      .catch(function () { $('home').innerHTML = '<option value="">Could not load homes (check the API address)</option>'; });
+  }
+  $('api').addEventListener('change', loadHomes); loadHomes();
+
+  function toggleType() {
+    var app = $('type').value === 'application';
+    $('income-wrap').hidden = !app; $('consent-wrap').hidden = !app;
+  }
+  $('type').addEventListener('change', toggleType); toggleType();
+
+  function pitch(key, secret) { $('key').value = key; $('secret').value = secret; }
+  // Public demo values of the pitch environment (docs/LOCAL-RUN.md). Never reuse them anywhere real.
+  $('pitch-fb').onclick = function () { pitch('cmp_pitch_facebook', 'whsec_pitch_facebook_demo'); };
+  $('pitch-zl').onclick = function () { pitch('cmp_pitch_zillow', 'whsec_pitch_zillow_demo'); };
+  var names = ['Dana Prospect', 'Sam Rivera', 'Priya Shah', 'Leo Martins', 'Ava Chen', 'Noah Brooks'];
+  $('sample').onclick = function () {
+    var n = names[Math.floor(Math.random() * names.length)];
+    $('name').value = n; $('email').value = n.toLowerCase().replace(/[^a-z]+/g, '.') + '.' + Math.floor(Math.random() * 900 + 100) + '@example.com';
+    $('phone').value = '512555' + Math.floor(Math.random() * 9000 + 1000);
+    $('message').value = 'Saw your ad. Is this still available? I would like a tour this week.';
+  };
+
+  function hmac(secret, text) {
+    var enc = new TextEncoder();
+    return crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+      .then(function (k) { return crypto.subtle.sign('HMAC', k, enc.encode(text)); })
+      .then(function (buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); });
+  }
+
+  var MEANING = {
+    200: ['ok', 'Accepted. The lead or application is now in PropertyOS, tagged with the campaign.'],
+    400: ['bad', 'Refused: something in the message is wrong (see the answer below).'],
+    401: ['bad', 'Refused: the signature is missing or does not match the message, so PropertyOS does not trust it.'],
+    404: ['bad', 'Refused: no campaign has that key, or the home is not one of the company\'s live homes.'],
+    409: ['bad', 'Already received: the same person asked about the same home before, so it is not entered twice.'],
+    429: ['bad', 'Too many requests in a minute. Wait and try again.']
+  };
+
+  $('send').onclick = function () {
+    var btn = $('send'); btn.disabled = true;
+    var type = $('type').value, mode = $('break').value;
+    var payload = { type: type, name: $('name').value.trim(), email: $('email').value.trim(), phone: $('phone').value.trim(), listingId: $('home').value, message: $('message').value.trim() };
+    if (type === 'application') { payload.consent = $('consent').checked; payload.monthlyIncome = Number($('income').value) || 0; }
+    var body = JSON.stringify(payload);
+    var secret = mode === 'wrong' ? 'not-the-real-secret' : $('secret').value;
+    var url = $('api').value.replace(/\/$/, '') + '/api/leasing/public/inbound/' + encodeURIComponent($('key').value.trim());
+    hmac(secret, body).then(function (sig) {
+      var sent = mode === 'tamper' ? body.replace(payload.name, payload.name + ' (changed)') : body;
+      var headers = { 'Content-Type': 'application/json' };
+      if (mode !== 'nosig') headers['X-Signature'] = 'sha256=' + sig;
+      $('result').hidden = false; $('status').className = 'badge'; $('status').textContent = 'Sending...'; $('meaning').textContent = '';
+      $('req').textContent = 'POST ' + url + '\n' + Object.keys(headers).map(function (k) { return k + ': ' + headers[k]; }).join('\n') + '\n\n' + sent;
+      return fetch(url, { method: 'POST', headers: headers, body: sent }).then(function (r) {
+        return r.text().then(function (t) {
+          var shown = t; try { shown = JSON.stringify(JSON.parse(t), null, 2); } catch (e) { /* not JSON */ }
+          var m = MEANING[r.status] || [r.ok ? 'ok' : 'bad', r.ok ? 'Accepted.' : 'Refused.'];
+          try { if (r.ok && JSON.parse(t).duplicate) m = ['ok', 'Already received: this person asked about this home before, so PropertyOS did not enter them twice.']; } catch (e) { /* not JSON */ }
+          $('status').className = 'badge ' + m[0]; $('status').textContent = r.status + (r.ok ? ' OK' : ' ' + (r.statusText || 'Refused'));
+          $('meaning').textContent = m[1]; $('res').textContent = shown;
+        });
+      });
+    }).catch(function (e) {
+      $('result').hidden = false; $('status').className = 'badge bad'; $('status').textContent = 'Could not reach PropertyOS';
+      $('meaning').textContent = 'The request did not get an answer: ' + e.message + '. Check the API address and that the services are running.'; $('res').textContent = '';
+    }).then(function () { btn.disabled = false; });
+  };
+})();
+</script>
+</body>
+</html>
