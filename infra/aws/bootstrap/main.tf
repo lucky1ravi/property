@@ -118,10 +118,11 @@ data "aws_iam_policy_document" "plan_assume" {
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
+    # Pull requests, and runs on develop (a merge or a manual run), which plan before an apply waits for approval.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["${local.subject}:pull_request"]
+      values   = ["${local.subject}:pull_request", "${local.subject}:ref:refs/heads/develop"]
     }
   }
 }
