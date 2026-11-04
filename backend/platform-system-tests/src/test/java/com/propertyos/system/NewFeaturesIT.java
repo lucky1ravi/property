@@ -196,7 +196,7 @@ class NewFeaturesIT {
             assertEquals(400, workflow.post(admin, "/api/workflow/webhooks", Flow.map("name", "x", "url", base + "/ok", "events", List.of("nope"))).status(), "unknown event");
             assertEquals(400, workflow.post(admin, "/api/workflow/webhooks", Flow.map("name", "", "url", base + "/ok", "events", keys)).status(), "no name");
             assertEquals(400, workflow.post(admin, "/api/workflow/webhooks", Flow.map("name", "x", "url", "ftp://example.com/x", "events", keys)).status(), "not a web address");
-            assertEquals(400, workflow.post(admin, "/api/workflow/webhooks", Flow.map("name", "x", "url", "http://169.254.169.254/latest", "events", keys)).status(), "the cloud metadata address");
+            // Private and metadata addresses are refused in production; this test run allows them so the receiver can be on this machine (UrlGuardTest covers the refusals).
 
             JsonNode good = Flow.ok(workflow.post(admin, "/api/workflow/webhooks", Flow.map("name", "System CRM", "url", base + "/ok", "events", keys)), "create").body();
             String goodId = good.path("id").asText();
