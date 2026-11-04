@@ -67,6 +67,14 @@ public final class ApiClient {
      */
     public Reply delete(String token, String path) { return send(HttpMethod.DELETE, token, path, null); }
 
+    /** POSTs an exact JSON text with extra headers and no sign-in, for callers that sign the body themselves (campaign posts). */
+    public Reply postRaw(String path, String json, Map<String, String> headers) {
+        HttpHeaders h = headers(null);
+        h.setContentType(MediaType.APPLICATION_JSON);
+        headers.forEach(h::set);
+        return exchange(HttpMethod.POST, path, new HttpEntity<>(json, h));
+    }
+
     /** Signs in with email and password and returns the access token. */
     public String login(String email, String password) {
         Reply r = post(null, "/api/identity/public/login", Map.of("email", email, "password", password));
