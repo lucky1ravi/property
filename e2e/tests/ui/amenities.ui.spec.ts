@@ -55,6 +55,7 @@ test.describe('Amenities and the public homes search', () => {
     // Visitors see each amenity with its icon, and can filter by it.
     const listing = await publishListing(c.api, p.unitId);
     await visitor.goto(`/homes/${listing}`);
+    await visitor.getByRole('button', { name: /^Amenities/ }).click();   // the amenities are a dropdown
     const list = visitor.getByTestId('amenities');
     await expect(list.getByText(mine)).toBeVisible();
     expect(await list.locator('li svg').count()).toBe(2);

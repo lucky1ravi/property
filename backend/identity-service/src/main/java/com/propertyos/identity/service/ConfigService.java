@@ -59,7 +59,8 @@ public class ConfigService {
         ObjectNode result = configClient.defaults().deepCopy();
         result.set("plans", planService.asConfig());
         store.productDefaults().forEach((section, json) -> {
-            if (SECTIONS.contains(section)) result.set(section, read(json)); // the operator's product-wide defaults
+            // The operator's product-wide defaults. "ranking" is the operator's alone: a company cannot override it.
+            if (SECTIONS.contains(section) || ProductDefaultsService.SECTIONS.contains(section)) result.set(section, read(json));
         });
         ObjectNode over = overrides(orgId);
         merge(result, over);

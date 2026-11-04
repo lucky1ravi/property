@@ -143,6 +143,7 @@ public class LeaseService {
             sm.apply("Lease", "leasing.lease", id, WF, action, reason, null, Map.of("signature", sig));
             db.update("update leasing.lease set tenant_signature = ?, tenant_signed_at = now() where id = ?", sig, id);
             events.publish("LeaseSignatureUpdated", "Lease", id, Map.of("status", "TENANT_SIGNED"));
+            events.publish("LeaseSigned", "Lease", id, facts(l, "TENANT_SIGNED", "TENANT"));
             notifier.toRole("PROPERTY_MANAGER", "Lease signed by tenant", l.get("tenant_name") + " signed the lease for " + l.get("unit_label") + ". Countersign to activate.", "/leasing/leases/" + id, "HIGH");
             return get(id);
         }
@@ -152,9 +153,13 @@ public class LeaseService {
             case "SENT" -> {
                 notifier.toParty((UUID) l.get("tenant_id"), "Your lease is ready to sign", "Review and sign the lease for " + l.get("unit_label") + ".", "/my-lease");
                 events.publish("LeaseSignatureUpdated", "Lease", id, Map.of("status", "SENT"));
+                events.publish("LeaseSent", "Lease", id, facts(l, "SENT", null));
             }
             case "ACTIVE" -> {
-                if ("COUNTERSIGN".equals(action)) activate(l, ctx);
+                if ("COUNTERSIGN".equals(action)) {
+                    activate(l, ctx);
+                    events.publish("LeaseSigned", "Lease", id, facts(l, "ACTIVE", "MANAGER"));
+                }
                 else if ("ACCEPT_RENEWAL".equals(action)) applyRenewal(l);
             }
             case "NOTICE_GIVEN" -> db.update("update leasing.lease set notice_date = current_date, move_out_date = coalesce(?, end_date) where id = ?", Req.date(body, "moveOutDate"), id);
@@ -166,6 +171,21 @@ public class LeaseService {
             default -> { }
         }
         return get(id);
+    }
+
+    /** What outside systems are told about a lease: who and where, the money and dates, its state, and (for a signature) who signed. */
+    private static Map<String, Object> facts(Map<String, Object> l, String status, String signedBy) {
+        Map<String, Object> m = new HashMap<>();
+        for (String k : List.of("tenant_name:tenantName", "unit_label:unitLabel", "property_name:propertyName", "rent:rent", "deposit:deposit", "start_date:startDate", "end_date:endDate")) {
+            String[] kv = k.split(":");
+            if (l.get(kv[0]) != null) m.put(kv[1], l.get(kv[0]).toString());
+        }
+        m.put("status", status);
+        if (signedBy != null) {
+            m.put("signedBy", signedBy);
+            m.put("fullySigned", "MANAGER".equals(signedBy));
+        }
+        return m;
     }
 
     private void activate(Map<String, Object> l, UserContext ctx) {

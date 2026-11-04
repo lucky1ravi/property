@@ -59,7 +59,7 @@ Sections of `platform-common/src/main/resources/config/defaults.json`. Services 
 
 | Section | Controls | Examples |
 | --- | --- | --- |
-| `features` | Which modules are on, subject to the plan | `LEASING`, `PAYMENTS`, `MAINTENANCE`, `AUTOMATIONS`, `AI_ASSISTANT`, `BROKER_COCKPIT`, `OPPORTUNITIES`, `OWNER_PORTAL`, `VENDOR_PORTAL`, `RENEWALS`, `RECURRING_MAINTENANCE`, `MESSAGING`, `DOCUMENTS`, `ESIGN` |
+| `features` | Which modules are on, subject to the plan | `LEASING`, `PAYMENTS`, `MAINTENANCE`, `AUTOMATIONS`, `AI_ASSISTANT`, `BROKER_COCKPIT`, `OPPORTUNITIES`, `OWNER_PORTAL`, `VENDOR_PORTAL`, `RENEWALS`, `RECURRING_MAINTENANCE`, `MESSAGING`, `DOCUMENTS`, `ESIGN`, `BOOST` (listing boosts), `REVIEWS` (public review replies and the show or hide decision), `CAMPAIGNS` (marketing campaigns), `WEBHOOKS` (webhooks) |
 | `fees` | What the company charges | `lateFee`, `applicationFee`, `nsfFee`, `managementFeePercent`, `leasingCommissionPercent`, `renewalFee` |
 | `invoicing` | The rent cycle | `dueDay`, `invoiceDaysBeforeDue`, `reminderDaysBefore`, `reminderDaysAfter`, `allocation` |
 | `approvals` | Who must approve what | `maintenanceOwnerLimit`, `ownerApprovesApplications`, `vendorInvoiceApprovalLimit` |
@@ -68,6 +68,11 @@ Sections of `platform-common/src/main/resources/config/defaults.json`. Services 
 | `renewals` | Renewal behaviour | `offerDaysBeforeEnd`, `maxIncreasePercent` |
 | `ai` | Which AI features are on | `LISTING_WRITER`, `RENT_SUGGESTION`, `LISTING_INTEGRITY`, `SCREENING`, `LEASE_SUMMARY`, `PAYMENT_RISK`, `MAINTENANCE_TRIAGE`, `ASSISTANT` |
 | `moderation` | Photo review | `autoApproveConfidence`, `autoRejectEnabled`, `maxImageMb`, `maxPhotosPerProperty`, `allowedExtensions` |
+| `webhooks` | Webhook delivery. The operator's alone: a company cannot override it | `maxAttempts` (6), `backoffSeconds` (60, 300, 1800, 7200, 21600), `timeoutSeconds` (5), `maxEndpoints` (10), `autoDisableAfterFailures` (20), `retentionDays` (30) |
+| `campaigns` | Marketing campaigns. The operator's alone: a company cannot override it | `inboundPerMinute` (120: posts a minute one campaign accepts), `maxPerCompany` (100) |
+| `boost` | Paid listing boosts. The operator's alone: a company cannot override it | `onSale` (false stops every company buying), `prices` (days to dollars: 7 is 49, 14 is 89, 30 is 149), `planDiscountPercent` (a percentage off per plan, 0 to start), `bonusPoints` (15), `maxSharePercent` (30: the share of a page that boosted homes may lift), `unpaidExpiryDays` (14) |
+| `reviewModeration` | Resident comments on the public listing page. The operator's alone: a company cannot override it | `minPublicScore` (default 70): comments the AI scores lower are hidden from visitors; the star rating still counts |
+| `ranking` | How public search orders homes under Recommended. The operator's alone: a company cannot override it | `weights` (`plan`, `rating`, `freshness`, `quality`), `rating` (`priorMean`, `priorWeight`, `unitShare`), `freshness.halfLifeDays`, `quality` (`photosTarget`, `descriptionChars`) |
 | `notifications` | Channels and quiet hours | `channels`, `quietHours` |
 | `branding` | The company's look and public identity | `companyName`, `primaryColor`, `accentColor`, `logoDataUrl`, `portalDomain`, `emailSender`, `contactPhone`, `contactEmail`, `website` |
 | `payments` | How rent is paid | `methods`, `autopayEnabled`, `allowPartialPayments`, `minimumPayment`, `maximumPayment`, `chargeNsfFee`, `enforceStateFeeCaps`, `convenienceFees`, `invoice` (number prefix, legal name, remit-to, tax id, terms, footer) |

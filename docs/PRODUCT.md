@@ -174,3 +174,50 @@ These are the shipped defaults (`defaults.json`). Plans and prices are data mana
 * How it is built: [HLD](architecture/HLD.md), [LLD](architecture/LLD.md), [Data model](DATA-MODEL.md).
 * Every screen exercised end to end: [Browser journeys](../e2e/JOURNEYS.md).
 * What changed recently: [Changelog](CHANGELOG.md).
+
+## Boosting a listing
+
+A company administrator can pay to boost a live listing for 7, 14 or 30 days (prices are the operator's `boost` setting). Choosing a period raises an invoice on the company's PropertyOS account; the company pays it from Subscription like any other (a test card ending 4242 is approved, 0002 is declined). The boost starts the moment the invoice is paid in full, and a declined payment starts nothing. A boosted listing is labelled Sponsored on its card and its page, and earns a ranking bonus, but only up to the configured share of a results page, so paid homes cannot fill it. The company is told when the boost starts and 24 hours before it ends; an unpaid boost is cancelled, and its invoice voided, after 14 days. The operator sees boost revenue for the month and the number of active boosts on the Payments page.
+
+### Boosts: what the operator controls
+
+- **Whether a company can buy boosts.** Boosting is a plan feature (`BOOST`). It is on every existing plan; the operator can take it off a plan on Plans, switch it for one company on that company's Features tab, or stop all sales with `boost.onSale`. Boosts already paid for keep running.
+- **Price.** Standard prices per length are the `boost` product default. A percentage discount can be set per plan. A price can also be agreed with one company for one length, and that price is final (the plan discount is not applied on top). A promo code (a percentage or a dollar amount, for any company or one, with an end date and a use limit) comes off last. A purchased boost never costs less than $1; free boosts are granted instead.
+- **Listing boosts page** (Administration > Listing boosts): every company's boosts with status, price and how it was reached; end a boost (an unpaid one has its invoice voided, a paid one is not refunded automatically); grant a free boost with a reason; agreed prices; promo codes.
+- **Money.** Boost invoices are ordinary platform invoices of kind BOOST, so they appear on Subscription payments (as "Listing boost"), and boost revenue for the month is on that page.
+
+## Marketing campaigns
+
+A company makes a campaign for each ad, listing-site push or email (Facebook ads, Google ads, Zillow, Apartments.com, email, other), with an optional budget and dates. Two things tie leads and applications to it:
+
+- **A tracking link** (`/homes?cmp=CODE`). A visitor who arrives through it and later enquires or applies on the public site is counted for the campaign.
+- **A signed inbound address** (`POST /api/leasing/public/inbound/{key}`) for ad platforms and form tools. The sender signs the exact JSON body with the campaign's secret (HMAC-SHA256, hex, in the `X-Signature` header). A missing or wrong signature is refused (401), an unknown key is 404, and a paused or ended campaign accepts nothing. A post names a live home of the company (`listingId` or `unitId`), so a campaign can never create leads for another company. The same person asking about the same home again is reported as a duplicate, not entered twice. Leasing agents are notified; an application is high priority.
+
+The campaigns list shows leads, applications and cost per lead for each. A secret is shown once, when it is made or rotated. Rotating it stops the old one at once (rotating the address as well stops the old address); the tracking link never changes.
+
+Who can do what: `CAMPAIGN:VIEW` to see them, `CAMPAIGN:CREATE` and `CAMPAIGN:EDIT` to make, edit, pause and rotate. Brokers, managers and administrators run campaigns; leasing agents and accountants can look. Campaigns are the `CAMPAIGNS` plan feature (on Growth and Enterprise; the operator can add it to Starter or switch it per company), and the per-minute limit is the operator's `campaigns` setting.
+
+## What the roles and plans control (boosts, review replies, campaigns)
+
+| Capability | Permission | Plan feature | Default roles |
+| --- | --- | --- | --- |
+| See boosts, prices and status | `BOOST:VIEW` | `BOOST` | Administrator, manager, broker, accountant |
+| Buy a boost | `BOOST:CREATE` | `BOOST` | Administrator (paying the invoice still needs `SETTINGS:CONFIGURE`) |
+| Reply publicly to a review | `REVIEW:EDIT` | `REVIEWS` | Administrator, manager, broker, leasing agent |
+| Show or hide a review comment | `REVIEW:APPROVE` | `REVIEWS` | Administrator, manager, broker |
+| See campaigns | `CAMPAIGN:VIEW` | `CAMPAIGNS` | Administrator, manager, broker, leasing agent, accountant |
+| Make, edit, pause, rotate | `CAMPAIGN:CREATE`, `CAMPAIGN:EDIT` | `CAMPAIGNS` | Administrator, manager, broker |
+
+A company's administrator can change which roles hold these permissions in Roles. The platform operator controls the plan features on Plans (per plan) and on a company's Features tab (per company), and the platform-wide settings (`ranking`, `reviewModeration`, `boost`, `campaigns`) under Product defaults. Existing companies get the new permissions on their built-in roles the next time the identity service starts.
+
+## Webhooks
+
+A company can send events to other systems (a CRM, Slack through a relay, Zapier) as signed JSON. In Administration > Webhooks an administrator adds an endpoint (name, an https address, and which events), can switch it off and on, rotate its secret, and send a test event that is shaped and signed like a real one. The delivery log shows every event with its status, the receiver's response code, the number of attempts and the exact JSON sent, and a failed delivery can be tried again by hand.
+
+**Events:** `application.submitted`, `lease.sent`, `lease.signed` (fires when the tenant signs and again when the company countersigns; check `signedBy` and `fullySigned`), `payment.received`, `work_order.created`.
+
+**What a receiver gets:** a POST with `{"id":"evt_123","type":"lease.signed","text":"Maya Patel signed the lease for Unit 4B","created_at":"…","data":{…}}` (`text` is a plain-English line, which Slack's incoming webhooks require and which reads well in any request viewer; test events start with "[Test]") and these headers: `X-PropertyOS-Event`, `X-PropertyOS-Event-Id` (the same on every retry, so it can be used to ignore repeats), `X-PropertyOS-Delivery`, `X-PropertyOS-Timestamp` and `X-PropertyOS-Signature` (`sha256=` and the hex HMAC-SHA256, with the endpoint's secret, of the timestamp, a full stop and the exact body). The page shows a verification example.
+
+**Reliability:** a 2xx answer within a few seconds is a success. A dropped connection or a 502, 503 or 504 is retried straight away a few times (Resilience4j, exponential backoff); anything else that is temporary (no answer, 408, 429, 5xx) is scheduled again after 1 minute, 5 minutes, 30 minutes, 2 hours and 6 hours, six tries in all. A 4xx the receiver chose to send (for example 401 or 404) is not retried. After 20 failed deliveries in a row an endpoint is switched off, with the reason shown. These numbers are the operator's `webhooks` setting.
+
+**Safety:** an address must be https in production (http is allowed only in demo mode). Addresses that point at a private or internal network (localhost, 10/8, 172.16/12, 192.168/16, link-local including cloud metadata, carrier-grade NAT, IPv6 equivalents and addresses that wrap them) are refused when the endpoint is saved and checked again before every delivery, and redirects are never followed. Roles: `WEBHOOK:VIEW`, `CREATE`, `EDIT`, `DELETE`, held by administrators by default. Plan feature: `WEBHOOKS` (Growth and Enterprise).

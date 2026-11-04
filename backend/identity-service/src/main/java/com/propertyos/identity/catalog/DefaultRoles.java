@@ -68,28 +68,29 @@ public final class DefaultRoles {
             new RoleTemplate("ORG_ADMIN", "Org Admin", "Full control of the company account, users, roles and configuration.",
                     "ORG", "#0B2545", all(), Map.of()),
             new RoleTemplate("PROPERTY_MANAGER", "Property Manager", "Runs operations across the whole portfolio; approves repairs up to $5,000.",
-                    "ORG", "#13315C", withLimit(all("USER", "ROLE", "SETTINGS"), "WORK_ORDER", "APPROVE", "5000",
-                    grants("SETTINGS:VIEW", "USER:VIEW", "ROLE:VIEW")), Map.of("Owner.bankAccount", "MASKED")),
+                    "ORG", "#13315C", withLimit(all("USER", "ROLE", "SETTINGS", "BOOST", "WEBHOOK"), "WORK_ORDER", "APPROVE", "5000",
+                    grants("SETTINGS:VIEW", "USER:VIEW", "ROLE:VIEW", "BOOST:VIEW")), Map.of("Owner.bankAccount", "MASKED")),
             new RoleTemplate("BROKER", "Broker", "Manages an assigned portfolio end to end: leasing, residents, repairs up to $1,000.",
                     "PROPERTY", "#1D4E89",
                     grants("DASHBOARD:VIEW", "PROPERTY:VIEW,EDIT", "OWNER:VIEW", "LISTING:VIEW,CREATE,EDIT,APPROVE", "SHOWING:VIEW,CREATE,EDIT",
                             "APPLICATION:VIEW,EDIT,APPROVE", "LEASE:VIEW,CREATE,EDIT,APPROVE", "INVOICE:VIEW", "PAYMENT:VIEW",
                             "OWNER_STATEMENT:VIEW", "WORK_ORDER:VIEW,CREATE,EDIT,APPROVE<=1000,VERIFY", "VENDOR:VIEW",
                             "AUTOMATION:VIEW", "WORKFLOW:VIEW", "OPPORTUNITY:VIEW", "REPORT:VIEW", "AI_ASSISTANT:VIEW", "CONVERSATION:VIEW,CREATE", "ALERT:VIEW",
-                            "DOCUMENT:VIEW,CREATE,EDIT,EXPORT", "ESIGN:VIEW,CREATE,SIGN", "MEDIA:UPLOAD"),
+                            "DOCUMENT:VIEW,CREATE,EDIT,EXPORT", "ESIGN:VIEW,CREATE,SIGN", "MEDIA:UPLOAD",
+                            "BOOST:VIEW", "REVIEW:EDIT,APPROVE", "CAMPAIGN:VIEW,CREATE,EDIT"),
                     Map.of("Applicant.ssn", "MASKED", "Owner.bankAccount", "HIDDEN", "Document.sensitive", "VISIBLE")),
             new RoleTemplate("LEASING_AGENT", "Leasing Agent", "Handles listings, showings and applications; cannot approve.",
                     "PROPERTY", "#3E7CB1",
                     grants("DASHBOARD:VIEW", "PROPERTY:VIEW", "OWNER:VIEW", "LISTING:VIEW,CREATE,EDIT", "SHOWING:VIEW,CREATE,EDIT",
                             "APPLICATION:VIEW,EDIT", "LEASE:VIEW", "AI_ASSISTANT:VIEW", "CONVERSATION:VIEW,CREATE",
-                            "DOCUMENT:VIEW,CREATE,EDIT", "ESIGN:VIEW", "MEDIA:UPLOAD"),
+                            "DOCUMENT:VIEW,CREATE,EDIT", "ESIGN:VIEW", "MEDIA:UPLOAD", "REVIEW:EDIT", "CAMPAIGN:VIEW"),
                     Map.of("Applicant.ssn", "HIDDEN", "Applicant.income", "MASKED", "Owner.bankAccount", "HIDDEN", "Document.sensitive", "MASKED")),
             new RoleTemplate("ACCOUNTANT", "Accountant", "Owns receivables, payables, owner statements and reconciliation.",
                     "ORG", "#2A6F4E",
                     grants("DASHBOARD:VIEW", "PROPERTY:VIEW", "OWNER:VIEW", "LEASE:VIEW", "INVOICE:VIEW,CREATE,EDIT,APPROVE,EXPORT",
                             "PAYMENT:VIEW,CREATE,APPROVE,EXPORT", "OWNER_STATEMENT:VIEW,CREATE,EXPORT", "VENDOR:VIEW",
                             "WORK_ORDER:VIEW", "REPORT:VIEW,EXPORT", "AI_ASSISTANT:VIEW", "AUDIT:VIEW", "TAX_REPORT:VIEW,EDIT,EXPORT", "ALERT:VIEW", "CONVERSATION:VIEW,CREATE",
-                            "DOCUMENT:VIEW,CREATE,EDIT,EXPORT", "ESIGN:VIEW,CREATE,SIGN", "MEDIA:UPLOAD"),
+                            "DOCUMENT:VIEW,CREATE,EDIT,EXPORT", "ESIGN:VIEW,CREATE,SIGN", "MEDIA:UPLOAD", "BOOST:VIEW", "CAMPAIGN:VIEW"),
                     Map.of("Applicant.ssn", "HIDDEN", "Document.sensitive", "VISIBLE")),
             new RoleTemplate("OWNER", "Property Owner", "Sees only their own properties; approves repairs over their limit.",
                     "OWNER", "#C8963E",
@@ -126,7 +127,7 @@ public final class DefaultRoles {
     }
 
     /** Features added after first release. Existing organisations get them once, from the template grants, so the Roles screen stays in step. */
-    public static final List<String> SYNCED_FEATURES = List.of("TAX_REPORT", "ALERT", "CONVERSATION", "DOCUMENT", "ESIGN", "MEDIA", "OWNER");
+    public static final List<String> SYNCED_FEATURES = List.of("TAX_REPORT", "ALERT", "CONVERSATION", "DOCUMENT", "ESIGN", "MEDIA", "OWNER", "BOOST", "REVIEW", "CAMPAIGN", "WEBHOOK");
 
     /** Field rules added after first release, copied once to existing default roles that have no rule for the field yet. */
     public static final List<String> SYNCED_FIELDS = List.of("Document.sensitive");

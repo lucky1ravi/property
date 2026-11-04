@@ -102,7 +102,7 @@ public class ListingService {
         LocalDate avail = Optional.ofNullable(Req.date(b, "availableDate")).orElse(LocalDate.now().plusDays(14));
         db.update("""
                 insert into leasing.listing (id, org_id, unit_id, property_id, owner_id, title, description, rent, deposit, available_date, photos, highlights, created_by)
-                select ?, org_id, id, property_id, owner_id, ?, ?, ?, ?, ?, coalesce((select case when jsonb_array_length(photos) > 0 then photos else jsonb_build_array(photo_url) end from leasing.property where id = unit.property_id), '[]'::jsonb), '[]'::jsonb, ?
+                select ?, org_id, id, property_id, owner_id, ?, ?, ?, ?, ?, coalesce((select case when jsonb_array_length(photos) > 0 then photos when coalesce(photo_url, '') <> '' then jsonb_build_array(photo_url) else '[]'::jsonb end from leasing.property where id = unit.property_id), '[]'::jsonb), '[]'::jsonb, ?
                 from leasing.unit where id = ?""",
                 id, title, desc, rent, deposit, avail, UserContextHolder.require().name(), unitId);
         sm.created("Listing", id, "DRAFT", Map.of("unit", u.get("number")));
@@ -216,8 +216,15 @@ public class ListingService {
         if (l.get("description") == null || l.get("description").toString().length() < 40)
             issues.add("Add a longer description (at least 40 characters).");
         if (new BigDecimal(l.get("rent").toString()).signum() <= 0) issues.add("Rent must be greater than zero.");
-        if (l.get("photos") == null || l.get("photos").toString().equals("[]")) issues.add("Add at least one photo.");
+        if (!hasPhoto(l.get("photos") == null ? null : db.tree(l.get("photos")))) issues.add("Add at least one photo.");
         return new Review(issues.isEmpty(), issues, Math.max(0, 100 - issues.size() * 25));
+    }
+
+    /** True when the list holds at least one real picture address. An empty slot, such as {@code [null]} or {@code [""]}, is not a picture. */
+    static boolean hasPhoto(JsonNode photos) {
+        if (photos == null || !photos.isArray()) return false;
+        for (JsonNode p : photos) if (p.isTextual() && !p.asText().isBlank()) return true;
+        return false;
     }
 
     private static String titleFor(Map<String, Object> u) {

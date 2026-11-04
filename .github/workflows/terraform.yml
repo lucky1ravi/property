@@ -1,0 +1,153 @@
+name: Terraform
+
+# Infrastructure as code for AWS (infra/aws).
+#   - A pull request that touches infra/aws runs format, validate and a PLAN with a read-only role, and posts the plan on the pull request.
+#   - A merge to develop plans again and then waits for a person to approve the "aws-infra" environment before it APPLIES that exact plan.
+#   - Run it by hand (Actions, Terraform, Run workflow) to plan, or to apply after approval.
+# State lives in S3 with a DynamoDB lock, created once by infra/aws/bootstrap. See docs/TERRAFORM-PIPELINE.md.
+on:
+  pull_request:
+    paths: ['infra/aws/**', '.github/workflows/terraform.yml']
+  push:
+    branches: [develop]
+    paths: ['infra/aws/**', '.github/workflows/terraform.yml']
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the plan after approval (otherwise only plan)
+        type: boolean
+        default: false
+
+# One run at a time, so two never change the infrastructure together. A queued run waits instead of being cancelled halfway through an apply.
+concurrency:
+  group: terraform-aws
+  cancel-in-progress: false
+
+permissions:
+  id-token: write       # OIDC to AWS, no stored keys
+  contents: read
+  pull-requests: write  # the plan comment
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TF_INPUT: 'false'
+  TF_VERSION: '1.9.8'
+
+defaults:
+  run:
+    working-directory: infra/aws
+
+jobs:
+  plan:
+    name: Check and plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: Format
+        run: terraform fmt -check -recursive -diff
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Pull requests get the read-only role. Runs on develop and manual runs also plan with it, so a plan can never change anything.
+          role-to-assume: ${{ vars.TF_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Use the shared state
+        run: |
+          printf 'terraform {\n  backend "s3" {}\n}\n' > backend_ci.tf
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=propertyos/aws.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+      - name: Validate
+        run: terraform validate
+      - name: Plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -var-file=ci.tfvars -lock-timeout=5m -detailed-exitcode -out=tfplan -no-color | tee plan.txt
+          code=${PIPESTATUS[0]}
+          # 0 = nothing to change, 2 = changes, 1 = error
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          [ "$code" = "1" ] && exit 1
+          terraform show -no-color tfplan > plan_full.txt
+          exit 0
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Terraform plan"
+            case "${{ steps.plan.outputs.exitcode }}" in
+              0) echo "No changes. The infrastructure matches the code." ;;
+              2) echo "There are changes to apply."; echo; echo '```'; tail -c 60000 plan_full.txt; echo '```' ;;
+              *) echo "The plan failed. See the log." ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment the plan on the pull request
+        if: github.event_name == 'pull_request' && steps.plan.outputs.exitcode != '1'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const code = '${{ steps.plan.outputs.exitcode }}';
+            let body = '### Terraform plan\n';
+            if (code === '0') body += 'No changes. The infrastructure matches the code.';
+            else {
+              const plan = fs.readFileSync('infra/aws/plan_full.txt', 'utf8');
+              const tail = plan.length > 60000 ? '...(shortened, see the run summary)\n' + plan.slice(-60000) : plan;
+              body += '<details><summary>Show plan</summary>\n\n```\n' + tail + '\n```\n</details>';
+            }
+            const marker = '<!-- terraform-plan -->';
+            body = marker + '\n' + body;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const existing = (await github.rest.issues.listComments({ owner, repo, issue_number })).data.find((c) => c.body.startsWith(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+      - name: Keep the plan for the apply
+        if: steps.plan.outputs.exitcode == '2' && (github.event_name == 'push' || inputs.apply)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/aws/tfplan
+          retention-days: 3
+    outputs:
+      changes: ${{ steps.plan.outputs.exitcode }}
+
+  apply:
+    name: Apply (needs approval)
+    needs: plan
+    if: needs.plan.outputs.changes == '2' && (github.event_name == 'push' || inputs.apply) && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    # The environment holds the required reviewer. The run stops here until a person approves it.
+    environment: aws-infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infra/aws
+      - name: Use the shared state
+        run: |
+          printf 'terraform {\n  backend "s3" {}\n}\n' > backend_ci.tf
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=propertyos/aws.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+      # Applies the plan that was shown, not a new one: if the state changed since, Terraform refuses it and the run fails rather than doing something unreviewed.
+      - name: Apply the approved plan
+        run: terraform apply -lock-timeout=5m -no-color tfplan

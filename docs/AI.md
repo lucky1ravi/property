@@ -43,7 +43,7 @@ flowchart TB
 | Provider | Configure | Notes |
 | --- | --- | --- |
 | OpenAI | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT` | The default hosted option |
-| AWS Bedrock | `AWS_REGION` and `AWS_BEARER_TOKEN_BEDROCK` or an access key pair, `BEDROCK_MODEL_ID`, `BEDROCK_VISION_MODEL_ID` | Implemented; not wired in the AWS demo (needs the task role and model ids) |
+| AWS Bedrock | `AWS_REGION` and `AWS_BEARER_TOKEN_BEDROCK` or an access key pair, `BEDROCK_MODEL_ID`, `BEDROCK_VISION_MODEL_ID` | Implemented; the AWS Terraform sets it by default (task role, `bedrock_model_id`, `bedrock_vision_model_id`) |
 | None | nothing | Deterministic rules. Fully functional, no external call |
 
 For tests, `E2E_FAKE_AI=1` points the service at a local stand-in model (`e2e/tools/fake-openai.mjs`) so AI features can be tested with real-looking answers and no key.
@@ -106,7 +106,7 @@ Each tool is one class and shares `ModelRunner`.
 
 ## 6. Single-shot capabilities used by other services
 
-Other services call `Capabilities` for one validated JSON answer: listing copy and a rent suggestion (`LISTING_WRITER`, `RENT_SUGGESTION`), listing integrity, lead replies, application screening summaries (`SCREENING`), maintenance triage (`MAINTENANCE_TRIAGE`), lease summary, payment risk, and conversation assist. Each has a switch in the company's `ai` configuration. `ImageModeration` reviews uploaded photos for relevance and quality, with auto-approve and auto-reject confidence thresholds from the `moderation` settings.
+Other services call `Capabilities` for one validated JSON answer: listing copy and a rent suggestion (`LISTING_WRITER`, `RENT_SUGGESTION`), listing integrity, lead replies, application screening summaries (`SCREENING`), maintenance triage (`MAINTENANCE_TRIAGE`), lease summary, payment risk, and conversation assist. Each has a switch in the company's `ai` configuration. `REVIEW_MODERATION` scores a resident's written review comment from 0 to 100 before it is shown on the public listing page: a score under `reviewModeration.minPublicScore` (70) keeps the comment off the page, and simple rules score it when the model is unavailable. Staff with `LISTING:APPROVE` can override the decision for one comment (show it or hide it, with a reason kept in the audit trail); the override is dropped if the resident edits the comment. `ImageModeration` reviews uploaded photos for relevance and quality, with auto-approve and auto-reject confidence thresholds from the `moderation` settings.
 
 ## 7. Guardrails (`Guardrails`)
 

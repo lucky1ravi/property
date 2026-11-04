@@ -50,7 +50,10 @@ const components: Components = {
   },
 };
 
+/** A model sometimes writes the chart fence on one line (```chart {...} ```), which markdown reads as inline code: put it on its own lines. */
+const fixChartFence = (s: string) => s.replace(/```chart[ \t]*(\{.*?\})[ \t]*```/g, '\n```chart\n$1\n```\n');
+
 /** Renders assistant answers: bold, lists, tables, images and simple bar charts. */
 export function RichText({ children }: { children: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{children}</ReactMarkdown>;
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{fixChartFence(children)}</ReactMarkdown>;
 }

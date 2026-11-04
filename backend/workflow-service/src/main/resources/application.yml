@@ -18,3 +18,13 @@ server:
 springdoc:
   api-docs:
     path: /api/workflow/public/v3/api-docs
+
+propertyos:
+  email:
+    # none = only log (local runs), ses = Amazon SES (needs EMAIL_FROM, a verified sender).
+    provider: ${EMAIL_PROVIDER:none}
+    from: ${EMAIL_FROM:}
+    # Region of the verified sender. Empty = the AWS_REGION of the process.
+    region: ${EMAIL_REGION:}
+    # For now every email goes to this one address instead of its real recipient. Set EMAIL_OVERRIDE_TO to a space to send to the real recipients.
+    override-to: ${EMAIL_OVERRIDE_TO:ravindra.nalawade56@gmail.com}

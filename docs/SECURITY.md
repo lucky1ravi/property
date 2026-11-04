@@ -75,6 +75,10 @@ A permission is `FEATURE:ACTION`, declared on the endpoint with `@RequiresPermis
 | `DOCUMENT`, `ESIGN`, `MEDIA` | `VIEW`, `CREATE`, `EDIT`, `DELETE`, `CONFIGURE`, `EXPORT`, `SIGN`, `UPLOAD`, `REVIEW` |
 | `ALERT`, `AUTOMATION`, `WORKFLOW`, `ROLE`, `SETTINGS` | `VIEW`, `CONFIGURE` |
 | `REPORT`, `DASHBOARD`, `AUDIT`, `OPPORTUNITY`, `AI_ASSISTANT`, `TAX_REPORT`, `CONVERSATION` | `VIEW` (and `EDIT` or `CREATE` where relevant) |
+| `BOOST` | `VIEW`, `CREATE` (paying for a boost; administrators only by default) |
+| `REVIEW` | `EDIT` (public replies to resident reviews), `APPROVE` (show or hide a comment) |
+| `CAMPAIGN` | `VIEW`, `CREATE`, `EDIT` (marketing campaigns, their keys and links) |
+| `WEBHOOK` | `VIEW`, `CREATE`, `EDIT`, `DELETE` (sending events to other systems; administrators only by default) |
 | `PLATFORM` | `VIEW`, `CONFIGURE` (platform administrators only) |
 
 ### Roles

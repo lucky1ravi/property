@@ -12,6 +12,8 @@ propertyos:
     documents: ${DOCUMENTS_URL:http://localhost:8087}
   demo:
     enabled: ${DEMO_MODE:true}
+    # Adds the pitch environment (docs/LOCAL-RUN.md) on top of the demo data. Has no effect unless demo mode is also on.
+    pitch: ${DEMO_PITCH:false}
 
 spring:
   lifecycle:

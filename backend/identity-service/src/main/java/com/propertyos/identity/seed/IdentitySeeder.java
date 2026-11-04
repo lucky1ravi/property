@@ -3,8 +3,10 @@ package com.propertyos.identity.seed;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.propertyos.common.demo.DemoData;
+import com.propertyos.common.demo.PitchData;
 import com.propertyos.common.events.DomainEvent;
 import com.propertyos.common.events.EventHandler;
+import com.propertyos.common.events.EventPublisher;
 import com.propertyos.common.security.UserContextHolder;
 import com.propertyos.identity.catalog.DefaultRoles;
 import com.propertyos.identity.store.IdentityStore;
@@ -13,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,13 +30,20 @@ public class IdentitySeeder implements EventHandler {
     private final ObjectMapper mapper;
     private final TransactionTemplate tx;
     private final boolean demo;
+    private final boolean pitch;
+    private final EventPublisher events;
+    private final JdbcTemplate jdbc;
 
     public IdentitySeeder(IdentityStore store, ObjectMapper mapper, PlatformTransactionManager tm,
-                          @Value("${propertyos.demo.enabled:true}") boolean demo) {
+                          @Value("${propertyos.demo.enabled:true}") boolean demo, @Value("${propertyos.demo.pitch:false}") boolean pitch,
+                          EventPublisher events, JdbcTemplate jdbc) {
         this.store = store;
         this.mapper = mapper;
         this.tx = new TransactionTemplate(tm);
         this.demo = demo;
+        this.pitch = pitch;
+        this.events = events;
+        this.jdbc = jdbc;
     }
 
     /**
@@ -42,6 +52,7 @@ public class IdentitySeeder implements EventHandler {
     @EventListener(ApplicationReadyEvent.class)
     public void seedIfEmpty() {
         if (!demo) {
+            seedPitchIfEnabled();   // writes nothing outside demo mode; it only warns if the switch was left on
             syncCatalog();
             return;
         }
@@ -54,7 +65,74 @@ public class IdentitySeeder implements EventHandler {
             });
             return null;
         });
+        seedPitchIfEnabled();
         syncCatalog();
+    }
+
+    /**
+     * The pitch environment ({@link PitchData}): only when demo mode and the pitch switch (DEMO_PITCH) are both on. Safe to run again: the Starter company, every
+     * user and every invoice is created only if it is missing. A failure here is logged and never stops the service from starting.
+     */
+    public void seedPitchIfEnabled() {
+        if (!PitchData.enabled(demo, pitch)) {
+            if (pitch) log.warn("DEMO_PITCH is on but demo mode is off, so no pitch data is written.");
+            return;
+        }
+        try {
+            UserContextHolder.runAsSystem(null, () -> {
+                tx.executeWithoutResult(s -> seedPitch());
+                return null;
+            });
+            log.info("Pitch data ready (identity)");
+        } catch (RuntimeException e) {
+            log.error("Pitch data could not be written (identity): {}", e.getMessage(), e);
+        }
+    }
+
+    private void seedPitch() {
+        ensurePitchOrg();
+        seedPitchUsers(null);
+        // Summit Ridge's Austin broker and leasing agent work the new Austin building too.
+        UUID riverside = PitchData.RIVERSIDE.property().id();
+        for (String key : List.of("marcus", "jordan")) {
+            UUID user = DemoData.id("user:" + key);
+            if (store.user(user).isEmpty()) continue;
+            Set<UUID> props = new LinkedHashSet<>(store.userPropertyIds(user));
+            if (props.add(riverside)) store.setUserProperties(user, DemoData.SUMMIT.id(), props);
+        }
+        // Two boosts were paid for through platform billing: one running now, one finished. Their invoices are paid, so "boost revenue" has something to show.
+        for (PitchData.Boost b : PitchData.boosts()) {
+            jdbc.update("""
+                    insert into identity.platform_invoice (id, org_id, number, kind, description, amount, paid, due_date, status, created_by, created_at)
+                    values (?,?,?,'BOOST',?,?,?,current_date - ?,'PAID','Pitch data', now() - make_interval(days => ?)) on conflict do nothing""",
+                    b.invoiceId(), DemoData.SUMMIT.id(), b.invoiceNumber(), "Listing boost, " + b.days() + " days: " + PitchData.listing(b.listingKey()).title(), b.amount(), b.amount(),
+                    b.startedDaysAgo(), b.startedDaysAgo());
+            jdbc.update("""
+                    insert into identity.platform_payment (id, org_id, invoice_id, amount, method, last4, reference, status, recorded_by, created_at)
+                    values (?,?,?,?,'CARD','4242',?,'SUCCEEDED','Pitch data', now() - make_interval(days => ?)) on conflict do nothing""",
+                    DemoData.id("pitch:payment:" + b.invoiceNumber()), DemoData.SUMMIT.id(), b.invoiceId(), b.amount(), "PAY-" + b.invoiceNumber().replace("PO-", ""), b.startedDaysAgo());
+        }
+    }
+
+    /** Makes the Starter company, with the same default roles every company gets, and tells the rest of the platform it exists (so it gets its automation rules). Only the first time. */
+    private void ensurePitchOrg() {
+        DemoData.Org o = PitchData.CEDAR;
+        if (store.org(o.id()).isPresent()) return;
+        store.insertOrg(o.id(), o.name(), o.legalName(), o.state(), o.plan());
+        seedOrg(o.id());
+        events.publish(o.id(), "OrganizationOnboarded", "Organization", o.id(), Map.of("name", o.name()));
+    }
+
+    /** Adds the pitch people for one company (or all of them when {@code org} is null) if they are missing. They sign in with the demo password like everyone else. */
+    private void seedPitchUsers(UUID org) {
+        for (DemoData.User u : PitchData.users()) {
+            if (org != null && !u.orgId().equals(org)) continue;
+            if (store.userByEmail(u.email()).isPresent()) continue;
+            String partyType = "TENANT".equals(u.roleKey()) ? "TENANT" : null;
+            store.insertUser(u.id(), u.orgId(), u.email(), u.name(), u.title(), null, partyType, u.partyId(), u.persona());
+            store.setUserRoles(u.id(), u.orgId(), List.of(DemoData.id("role:" + u.orgId() + ":" + u.roleKey())));
+            if (!u.propertyIds().isEmpty()) store.setUserProperties(u.id(), u.orgId(), u.propertyIds());
+        }
     }
 
     /** Offers features added since an organisation was created to its default roles, once, so existing roles gain the new rows on the Roles screen. */
@@ -191,6 +269,7 @@ public class IdentitySeeder implements EventHandler {
         UserContextHolder.runAsSystem(null, () -> {
             store.deleteOrgData(orgId);
             seedOrg(orgId);
+            if (PitchData.enabled(demo, pitch) && PitchData.orgIds().contains(orgId)) tx.executeWithoutResult(s -> seedPitchUsers(orgId));
             return null;
         });
         log.info("Identity data reset for org {}", orgId);

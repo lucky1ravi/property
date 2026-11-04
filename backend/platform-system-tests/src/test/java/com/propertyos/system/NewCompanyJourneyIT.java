@@ -85,7 +85,7 @@ class NewCompanyJourneyIT {
         check(leasing.post(admin, "/api/leasing/owners", Map.of("contact", "No name")).status() == 400, "owner needs a name");
         step(leasing.put(admin, "/api/leasing/owners/" + ownerId, Map.of("phone", "5125550199")), "edit owner");
         Reply property = step(leasing.post(admin, "/api/leasing/properties", Flow.map("ownerId", ownerId, "name", "Journey Court", "street", "10 Main St", "city", "Austin", "state", "TX",
-                "zip", "78701", "type", "MULTIFAMILY", "yearBuilt", 2005)), "create property");
+                "zip", "78701", "type", "MULTIFAMILY", "yearBuilt", 2005, "photoUrl", "https://example.com/journey-court.jpg")), "create property");   // a listing needs a photo to pass its review
         String propertyId = property.body().path("id").asText();
         step(leasing.put(admin, "/api/leasing/properties/" + propertyId, Map.of("name", "Journey Court Apartments")), "edit property");
         Reply u1 = step(leasing.post(admin, "/api/leasing/properties/" + propertyId + "/units", Map.of("number", "1A", "beds", 2, "baths", "1.5", "sqft", 900, "marketRent", 1800)), "create unit 1A");
@@ -269,7 +269,15 @@ class NewCompanyJourneyIT {
             if (!cutOff) Thread.sleep(1000);
         }
         check(cutOff, "people already signed in are turned away; last answer: " + leasing.get(admin, "/api/leasing/properties").status());
-        check(maintenance.get(admin, "/api/maintenance/vendors").status() == 403, "every service turns them away");
+        // Each service reloads the suspended-company list on its own timer, so the others can lag the one checked above by a few seconds.
+        boolean everyService = false;
+        for (int i = 0; i < 40 && !everyService; i++) {
+            everyService = maintenance.get(admin, "/api/maintenance/vendors").status() == 403
+                    && billing.get(admin, "/api/billing/invoices").status() == 403
+                    && workflow.get(admin, "/api/workflow/notifications").status() == 403;
+            if (!everyService) Thread.sleep(1000);
+        }
+        check(everyService, "every service turns them away");
         boolean stillPublic = false;
         for (JsonNode l : leasing.get(null, "/api/leasing/public/listings").body()) if (listingId.equals(l.path("id").asText())) stillPublic = true;
         check(!stillPublic, "a suspended company's homes are hidden from the public site");

@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Home, HeartPulse, Send, Gauge, Building2, KeyRound, Receipt, Wrench, BarChart3, Workflow, Settings2, Users, ScrollText, Globe2, LayoutTemplate, Layers3, SlidersHorizontal, FileSignature, CalendarCheck, HandCoins, Sparkles,
-  MessagesSquare, CalendarClock, Landmark, DoorOpen, UserRound, ClipboardList, Truck, Repeat, Inbox, CreditCard, Banknote, FileText, ListChecks, Briefcase, LayoutDashboard, Megaphone, FolderOpen, Camera,
+  MessagesSquare, CalendarClock, Webhook, Landmark, DoorOpen, UserRound, ClipboardList, Truck, Repeat, Inbox, CreditCard, Banknote, FileText, ListChecks, Briefcase, LayoutDashboard, Megaphone, FolderOpen, Camera,
 } from 'lucide-react';
 import type { Session, Persona } from '@propertyos/ui';
 
@@ -56,6 +56,7 @@ export const NAV: NavGroup[] = [
           { to: '/app/leasing', label: 'Overview', icon: LayoutDashboard, perm: 'LISTING:VIEW', personas: STAFF },
           { to: '/app/leasing/listings', label: 'Listings', icon: Megaphone, perm: 'LISTING:VIEW', personas: STAFF },
           { to: '/app/leasing/leads', label: 'Leads', icon: Inbox, perm: 'LISTING:VIEW', personas: STAFF },
+          { to: '/app/leasing/campaigns', label: 'Campaigns', icon: Send, perm: 'CAMPAIGN:VIEW', feature: 'CAMPAIGNS', personas: STAFF },
           { to: '/app/leasing/showings', label: 'Showings', icon: CalendarCheck, perm: 'SHOWING:VIEW', personas: STAFF },
           { to: '/app/leasing/applications', label: 'Applications', icon: ClipboardList, perm: 'APPLICATION:VIEW', personas: [...STAFF, 'owner'] },
           { to: '/app/leasing/leases', label: 'Leases', icon: FileText, perm: 'LEASE:VIEW', personas: STAFF },
@@ -116,19 +117,44 @@ export const NAV: NavGroup[] = [
           { to: '/app/admin/access', label: 'Users and roles', icon: Users, perm: 'USER:VIEW' },
           { to: '/app/admin/configuration', label: 'Configuration', icon: Settings2, perm: 'SETTINGS:VIEW', exclude: ['platform'] },
           { to: '/app/admin/subscription', label: 'Subscription', icon: CreditCard, perm: 'SETTINGS:CONFIGURE', personas: ['admin'] },
-          { to: '/app/admin/audit', label: 'Audit log', icon: ScrollText, perm: 'AUDIT:VIEW' },
+          { to: '/app/admin/webhooks', label: 'Webhooks', icon: Webhook, perm: 'WEBHOOK:VIEW', feature: 'WEBHOOKS', exclude: ['platform'] },
+          { to: '/app/admin/audit', label: 'Audit log', icon: ScrollText, perm: 'AUDIT:VIEW', exclude: ['platform'] },
         ],
       },
-      { to: '/app/admin/platform', label: 'Platform', icon: Globe2, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/defaults', label: 'Product defaults', icon: SlidersHorizontal, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/plans', label: 'Plans', icon: Layers3, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/payments', label: 'Subscription payments', icon: Banknote, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/usage', label: 'Company usage', icon: BarChart3, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/health', label: 'Service health', icon: HeartPulse, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/deliveries', label: 'Delivery log', icon: Send, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/enquiries', label: 'Enquiries', icon: Inbox, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/features', label: 'Features', icon: LayoutTemplate, perm: 'PLATFORM:VIEW', personas: ['platform'] },
-      { to: '/app/admin/amenities', label: 'Amenities', icon: Sparkles, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+      // The platform administrator's pages, in four groups instead of one long list. Each page keeps its own name and address.
+      {
+        to: '/app/admin/platform', label: 'Companies', icon: Globe2, perm: 'PLATFORM:VIEW', personas: ['platform'],
+        children: [
+          { to: '/app/admin/platform', label: 'Platform', icon: Globe2, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+          { to: '/app/admin/usage', label: 'Company usage', icon: BarChart3, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+          { to: '/app/admin/enquiries', label: 'Enquiries', icon: Inbox, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+        ],
+      },
+      {
+        to: '/app/admin/plans', label: 'Plans and settings', icon: Layers3, perm: 'PLATFORM:VIEW', personas: ['platform'],
+        children: [
+          { to: '/app/admin/plans', label: 'Plans', icon: Layers3, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+          { to: '/app/admin/features', label: 'Features', icon: LayoutTemplate, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+          { to: '/app/admin/defaults', label: 'Product defaults', icon: SlidersHorizontal, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+          { to: '/app/admin/amenities', label: 'Amenities', icon: Sparkles, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+        ],
+      },
+      {
+        to: '/app/admin/payments', label: 'Billing', icon: Banknote, perm: 'PLATFORM:VIEW', personas: ['platform'],
+        children: [
+          { to: '/app/admin/payments', label: 'Subscription payments', icon: Banknote, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+          { to: '/app/admin/boosts', label: 'Listing boosts', icon: Megaphone, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+        ],
+      },
+      {
+        to: '/app/admin/health', label: 'Operations', icon: HeartPulse, perm: 'PLATFORM:VIEW', personas: ['platform'],
+        children: [
+          { to: '/app/admin/health', label: 'Service health', icon: HeartPulse, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+          { to: '/app/admin/deliveries', label: 'Delivery log', icon: Send, perm: 'PLATFORM:VIEW', personas: ['platform'] },
+          // The same page as a company's Audit log below; each person sees the one that is theirs.
+          { to: '/app/admin/audit', label: 'Audit log', icon: ScrollText, perm: 'AUDIT:VIEW', personas: ['platform'] },
+        ],
+      },
     ],
   },
 ];
@@ -166,7 +192,10 @@ export function isBlockedPage(pathname: string, s: Session | undefined, persona:
     if (i.to === '/app') continue;
     if (pathname === i.to || pathname.startsWith(i.to + '/')) if (!best || i.to.length > best.to.length) best = i;
   }
-  return !!best && !allowed(best, persona, can, feature);
+  if (!best) return false;
+  // The same page can be listed more than once, for different kinds of person (Audit log): it is blocked only when none of its entries is allowed.
+  const same = flat.filter((i) => i.to === best!.to);
+  return !same.some((i) => allowed(i, persona, can, feature));
 }
 
 export interface Crumb { label: string; to?: string }

@@ -13,10 +13,12 @@ import java.util.UUID;
 public class PublicController {
     private final PublicService service;
     private final PublicCatalog catalog;
+    private final com.propertyos.leasing.service.CampaignInbound inbound;
 
-    public PublicController(PublicService service, PublicCatalog catalog) {
+    public PublicController(PublicService service, PublicCatalog catalog, com.propertyos.leasing.service.CampaignInbound inbound) {
         this.service = service;
         this.catalog = catalog;
+        this.inbound = inbound;
     }
 
     /**
@@ -43,6 +45,23 @@ public class PublicController {
      */
     @GetMapping("/listings/{id}")
     public Object listing(@PathVariable UUID id) { return service.listing(id); }
+
+    /**
+     * Public: the resident ratings and written comments for a rental's property and unit.
+     */
+    @GetMapping("/listings/{id}/reviews")
+    public Object reviews(@PathVariable UUID id) { return service.reviews(id); }
+
+    /**
+     * Public, signed: a campaign's inbound address. An ad platform or form tool posts a lead or an application as JSON and signs the exact body with the
+     * campaign's secret (HMAC-SHA256, hex, in the X-Signature header). Body: type (lead or application), name, email, phone, listingId or unitId, message;
+     * an application also needs consent: true. Unknown key is 404, a missing or wrong signature 401. The same person asking about the same home twice
+     * is reported as a duplicate, not entered again.
+     */
+    @PostMapping("/inbound/{campaignKey}")
+    public Object inbound(@PathVariable String campaignKey, @RequestHeader(value = "X-Signature", required = false) String signature, @RequestBody byte[] body) {
+        return inbound.receive(campaignKey, signature, body);
+    }
 
     /**
      * Public: records an enquiry about a rental as a lead.

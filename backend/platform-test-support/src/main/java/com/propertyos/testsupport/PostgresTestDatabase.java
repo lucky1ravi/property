@@ -65,8 +65,27 @@ public final class PostgresTestDatabase {
         return v == null || v.isBlank() ? fallback : v;
     }
 
-    /** A free TCP port, for tests that need the service to listen on a known address (a service that calls itself, for example). */
+    private static final java.util.Set<Integer> HANDED_OUT = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * A free TCP port, for tests that need a service to listen on a known address (a service that calls itself, for example).
+     *
+     * <p>Ports come from 20000 to 29999, below the range operating systems use for the local end of outgoing connections
+     * (49152 and up on Windows, 32768 and up on Linux). Asking the OS for "any free port" can return one of those, and the
+     * test processes' own database and service-to-service connections then take it before the service has bound it, so the
+     * service fails to start. Each port is checked by binding it, and none is handed out twice.
+     */
     public static int freePort() {
+        java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+        for (int attempt = 0; attempt < 500; attempt++) {
+            int port = random.nextInt(20000, 30000);
+            if (HANDED_OUT.contains(port)) continue;
+            try (java.net.ServerSocket socket = new java.net.ServerSocket(port)) {
+                if (HANDED_OUT.add(socket.getLocalPort())) return port;
+            } catch (java.io.IOException taken) {
+                // in use: try another
+            }
+        }
         try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
             return socket.getLocalPort();
         } catch (java.io.IOException e) {

@@ -39,10 +39,10 @@ RATE_LIMIT_USER_PER_MINUTE=1000000 RATE_LIMIT_PUBLIC_PER_MINUTE=1000000
 
 ```
 mvn gatling:test                                                       # smoke test
-mvn gatling:test -Dgatling.simulationClass=com.propertyos.perf.LoadSimulation -Dusers=50 -DholdSeconds=300
-mvn gatling:test -Dgatling.simulationClass=com.propertyos.perf.StressSimulation -Dusers=40
-mvn gatling:test -Dgatling.simulationClass=com.propertyos.perf.SpikeSimulation -Dusers=40
-mvn gatling:test -Dgatling.simulationClass=com.propertyos.perf.SoakSimulation -Dusers=30 -DholdSeconds=3600
+mvn gatling:test "-Dgatling.simulationClass=com.propertyos.perf.LoadSimulation" -Dusers=50 -DholdSeconds=300
+mvn gatling:test "-Dgatling.simulationClass=com.propertyos.perf.StressSimulation" -Dusers=40
+mvn gatling:test "-Dgatling.simulationClass=com.propertyos.perf.SpikeSimulation" -Dusers=40
+mvn gatling:test "-Dgatling.simulationClass=com.propertyos.perf.SoakSimulation" -Dusers=30 -DholdSeconds=3600
 ```
 
 **3. Open the report:** `target/gatling/<simulation>-<timestamp>/index.html`.

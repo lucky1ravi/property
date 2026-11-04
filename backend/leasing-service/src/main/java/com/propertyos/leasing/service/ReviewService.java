@@ -21,10 +21,19 @@ public class ReviewService {
 
     private final Db db;
     private final AuditService audit;
+    private final ReviewModeration moderation;
+    private final com.propertyos.common.config.ConfigClient config;
 
-    public ReviewService(Db db, AuditService audit) {
+    public ReviewService(Db db, AuditService audit, ReviewModeration moderation, com.propertyos.common.config.ConfigClient config) {
         this.db = db;
         this.audit = audit;
+        this.moderation = moderation;
+        this.config = config;
+    }
+
+    /** Public replies and the show/hide decision are the REVIEWS plan feature: a company whose plan leaves it out cannot use them. */
+    private void requireReviewTools() {
+        if (!config.featureEnabled("REVIEWS")) throw ApiException.forbidden("Replying to reviews isn't included in your company's plan. Ask PropertyOS about adding it.");
     }
 
     private static UserContext resident() {
@@ -75,14 +84,77 @@ public class ReviewService {
         boolean ok = !lease.isEmpty() && (("PROPERTY".equals(type) && subject.equals(lease.get(0).get("property_id"))) || ("UNIT".equals(type) && subject.equals(lease.get(0).get("unit_id"))));
         if (!ok) throw ApiException.forbidden("You can rate a home you have a lease on.");
         Map<String, Object> l = lease.get(0);
+        String text = comment == null || comment.isBlank() ? null : comment.trim();
+        // The comment is scored before it is saved. A score under the minimum keeps the comment off the public page; the stars still count.
+        ReviewModeration.Result mod = moderation.score(text);
         db.update("""
-                insert into leasing.review (id, org_id, subject_type, subject_id, property_id, unit_id, owner_id, tenant_id, rater_user_id, rater_name, stars, comment)
-                values (?,?,?,?,?,?,?,?,?,?,?,?)
-                on conflict (subject_type, subject_id, rater_user_id) do update set stars = excluded.stars, comment = excluded.comment, updated_at = now()""",
+                insert into leasing.review (id, org_id, subject_type, subject_id, property_id, unit_id, owner_id, tenant_id, rater_user_id, rater_name, stars, comment, ai_score, ai_source, ai_reasons)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                on conflict (subject_type, subject_id, rater_user_id) do update set stars = excluded.stars, comment = excluded.comment, updated_at = now(),
+                    ai_score = excluded.ai_score, ai_source = excluded.ai_source, ai_reasons = excluded.ai_reasons,
+                    -- new words need a new decision: a staff decision about the old comment does not carry over
+                    moderation_override = case when excluded.comment is not distinct from review.comment then review.moderation_override end,
+                    override_by = case when excluded.comment is not distinct from review.comment then review.override_by end,
+                    override_at = case when excluded.comment is not distinct from review.comment then review.override_at end,
+                    override_reason = case when excluded.comment is not distinct from review.comment then review.override_reason end""",
                 UUID.randomUUID(), ctx.orgId(), type, subject, l.get("property_id"), l.get("unit_id"), l.get("owner_id"), ctx.partyId(), ctx.userId(), ctx.name(), stars,
-                comment == null || comment.isBlank() ? null : comment.trim());
+                text, mod == null ? null : mod.score(), mod == null ? null : mod.source(), mod == null ? null : String.join(" ", mod.reasons()));
         audit.record(type.equals("UNIT") ? "Unit" : "Property", subject, "RATED", null, null, Map.of("stars", stars, "by", ctx.name()));
-        return Map.of("saved", true, "stars", stars);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("saved", true);
+        out.put("stars", stars);
+        boolean shown = mod == null || ReviewModeration.visible(mod.score(), moderation.minScore(ctx.orgId()));
+        out.put("comment_public", shown);
+        if (!shown) out.put("comment_note", "Your rating counts, but your comment was not published because it may break our community rules. Edit it to be about the home and resubmit.");
+        return out;
+    }
+
+    /**
+     * Staff: writes, changes or (with empty text) removes the company's public reply to a review. The reply shows under the comment on the public
+     * listing page. Row-level security limits this to reviews of the company's own properties, so another company's review is not found.
+     *
+     * @throws ApiException (400) when the reply is over 1,000 characters, (403) for a resident, owner or vendor, (404) when the review is not the company's
+     */
+    @Transactional
+    public Map<String, Object> reply(UUID reviewId, String text) {
+        UserContext ctx = UserContextHolder.require();
+        if (UserContext.SCOPE_TENANT.equals(ctx.scope()) || UserContext.SCOPE_OWNER.equals(ctx.scope()) || UserContext.SCOPE_VENDOR.equals(ctx.scope()))
+            throw ApiException.forbidden("Only the property management team can reply to a review.");
+        requireReviewTools();
+        String t = text == null ? "" : text.trim();
+        if (t.length() > 1000) throw ApiException.badRequest("Keep the reply under 1,000 characters.");
+        int n = t.isEmpty()
+                ? db.update("update leasing.review set reply = null, reply_by = null, replied_at = null where id = ?", reviewId)
+                : db.update("update leasing.review set reply = ?, reply_by = ?, replied_at = now() where id = ?", t, ctx.name(), reviewId);
+        if (n == 0) throw ApiException.notFound("Review");
+        audit.record("Review", reviewId, t.isEmpty() ? "REVIEW_REPLY_REMOVED" : "REVIEW_REPLIED", null, null, Map.of("by", ctx.name()));
+        return Map.of("saved", true);
+    }
+
+    /**
+     * Staff: overrides the AI's decision about one comment. SHOW publishes it whatever its score, HIDE keeps it off the public page, CLEAR hands the
+     * decision back to the AI score. A reason is required for SHOW and HIDE. The resident's star rating is never changed. Row-level security limits this
+     * to reviews of the company's own properties, and the decision is audited with who made it.
+     *
+     * @throws ApiException (400) for an unknown decision or a missing or over-long reason, (403) for a resident, owner or vendor, (404) when the review is not the company's
+     */
+    @Transactional
+    public Map<String, Object> moderate(UUID reviewId, String decision, String reason) {
+        UserContext ctx = UserContextHolder.require();
+        if (UserContext.SCOPE_TENANT.equals(ctx.scope()) || UserContext.SCOPE_OWNER.equals(ctx.scope()) || UserContext.SCOPE_VENDOR.equals(ctx.scope()))
+            throw ApiException.forbidden("Only the property management team can change what is shown.");
+        requireReviewTools();
+        String d = decision == null ? "" : decision.trim().toUpperCase();
+        if (!List.of("SHOW", "HIDE", "CLEAR").contains(d)) throw ApiException.badRequest("Choose show, hide or back to the AI decision.");
+        String why = reason == null ? "" : reason.trim();
+        if (!d.equals("CLEAR") && why.isEmpty()) throw ApiException.badRequest("Give a short reason. It is kept in the audit trail.");
+        if (why.length() > 300) throw ApiException.badRequest("Keep the reason under 300 characters.");
+        int n = d.equals("CLEAR")
+                ? db.update("update leasing.review set moderation_override = null, override_by = null, override_at = null, override_reason = null where id = ?", reviewId)
+                : db.update("update leasing.review set moderation_override = ?, override_by = ?, override_at = now(), override_reason = ? where id = ?", d, ctx.name(), why, reviewId);
+        if (n == 0) throw ApiException.notFound("Review");
+        audit.record("Review", reviewId, "REVIEW_MODERATION_" + d, null, null, Map.of("by", ctx.name(), "reason", why));
+        return Map.of("saved", true, "decision", d);
     }
 
     /** Takes back the resident's own rating. */
@@ -109,7 +181,16 @@ public class ReviewService {
         for (Map<String, Object> r : db.list("select stars, count(*) as n from leasing.review where subject_type = ? and subject_id = ? group by stars", t, subject))
             dist.put(((Number) r.get("stars")).intValue(), ((Number) r.get("n")).longValue());
         out.put("distribution", dist);
-        out.put("rows", db.page("select id, rater_name, stars, comment, created_at from leasing.review where subject_type = ? and subject_id = ? order by created_at desc", t, subject));
+        int min = moderation.minScore(UserContextHolder.orgId());
+        List<Map<String, Object>> rows = db.page("select id, rater_name, stars, comment, created_at, reply, reply_by, replied_at, ai_score, ai_source, ai_reasons, moderation_override, override_by, override_at, override_reason from leasing.review where subject_type = ? and subject_id = ? order by created_at desc", t, subject);
+        // Staff see every comment, and which ones visitors cannot see: a comment with a score under the minimum, or not scored yet.
+        for (Map<String, Object> r : rows) {
+            boolean written = r.get("comment") != null && !String.valueOf(r.get("comment")).isBlank();
+            Integer score = r.get("ai_score") == null ? null : ((Number) r.get("ai_score")).intValue();
+            r.put("hidden_from_public", written && !ReviewModeration.visible(score, (String) r.get("moderation_override"), min));
+        }
+        out.put("min_score", min);
+        out.put("rows", rows);
         return out;
     }
 }

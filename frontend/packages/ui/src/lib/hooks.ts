@@ -31,11 +31,11 @@ export interface ServerPaging<T = any> {
  * @param path the list endpoint, with any fixed filters already in its query string
  * @param opts `initialSort` should match the table's `initialSort` so the first request is not repeated
  */
-export function usePagedApi<T = any>(path: string | null, opts: { initialSort?: { key: string; dir: 'asc' | 'desc' } } = {}) {
+export function usePagedApi<T = any>(path: string | null, opts: { initialSort?: { key: string; dir: 'asc' | 'desc' }; /** Fetch again this often (milliseconds) while the list is on screen, so new rows appear by themselves. */ refetchInterval?: number } = {}) {
   const base: Record<string, string> = { page: '1', size: '20', ...(opts.initialSort ? { sort: opts.initialSort.key, dir: opts.initialSort.dir } : {}) };
   const [params, setParams] = useState<Record<string, string>>(base);
   const withParams = (p: string, extra: Record<string, string>) => `${p}${p.includes('?') ? '&' : '?'}${new URLSearchParams(extra).toString()}`;
-  const query = useApi<any>(path ? withParams(path, params) : null, { placeholderData: keepPreviousData });
+  const query = useApi<any>(path ? withParams(path, params) : null, { placeholderData: keepPreviousData, ...(opts.refetchInterval ? { refetchInterval: opts.refetchInterval } : {}) });
   const data = query.data;
   const rows: T[] | undefined = Array.isArray(data) ? data : data?.rows ?? data?.items;
   const total: number = Array.isArray(data) ? data.length : typeof data?.total === 'number' ? data.total : rows?.length ?? 0;

@@ -7,6 +7,7 @@ const LABELS: Record<string, [string, string?]> = {
   LEASE_ABSTRACT: ['Lease summary', 'Pulls key dates, amounts and obligations out of a lease'], ANOMALY_SCAN: ['Billing check', 'Flags duplicate invoices, rent that doesn’t match the lease and doubled expenses'],
   STATEMENT_NARRATIVE: ['Owner statement summary', 'Writes a plain-English summary for each owner statement'], RESIDENT_OUTLOOK: ['Resident outlook', 'Shows who is most likely to pay late or move out, and why'],
   PHOTO_TRIAGE: ['Repair photo check', 'Reads a photo of a problem and suggests type, urgency and cost'], FAIR_HOUSING_CHECK: ['Fair housing check', 'Flags wording in ads and messages that could break fair housing rules'],
+  INSIGHT_WORDING: ['Plainer card wording', 'AI rewrites the explanation on each home screen suggestion in short, plain words; the figures stay as calculated'],
   IMAGE_MODERATION: ['Photo safety check', 'AI looks at every uploaded property and profile photo before it is published'],
   autoApproveConfidence: ['Auto-approve at or above (%)', 'Photos the AI judges safe with at least this confidence are published automatically. Everything below goes to a person for review. Raise it to send more photos to people.'],
   autoRejectEnabled: ['Reject clearly unsafe photos automatically', 'Off by default so a person always makes the call on flagged photos.'],
@@ -25,7 +26,7 @@ const LABELS: Record<string, [string, string?]> = {
   documentExpiry: ['Document expiry alerts', 'People are told before an insurance certificate, ID or contract expires'], signatureReminder: ['Signature reminders'], everyDays: ['Remind every (days)'],
   MESSAGING: ['Messaging', 'Conversations between residents, owners, vendors and staff'],
   LEASING: ['Leasing', 'Listings, enquiries, showings, applications and leases'],
-  PAYMENTS: ['Rent and payments', 'Invoices, online payments and collections'],
+  PAYMENTS: ['Rent and payments', 'Invoices, online payments and collections'], BOOST: ['Listing boosts', 'Pay to boost a listing in public search'], REVIEWS: ['Review replies', 'Public replies to resident reviews and the show or hide decision'], CAMPAIGNS: ['Marketing campaigns', 'Tracking links and signed inbound leads'], WEBHOOKS: ['Webhooks', 'Send events to other systems as signed JSON'],
   MAINTENANCE: ['Maintenance', 'Repair requests, work orders and vendors'],
   AUTOMATIONS: ['Workflow automations', 'Rules that move routine work forward on their own'],
   AI_ASSISTANT: ['AI assistant', 'Chat assistant for staff and residents'],
@@ -97,6 +98,27 @@ const LABELS: Record<string, [string, string?]> = {
   aiAssist: ['AI help in conversations'], summaries: ['Offer a catch-up summary'], suggestedReplies: ['Offer a suggested reply to staff'],
   guardrails: ['Message guardrails'], fairHousingCheck: ['Check staff messages for fair-housing wording', 'Blocks a message that contains a flagged phrase until it is reworded.'], flaggedPhrases: ['Flagged phrases', 'One per line'],
   companyName: ['Company name'], primaryColor: ['Primary colour'], accentColor: ['Accent colour', 'Used for highlights on your invoices.'], logoDataUrl: ['Company logo', 'Shown at the top of the menu and on every invoice. PNG or JPEG, under 100 KB.'], portalDomain: ['Resident portal domain'], emailSender: ['Email sender address'],
+  maxAttempts: ['Most tries per delivery', 'Counting the first.'],
+  backoffSeconds: ['Seconds to wait before each retry', 'One per line. The last one repeats if there are more tries than lines.'],
+  timeoutSeconds: ['Seconds to wait for the receiver'],
+  autoDisableAfterFailures: ['Failed deliveries in a row before an endpoint is switched off'],
+  retentionDays: ['Days to keep the delivery log'],
+  inboundPerMinute: ['Inbound posts a minute, per campaign', 'Ad platforms posting faster than this get a "too many requests" answer.'],
+  maxPerCompany: ['Most campaigns a company can have'],
+  maxEndpoints: ['Most webhook endpoints a company can have'],
+  onSale: ['Boosts on sale', 'Turn off to stop every company buying boosts. Boosts already paid for keep running.'],
+  planDiscountPercent: ['Discount by plan (%)', 'A percentage off the standard price for companies on each plan. A price agreed with one company is not discounted again.'],
+  prices: ['Price by period', 'Dollars for each boost length. Add a number of days to offer another length.'],
+  '7': ['7 days ($)'], '14': ['14 days ($)'], '30': ['30 days ($)'],
+  bonusPoints: ['Ranking points a boost adds', 'On the 0 to 100 score. Only boosted homes within the page share below get them.'],
+  maxSharePercent: ['Most of a page that boosted homes can lift (%)', 'Paid homes cannot fill a page of results. At least one is allowed unless this is 0.'],
+  unpaidExpiryDays: ['Days to pay before a boost is cancelled'],
+  minPublicScore: ['Lowest score that is shown (0 to 100)', 'The AI scores each resident comment from 0 to 100. Comments scoring lower are hidden from visitors; staff can still see them.'],
+  weights: ['Weights', 'Relative importance of each factor. Only the proportions matter: 15, 35, 20 and 30 mean the same as 0.15, 0.35, 0.2 and 0.3.'],
+  plan: ['Plan tier'], rating: ['Resident ratings'], freshness: ['Freshness'], quality: ['Listing quality'],
+  priorMean: ['Typical rating (stars)', 'What a home with no reviews is assumed to score, from 1 to 5.'], priorWeight: ['Smoothing strength (reviews)', 'How many reviews of the typical rating are added to every home before its own count. Higher means one review matters less.'],
+  unitShare: ['Share from the home itself (0 to 1)', 'The rest comes from the building.'], halfLifeDays: ['Freshness halves every (days)'],
+  photosTarget: ['Photos for full marks'], descriptionChars: ['Description length for full marks (characters)'],
   contactPhone: ['Phone shown on listings', 'Visitors see this on each home you list.'], contactEmail: ['Email shown on listings'], website: ['Website shown on listings', 'Start with https://'],
 };
 const STATES: Record<string, string> = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
@@ -120,6 +142,11 @@ export const SECTIONS: [string, string, string][] = [
   ['notifications', 'Notifications', 'Channels and quiet hours.'],
   ['branding', 'Branding', 'Name and colours shown to residents and owners.'],
   ['payments', 'Payments and tax', 'Accepted methods, processing fees, invoice details, sales tax by state and 1099 reporting.'],
+  ['webhooks', 'Webhooks', 'How often a failed delivery is retried and how long to wait between tries, the request timeout, how many endpoints a company can have, when a failing endpoint is switched off, and how long the delivery log is kept. Applies to every company.'],
+  ['campaigns', 'Marketing campaigns', 'How many posts a minute one campaign accepts from ad platforms, and how many campaigns a company can have. Applies to every company.'],
+  ['boost', 'Listing boosts', 'What a company pays to boost a listing for a period, how many ranking points a boost adds, and the share of a results page that boosted homes may take. Applies to every company.'],
+  ['reviewModeration', 'Review comments', 'Resident comments the AI scores below this are not shown on the public listing page. The star rating still counts. Applies to every company.'],
+  ['ranking', 'Search ranking', 'How public homes search orders listings under Recommended: the weight of each factor and how ratings are smoothed. Applies to every company.'],
   ['moderation', 'Photo review', 'The confidence needed for the AI to publish a photo on its own, and what happens to photos it flags.'],
   ['documents', 'Files and documents', 'Categories, file types and size, required documents per record, e-signature wording and how long files are kept.'],
   ['alerts', 'Deadline alerts', 'When to alert people about lease expiry, deposit refunds, insurance, tax and 1099 dates.'],
@@ -223,7 +250,7 @@ export function Configuration() {
   return (<>
     <PageHeader title="Configuration" description="Fees, approvals, screening, service levels, AI and branding. Changes apply immediately and are versioned." />
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
-      <nav aria-label="Settings sections" className="flex gap-1 overflow-x-auto lg:flex-col">{SECTIONS.filter((s) => cfg[s[0]]).map(([k, label]) => (
+      <nav aria-label="Settings sections" className="flex gap-1 overflow-x-auto lg:flex-col">{SECTIONS.filter((s) => cfg[s[0]] && s[0] !== 'ranking' && s[0] !== 'reviewModeration' && s[0] !== 'boost' && s[0] !== 'campaigns' && s[0] !== 'webhooks').map(([k, label]) => (
         <button key={k} onClick={() => setSec(k)} className={`whitespace-nowrap rounded px-3 py-2 text-left text-sm font-semibold ${sec === k ? 'bg-federal-900 text-white' : 'text-graphite-700 hover:bg-limestone-200/60'}`}>{label}</button>))}</nav>
       <div className="space-y-6">
         <Panel title={meta[1]} description={meta[2]} actions={editable && <><Button variant="quiet" disabled={!dirty} onClick={() => setDraft((d) => { const n = { ...d }; delete n[sec]; return n; })}>Discard</Button><Button variant="primary" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate(undefined)}>Save changes</Button></>}>

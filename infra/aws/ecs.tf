@@ -40,6 +40,9 @@ locals {
     },
     local.downstream_urls,
     var.ai_provider == "" ? {} : { AI_PROVIDER = var.ai_provider },
+    var.ai_provider == "bedrock" ? { BEDROCK_REGION = var.bedrock_region, BEDROCK_MODEL_ID = var.bedrock_model_id } : {},
+    var.ai_provider == "bedrock" && var.bedrock_vision_model_id != "" ? { BEDROCK_VISION_MODEL_ID = var.bedrock_vision_model_id } : {},
+    var.email_provider == "ses" ? { EMAIL_PROVIDER = "ses", EMAIL_FROM = var.email_from, EMAIL_OVERRIDE_TO = var.email_override_to == "" ? " " : var.email_override_to } : {},
   )
 }
 

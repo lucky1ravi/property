@@ -202,6 +202,8 @@ public final class SystemEnvironment {
         pb.environment().put("PORT", String.valueOf(ports.get(service)));
         // The daily billing run is brought forward so a test can watch the schedule do its work without waiting for 2 a.m.
         if ("billing-service".equals(service)) pb.environment().put("PROPERTYOS_BILLING_CYCLE_CRON", "*/10 * * * * *");
+        // Webhook tests deliver to a receiver on this machine, which the address guard only allows when told to.
+        if ("workflow-service".equals(service)) pb.environment().put("PROPERTYOS_WEBHOOKS_ALLOW_PRIVATE_NETWORK", "true");
         if ("ai-service".equals(service)) {
             // The AI service talks to a stand-in model run by these tests, so every AI code path can be exercised offline.
             pb.environment().put("AI_PROVIDER", "openai");

@@ -15,11 +15,26 @@ public class InternalController {
     private final ConfigService config;
     private final IdentityStore store;
     private final Tx tx;
+    private final com.propertyos.identity.service.PlatformBilling billing;
 
-    public InternalController(ConfigService config, IdentityStore store, Tx tx) {
+    public InternalController(ConfigService config, IdentityStore store, Tx tx, com.propertyos.identity.service.PlatformBilling billing) {
         this.config = config;
         this.store = store;
         this.tx = tx;
+        this.billing = billing;
+    }
+
+    /** Service-to-service: raises a one-off invoice for a company (a listing boost). Body: orgId, kind, amount, description, dueInDays. */
+    @PostMapping("/billing/invoices")
+    public Map<String, Object> raiseInvoice(@RequestBody Map<String, Object> b) {
+        return billing.raiseInvoice(UUID.fromString(String.valueOf(b.get("orgId"))), String.valueOf(b.getOrDefault("kind", "ONE_OFF")),
+                new java.math.BigDecimal(String.valueOf(b.get("amount"))), String.valueOf(b.get("description")), Integer.parseInt(String.valueOf(b.getOrDefault("dueInDays", 14))));
+    }
+
+    /** Service-to-service: cancels an unpaid invoice that is no longer wanted (a boost that was never paid for). */
+    @PostMapping("/billing/invoices/{id}/void")
+    public Map<String, Object> voidInvoice(@PathVariable UUID id, @RequestBody Map<String, Object> b) {
+        return billing.voidInvoice(id, String.valueOf(b.getOrDefault("reason", "Cancelled")));
     }
 
     /**

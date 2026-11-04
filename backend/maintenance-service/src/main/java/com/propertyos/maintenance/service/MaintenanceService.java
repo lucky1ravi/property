@@ -130,7 +130,13 @@ public class MaintenanceService {
                 ref.get("tenant_name"), title, description, b.get("permissionToEnter") == null || Req.bool(b, "permissionToEnter"),
                 "TENANT".equals(ctx.scope()) ? "TENANT" : "STAFF", db.json(Req.strings(b, "photos")), ctx.name());
         sm.created("WorkOrder", id, "SUBMITTED", Map.of("title", title));
-        events.publish("WorkOrderCreated", "WorkOrder", id, Map.of("title", title));
+        Map<String, Object> created = new HashMap<>();
+        created.put("title", title);
+        if (description != null) created.put("description", description);
+        if (ref.get("property_name") != null) created.put("propertyName", String.valueOf(ref.get("property_name")));
+        if (ref.get("unit_label") != null) created.put("unitLabel", String.valueOf(ref.get("unit_label")));
+        created.put("source", "TENANT".equals(ctx.scope()) ? "TENANT" : "STAFF");
+        events.publish("WorkOrderCreated", "WorkOrder", id, created);
         triage(id);
         return get(id);
     }

@@ -8,6 +8,7 @@ import {
 import { useBase, APPLICATION_STEPS, LEASE_STEPS, LISTING_STEPS, labelOf } from '../common';
 
 // The section tabs (Leasing: Overview, Listings, Leads...) are drawn once by the shell from the same menu definition as the left menu.
+import { Campaigns, CampaignDetail } from './Campaigns';
 const SubNav = () => null;
 
 function Overview() {
@@ -176,7 +177,7 @@ function ArchivedList({ kind, perm }: { kind: 'owner' | 'property' | 'unit'; per
 
 function Properties({ embedded }: { embedded?: boolean }) {
   const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/properties');
-  const { can } = useSession();
+  const { can, feature } = useSession();
   const [adding, setAdding] = useState<'property' | 'owner' | 'unit' | null>(null);
   const [editing, setEditing] = useState<any>(null);
   const [reviewing, setReviewing] = useState<any>(null);
@@ -196,13 +197,13 @@ function Properties({ embedded }: { embedded?: boolean }) {
     <ArchivedList kind="property" perm="PROPERTY:DELETE" />
     {add && <><AddProperty open={adding === 'property'} onClose={() => setAdding(null)} onNeedOwner={() => setAdding('owner')} />{can('OWNER:CREATE') && <AddOwner open={adding === 'owner'} onClose={() => setAdding(null)} />}<AddUnit open={adding === 'unit'} onClose={() => setAdding(null)} />
       <AddProperty open={!!editing} existing={editing} onClose={() => setEditing(null)} onNeedOwner={() => undefined} /></>}
-    {reviewing && <ReviewsDrawer title={reviewing.name} subtitle="What residents say about this property" endpoint={`/api/leasing/reviews/PROPERTY/${reviewing.id}`} onClose={() => setReviewing(null)} />}</Panel>);
+    {reviewing && <ReviewsDrawer title={reviewing.name} subtitle="What residents say about this property" endpoint={`/api/leasing/reviews/PROPERTY/${reviewing.id}`} moderate={can('REVIEW:APPROVE') && feature('REVIEWS') ? (id, decision, reason) => api.put(`/api/leasing/reviews/${id}/moderation`, { decision, reason }) : undefined} reply={can('REVIEW:EDIT') && feature('REVIEWS') ? (id, text) => api.put(`/api/leasing/reviews/${id}/reply`, { reply: text }) : undefined} onClose={() => setReviewing(null)} />}</Panel>);
   return embedded ? t : <><PageHeader title="Properties" /><SubNav />{t}</>;
 }
 
 function Units() {
   const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/units');
-  const { can } = useSession();
+  const { can, feature } = useSession();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [reviewing, setReviewing] = useState<any>(null);
@@ -224,7 +225,7 @@ function Units() {
       <ArchivedList kind="unit" perm="PROPERTY:DELETE" />
       {can('PROPERTY:CREATE') && <AddUnit open={adding} onClose={() => setAdding(false)} />}
       {can('PROPERTY:EDIT') && <AddUnit open={!!editing} existing={editing} onClose={() => setEditing(null)} />}
-      {reviewing && <ReviewsDrawer title={`${reviewing.property_name} · ${reviewing.number}`} subtitle="What residents say about this unit" endpoint={`/api/leasing/reviews/UNIT/${reviewing.id}`} onClose={() => setReviewing(null)} />}</Panel></>);
+      {reviewing && <ReviewsDrawer title={`${reviewing.property_name} · ${reviewing.number}`} subtitle="What residents say about this unit" endpoint={`/api/leasing/reviews/UNIT/${reviewing.id}`} moderate={can('REVIEW:APPROVE') && feature('REVIEWS') ? (id, decision, reason) => api.put(`/api/leasing/reviews/${id}/moderation`, { decision, reason }) : undefined} reply={can('REVIEW:EDIT') && feature('REVIEWS') ? (id, text) => api.put(`/api/leasing/reviews/${id}/reply`, { reply: text }) : undefined} onClose={() => setReviewing(null)} />}</Panel></>);
 }
 
 function Owners() {
@@ -265,19 +266,88 @@ function Listings() {
   const nav = useNavigate(); const base = useBase();
   const { can } = useSession();
   const [adding, setAdding] = useState(false);
-  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/listings');
+  const { rows: list, isLoading, server } = usePagedApi<any>('/api/leasing/listings');
+  // Where each listing sits on the public site, and the one thing that would help it most (a separate call, joined by listing id).
+  const ranking = useApi<any>('/api/leasing/listings/ranking', { retry: false });
+  const rank = new Map<string, any>(((ranking.data?.rows ?? []) as any[]).map((r) => [r.id, r]));
+  const total = ranking.data?.total_homes;
+  const data = list?.map((l: any) => ({ ...l, rank: rank.get(l.id) }));
   const cols: Column<any>[] = [
     { key: 'title', header: 'Listing', render: (l) => (<div><div className="font-semibold">{l.title}</div><div className="text-xs text-graphite-500">Available {fmt.shortDate(l.available_date)}</div></div>) },
     { key: 'status', header: 'Status', render: (l) => <StatusPill status={l.status} /> },
     { key: 'rent', header: 'Rent', align: 'right', value: (l) => Number(l.rent), render: (l) => fmt.usd(l.rent) },
     { key: 'views', header: 'Views', align: 'right', hideOnMobile: true },
     { key: 'enquiries', header: 'Enquiries', align: 'right', hideOnMobile: true },
+    { key: 'score', header: 'Score', align: 'right', sortable: false, filter: false, hideOnMobile: true, render: (l) => l.rank ? <span className="font-semibold tabular-nums">{l.rank.score}</span> : <span className="text-graphite-500">-</span> },
+    { key: 'position', header: 'Public position', align: 'right', sortable: false, filter: false, hideOnMobile: true, render: (l) => l.rank?.position ? <span className="tabular-nums" data-testid="rank-position">{`#${l.rank.position} of ${total}`}</span> : <span className="text-graphite-500">Not in search</span> },
+    { key: 'improve', header: 'Would help most', sortable: false, filter: false, hideOnMobile: true, render: (l) => l.rank?.improve ?? <span className="text-graphite-500">Nothing stands out</span> },
   ];
   return (<><PageHeader title="Listings" description="Draft with AI help, review, then publish to the public site." /><SubNav />
     <Panel padded={false} actions={can('LISTING:CREATE') && <Button size="sm" variant="primary" onClick={() => setAdding(true)}>New listing</Button>}>
       <DataTable rows={data} server={server} columns={cols} rowKey={(l) => l.id} loading={isLoading} onRowClick={(l) => nav(`${base}/listings/${l.id}`)} exportName="listings"
         empty={{ title: 'No listings yet', body: can('LISTING:CREATE') ? 'Create a listing from a vacant unit, review it, then publish it.' : undefined }} />
       {can('LISTING:CREATE') && <NewListing open={adding} onClose={() => setAdding(false)} onCreated={(id) => nav(`${base}/listings/${id}`)} />}</Panel></>);
+}
+
+/** Buy a boost for a live listing: pick a period, an invoice is raised, and the boost starts when the invoice is paid. */
+function BoostPanel({ id, status }: { id: string; status: string }) {
+  const nav = useNavigate();
+  const { can } = useSession();
+  const { data: boosts, refetch } = useApi<any[]>(`/api/leasing/listings/${id}/boosts`, { retry: false });
+  const { data: opts } = useApi<any>('/api/leasing/boosts/options', { retry: false });
+  const [open, setOpen] = useState(false);
+  const [days, setDays] = useState<number | null>(null);
+  const current = (boosts ?? []).find((b) => b.status === 'ACTIVE' || b.status === 'PENDING');
+  const [code, setCode] = useState('');
+  const [applied, setApplied] = useState('');
+  const quote = useApi<any>(open && days ? `/api/leasing/boosts/quote?days=${days}${applied ? `&code=${encodeURIComponent(applied)}` : ''}` : null, { retry: false });
+  const buy = useAction(() => api.post<any>(`/api/leasing/listings/${id}/boosts`, { days, promoCode: applied || undefined }), {
+    success: 'Boost requested. Pay the invoice to start it.',
+    onSuccess: (r: any) => { setOpen(false); void refetch(); nav(`/app/admin/subscription?invoice=${r.invoice_id}`); },
+  });
+  const periods: any[] = opts?.periods ?? [];
+  const q = quote.data;
+  return (<Panel title="Boost this listing">
+    {current?.status === 'ACTIVE' && <p className="text-sm text-graphite-800" data-testid="boost-active"><Badge tone="good">Sponsored</Badge> <span className="ml-1">Boosted until {fmt.date(current.ends_at)}.</span></p>}
+    {current?.status === 'PENDING' && <div className="space-y-2 text-sm text-graphite-800" data-testid="boost-pending">
+      <p>Waiting for payment: {current.days}-day boost, {fmt.usd(current.amount, true)}. It starts as soon as the invoice is paid.</p>
+      {can('SETTINGS:CONFIGURE') && <Button size="sm" variant="primary" onClick={() => nav(`/app/admin/subscription?invoice=${current.invoice_id}`)}>Pay the invoice</Button>}</div>}
+    {!current && <>
+      <p className="text-sm text-graphite-700">Show this home as Sponsored and rank it higher in public search for a period you choose.</p>
+      {opts && opts.available === false ? <p className="mt-2 text-xs text-graphite-500" data-testid="boost-unavailable">Boosts are not part of your plan. Ask PropertyOS to add them.</p>
+        : status !== 'LIVE' ? <p className="mt-2 text-xs text-graphite-500">Only a live listing can be boosted.</p>
+        : can('BOOST:CREATE') ? <Button className="mt-3" variant="primary" onClick={() => { setOpen(true); setDays(periods[0]?.days ?? null); setCode(''); setApplied(''); }}>Boost</Button>
+        : <p className="mt-2 text-xs text-graphite-500">You don't have permission to buy a boost. Ask a company administrator.</p>}
+    </>}
+    {(boosts ?? []).some((b) => b.status === 'EXPIRED') && <p className="mt-3 text-xs text-graphite-500">Earlier boosts: {(boosts ?? []).filter((b) => b.status === 'EXPIRED').length}.</p>}
+    <Modal open={open} onClose={() => setOpen(false)} title="Boost this listing" footer={<><Button variant="quiet" onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" disabled={!days} loading={buy.isPending} onClick={() => buy.mutate(undefined)}>Continue to payment</Button></>}>
+      <fieldset className="space-y-2"><legend className="mb-2 text-sm font-semibold text-graphite-900">How long?</legend>
+        {periods.map((p) => (<label key={p.days} className="flex cursor-pointer items-center justify-between gap-3 rounded border border-limestone-300 px-3 py-2 text-sm has-[:checked]:border-federal-700 has-[:checked]:bg-federal-50">
+          <span className="flex items-center gap-2"><input type="radio" name="boost-period" checked={days === p.days} onChange={() => setDays(p.days)} aria-label={`${p.days} days, ${fmt.usd(p.price, true)}`} />{p.days} days</span><span className="font-bold">{Number(p.price) < Number(p.list_price) && <s className="mr-2 font-normal text-graphite-500">{fmt.usd(p.list_price, true)}</s>}{fmt.usd(p.price, true)}</span></label>))}
+      </fieldset>
+      <div className="mt-4 flex items-end gap-2">
+        <Field label="Promo code" className="flex-1"><Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={40} aria-label="Promo code" /></Field>
+        <Button variant="secondary" disabled={!code.trim()} onClick={() => setApplied(code.trim())}>Apply</Button>
+      </div>
+      {applied && quote.error && <p className="mt-1 text-xs text-crit-700" role="alert">That code isn't valid for your company, or it has expired.</p>}
+      {q && <div className="mt-3 rounded bg-limestone-50 p-3 text-sm" data-testid="boost-quote" aria-live="polite">
+        {(q.notes ?? []).map((n: string) => <div key={n} className="text-xs text-graphite-600">{n}</div>)}
+        <div className="mt-1 flex justify-between font-bold"><span>To pay</span><span>{fmt.usd(q.total, true)}</span></div></div>}
+      <p className="mt-3 text-xs text-graphite-600">An invoice is added to your PropertyOS account and you pay it from Subscription. The boost starts when it is paid, and lasts for the period from then. Boosted homes are labelled Sponsored and get a ranking bonus, but at most {opts?.max_share_percent ?? 30}% of a page of results can carry it.</p>
+    </Modal>
+  </Panel>);
+}
+
+function RankingPanel({ id }: { id: string }) {
+  const { data, isLoading } = useApi<any>(`/api/leasing/listings/${id}/ranking`, { retry: false });
+  if (isLoading || !data) return <Panel title="Why is this ranked here?"><Skeleton className="h-24" /></Panel>;
+  return (<Panel title="Why is this ranked here?" actions={<span className="text-sm font-bold text-graphite-900" aria-label={`Ranking score ${data.score} out of ${data.max}`}>{data.score} / {data.max}</span>}>
+    {!data.in_search && <p className="mb-3 text-xs text-graphite-500">This listing is {String(data.status).toLowerCase()}, so it is not in public search yet. This is the score it would have.</p>}
+    <ul className="space-y-3" aria-label="Ranking factors">{(data.factors as any[]).map((f) => (<li key={f.key} data-testid={`rank-${f.key}`}>
+      <div className="flex items-baseline justify-between gap-3 text-sm"><span className="font-semibold text-graphite-900">{f.label}</span><span className="tabular-nums text-graphite-700">{f.points} of {f.max}</span></div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-limestone-200" aria-hidden><div className="h-full rounded-full bg-federal-700" style={{ width: `${f.max ? Math.min(100, (f.points / f.max) * 100) : 0}%` }} /></div>
+      <p className="mt-1 text-xs text-graphite-500">{f.detail}</p></li>))}</ul>
+  </Panel>);
 }
 
 function ListingDetail() {
@@ -309,6 +379,8 @@ function ListingDetail() {
           footer={<Button size="sm" variant="primary" onClick={() => { setRent(String(rs.suggested)); }}>Use {fmt.usd(rs.suggested)}</Button>}>
           Suggested {fmt.usd(rs.suggested)} against {fmt.usd(rs.current)} today ({rs.monthlyDelta >= 0 ? '+' : ''}{fmt.usd(rs.monthlyDelta)} a month).
         </AiInsight>}
+        <RankingPanel id={String(id)} />
+        <BoostPanel id={String(id)} status={l.status} />
         <Panel title="Change rent"><Field label="New monthly rent (USD)"><Input type="number" value={rent} onChange={(e) => setRent(e.target.value)} /></Field><Button className="mt-3" variant="primary" disabled={!rent} loading={save.isPending} onClick={() => save.mutate(undefined)}>Save rent</Button></Panel>
       </div>
     </div>
@@ -317,12 +389,14 @@ function ListingDetail() {
 }
 
 function Leads() {
-  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/leads', { initialSort: { key: 'ai_score', dir: 'desc' } });
+  // New leads (a campaign posting one, a visitor enquiring) show up here without a reload.
+  const { rows: data, isLoading, server } = usePagedApi<any>('/api/leasing/leads', { initialSort: { key: 'ai_score', dir: 'desc' }, refetchInterval: 5000 });
   const [open, setOpen] = useState<any>(null); const [reply, setReply] = useState('');
   const send = useAction(() => api.post(`/api/leasing/leads/${open.id}/respond`, { reply }), { success: 'Reply sent', invalidate: ['/api/leasing/leads'], onSuccess: () => setOpen(null) });
   const cols: Column<any>[] = [
     { key: 'name', header: 'Prospect', render: (l) => (<div><div className="font-semibold">{l.name}</div><div className="text-xs text-graphite-500">{l.email}</div></div>) },
     { key: 'listing_title', header: 'Interested in', hideOnMobile: true },
+    { key: 'source', header: 'Came from', hideOnMobile: true, render: (l) => (l.campaign_name ? <span title={`Campaign: ${l.campaign_name}`}>{l.campaign_name}</span> : <span className="text-graphite-500">{String(l.source ?? 'WEBSITE').toLowerCase().replace(/_/g, ' ')}</span>) },
     { key: 'ai_score', header: 'AI score', align: 'right', render: (l) => <ConfidenceMeter value={(l.ai_score ?? 0) / 100} /> },
     { key: 'status', header: 'Status', render: (l) => <StatusPill status={l.status} /> },
     { key: 'created_at', header: 'Received', value: (l) => l.created_at, render: (l) => fmt.date(l.created_at) },
@@ -331,7 +405,7 @@ function Leads() {
     <Panel padded={false}><DataTable rows={data} server={server} columns={cols} rowKey={(l) => l.id} loading={isLoading} initialSort={{ key: 'ai_score', dir: 'desc' }} onRowClick={(l) => { setOpen(l); setReply(l.ai_reply ?? ''); }} /></Panel>
     <Modal open={!!open} onClose={() => setOpen(null)} title={open?.name ?? ''} footer={<><Button variant="quiet" onClick={() => setOpen(null)}>Close</Button><Button variant="primary" loading={send.isPending} onClick={() => send.mutate(undefined)}>Send reply</Button></>}>
       <p className="mb-3 text-sm text-graphite-700">“{open?.message}”</p>
-      <Field label="Reply drafted by AI" hint="Edit before sending."><Textarea rows={6} value={reply} onChange={(e) => setReply(e.target.value)} /></Field>
+      <Field label="Reply drafted by AI" hint={`Edit before sending. It is emailed to ${open?.email ?? 'the prospect'}.`}><Textarea rows={6} value={reply} onChange={(e) => setReply(e.target.value)} /></Field>
     </Modal></>);
 }
 
@@ -440,7 +514,7 @@ function Leases() {
 /** A resident rates the property and the unit they live in, and can change it later. */
 function RateYourHome() {
   const { data, refetch } = useApi<any>('/api/leasing/reviews/mine');
-  const save = useAction((v: { subjectType: string; subjectId: string; stars: number; comment: string }) => api.put('/api/leasing/reviews', v), { success: 'Thank you. Your rating is saved.', onSuccess: () => refetch() });
+  const save = useAction((v: { subjectType: string; subjectId: string; stars: number; comment: string }) => api.put<any>('/api/leasing/reviews', v), { success: 'Thank you. Your rating is saved.', onSuccess: (r: any) => { if (r?.comment_public === false) toast('Your comment was not published', { tone: 'warning', body: r.comment_note }); refetch(); } });
   if (!data || (!data.property && !data.unit)) return null;
   return (<Panel title="Rate your home" description="Tell us how it is to live here. Your property team and the owner read this to make the place better.">
     <div className="space-y-5">
@@ -504,6 +578,8 @@ export function Staff() {
       <Route path="listings" element={<Listings />} />
       <Route path="listings/:id" element={<ListingDetail />} />
       <Route path="leads" element={<Leads />} />
+      <Route path="campaigns" element={<Campaigns />} />
+      <Route path="campaigns/:id" element={<CampaignDetail />} />
       <Route path="showings" element={<Showings />} />
       <Route path="applications" element={<Applications />} />
       <Route path="applications/:id" element={<ApplicationDetail />} />

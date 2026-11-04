@@ -34,13 +34,15 @@ public class LeadService {
     private final WorkflowEngine wf;
     private final EventPublisher events;
     private final AiClient ai;
+    private final CampaignLookup campaigns;
 
-    public LeadService(Db db, StateMachine sm, WorkflowEngine wf, EventPublisher events, AiClient ai) {
+    public LeadService(Db db, StateMachine sm, WorkflowEngine wf, EventPublisher events, AiClient ai, CampaignLookup campaigns) {
         this.db = db;
         this.sm = sm;
         this.wf = wf;
         this.events = events;
         this.ai = ai;
+        this.campaigns = campaigns;
     }
 
     /**
@@ -49,14 +51,24 @@ public class LeadService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> leads() {
         return db.page("""
-                select l.*, li.title as listing_title, p.name as property_name from leasing.lead l
+                select l.*, li.title as listing_title, p.name as property_name, c.name as campaign_name from leasing.lead l
                 left join leasing.listing li on li.id = l.listing_id left join leasing.property p on p.id = l.property_id
+                left join leasing.campaign c on c.id = l.campaign_id
                 order by l.created_at desc""");
     }
 
     /** Records an enquiry, scores it and drafts a reply. Used by the public site (system context) and brokers. */
     @Transactional
     public Map<String, Object> enquire(UUID listingId, Map<String, Object> b, String source) {
+        return enquire(listingId, b, source, null, true);
+    }
+
+    /**
+     * Records an enquiry for a home of the company that owns {@code campaignId}, or of whichever company a website tracking code ({@code campaign} in
+     * the body) points to. {@code announce} is false when the caller sends its own, richer notice (campaign posts do).
+     */
+    @Transactional
+    public Map<String, Object> enquire(UUID listingId, Map<String, Object> b, String source, UUID campaignId, boolean announce) {
         Map<String, Object> li = db.one("Listing", "select * from leasing.listing l where l.id = ? and l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))", listingId, suspendedCsv());
         String name = Req.required(b, "name");
         String email = Req.email(b, "email");
@@ -66,6 +78,7 @@ public class LeadService {
         String intent = msg.toLowerCase().contains("tour") || msg.toLowerCase().contains("showing") ? "BOOK_SHOWING" : "QUESTION";
         String reply = "Hi " + name.split(" ")[0] + ", thanks for your interest in " + li.get("title") + ". It's available "
                 + li.get("available_date") + " at $" + li.get("rent") + " per month. Would you like to tour it this week?";
+        if (campaignId == null) campaignId = campaigns.forTrackingCode(Req.str(b, "campaign"), (UUID) li.get("org_id"));
         Optional<JsonNode> out = ai.call("lead-reply", Map.of("listing", li, "message", msg, "name", name));
         if (out.isPresent()) {
             reply = out.get().path("reply").asText(reply);
@@ -73,13 +86,13 @@ public class LeadService {
             intent = out.get().path("intent").asText(intent);
         }
         db.update("""
-                insert into leasing.lead (id, org_id, listing_id, property_id, owner_id, name, email, phone, message, source, status, ai_reply, ai_score, ai_intent)
-                values (?,?,?,?,?,?,?,?,?,?,'NEW',?,?,?)""",
-                id, li.get("org_id"), listingId, li.get("property_id"), li.get("owner_id"), name, email, Req.str(b, "phone"), msg, source, reply, score, intent);
+                insert into leasing.lead (id, org_id, listing_id, property_id, owner_id, name, email, phone, message, source, status, ai_reply, ai_score, ai_intent, campaign_id)
+                values (?,?,?,?,?,?,?,?,?,?,'NEW',?,?,?,?)""",
+                id, li.get("org_id"), listingId, li.get("property_id"), li.get("owner_id"), name, email, Req.str(b, "phone"), msg, source, reply, score, intent, campaignId);
         db.update("update leasing.listing set enquiries = enquiries + 1 where id = ?", listingId);
         events.publish((UUID) li.get("org_id"), "LeadCreated", "Lead", id, Map.of("listingId", listingId.toString(), "score", score, "name", name));
         // Strong leads already alert the agents through the "hot lead" automation; every other enquiry is announced here so none goes unseen.
-        if (score < 70)
+        if (announce && score < 70)
             events.publish((UUID) li.get("org_id"), "NotificationRequested", "Notification", UUID.randomUUID(), Map.of("audience", "ROLE", "target", "LEASING_AGENT",
                     "title", "New enquiry: " + name, "body", "Asked about a home on the website: " + (msg.length() > 120 ? msg.substring(0, 117) + "..." : msg),
                     "link", "/leasing/leads", "priority", "NORMAL", "category", "LEASING"));
@@ -96,8 +109,16 @@ public class LeadService {
     public Map<String, Object> respond(UUID leadId, String reply) {
         Map<String, Object> lead = db.one("Lead", "select * from leasing.lead where id = ?", leadId);
         db.update("update leasing.lead set status = 'RESPONDED', responded_at = now(), ai_reply = coalesce(?, ai_reply), updated_at = now() where id = ?", reply, leadId);
-        events.publish("LeadResponded", "Lead", leadId, Map.of("email", lead.get("email").toString()));
-        return db.one("Lead", "select * from leasing.lead where id = ?", leadId);
+        Map<String, Object> saved = db.one("Lead", "select * from leasing.lead where id = ?", leadId);
+        // The workflow service emails this reply to the prospect: the lead has no account, so the address they gave is the only way to reach them.
+        Object listing = db.list("select title from leasing.listing where id = ?", saved.get("listing_id")).stream().findFirst().map(r -> r.get("title")).orElse("");
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("email", String.valueOf(saved.get("email")));
+        payload.put("name", String.valueOf(saved.get("name")));
+        payload.put("listing", String.valueOf(listing));
+        payload.put("reply", saved.get("ai_reply") == null ? "" : saved.get("ai_reply").toString());
+        events.publish("LeadResponded", "Lead", leadId, payload);
+        return saved;
     }
 
     /**

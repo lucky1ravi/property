@@ -28,12 +28,14 @@ public class FeatureGateFilter extends OncePerRequestFilter {
      */
     private static final Map<String, String> MODULES = Map.of(
             "/api/leasing/", "LEASING", "/api/billing/", "PAYMENTS", "/api/maintenance/", "MAINTENANCE",
-            "/api/documents/", "DOCUMENTS", "/api/ai/", "AI_ASSISTANT", "/api/workflow/rules", "AUTOMATIONS");
+            "/api/documents/", "DOCUMENTS", "/api/ai/", "AI_ASSISTANT", "/api/workflow/rules", "AUTOMATIONS",
+            "/api/leasing/campaigns", "CAMPAIGNS", "/api/workflow/webhooks", "WEBHOOKS");
     /**
      * Module key to the name shown in "not included in your plan" messages.
      */
     private static final Map<String, String> LABELS = Map.of(
-            "LEASING", "Leasing", "PAYMENTS", "Payments", "MAINTENANCE", "Maintenance", "DOCUMENTS", "Files and documents", "AI_ASSISTANT", "The AI assistant", "AUTOMATIONS", "Automations");
+            "LEASING", "Leasing", "PAYMENTS", "Payments", "MAINTENANCE", "Maintenance", "DOCUMENTS", "Files and documents", "AI_ASSISTANT", "The AI assistant", "AUTOMATIONS", "Automations",
+            "CAMPAIGNS", "Marketing campaigns", "WEBHOOKS", "Webhooks");
     private final ConfigClient config;
     private final ObjectMapper mapper;
 
