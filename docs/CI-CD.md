@@ -125,7 +125,7 @@ The first run has no `deployed/*` tags, so it builds and deploys everything. Aft
 ## 7. Database and infrastructure changes
 
 * **Database migrations** run when the owning service starts (Flyway), so they ship with that service. Read [Database migrations](DATABASE-MIGRATIONS.md) before a release that carries one, and take a snapshot first ([Operations](OPERATIONS.md#6-the-database)).
-* **Infrastructure (`infra/aws`)** is not applied by the pipeline. Run `terraform apply` yourself; services keep running the images the pipeline set, because Terraform ignores their task definition revision.
+* **Infrastructure (`infra/aws`)** is planned and applied by its own workflow, `terraform.yml`: a plan on every pull request, and an apply after a person approves it. See [Terraform pipeline](TERRAFORM-PIPELINE.md). Services keep running the images `deploy.yml` set, because Terraform ignores their task definition revision.
 
 ## 8. Rolling back
 

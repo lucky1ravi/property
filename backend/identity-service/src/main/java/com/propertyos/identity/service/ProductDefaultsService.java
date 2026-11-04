@@ -24,7 +24,7 @@ import java.util.UUID;
 public class ProductDefaultsService {
     /** Sections that make sense for every company at once. */
     public static final Set<String> SECTIONS = Set.of("features", "fees", "invoicing", "approvals", "screening", "sla", "renewals",
-            "ai", "notifications", "payments", "alerts", "chat", "documents", "moderation");
+            "ai", "notifications", "payments", "alerts", "chat", "documents", "moderation", "ranking", "reviewModeration", "boost", "campaigns", "webhooks");
 
     private final IdentityStore store;
     private final ConfigClient configClient;

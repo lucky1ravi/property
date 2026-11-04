@@ -35,7 +35,7 @@ public class Capabilities {
     /**
      * Maps each capability name to the configuration key that switches it on or off.
      */
-    private static final Map<String, String> CONFIG_KEY = Map.of("listing", "LISTING_WRITER", "lead-reply", "LEASING_AGENT", "screening", "SCREENING", "triage", "MAINTENANCE_TRIAGE", "thread", "CONVERSATION_ASSIST");
+    private static final Map<String, String> CONFIG_KEY = Map.of("listing", "LISTING_WRITER", "lead-reply", "LEASING_AGENT", "screening", "SCREENING", "triage", "MAINTENANCE_TRIAGE", "thread", "CONVERSATION_ASSIST", "review-moderation", "REVIEW_MODERATION");
 
     /**
      * Runs a named text capability: checks it is switched on, applies guardrails, calls the model and falls back to rules when none is available.
@@ -81,6 +81,11 @@ public class Capabilities {
             case "thread" -> base + "You help a property manager catch up on a conversation between parties (residents, owners, vendors, staff). Return {\"summary\": 2 sentences, "
                     + "\"openQuestions\": array of up to 3 short strings for things still unanswered, \"suggestedReply\": a polite, concise reply (under 60 words) the next staff member could send}. "
                     + "Only use facts in the messages. Never promise payment terms, legal outcomes or repairs that the messages do not already commit to. Never mention or imply anyone's protected characteristics.";
+            case "review-moderation" -> base + "You moderate a resident's written comment about the home or building they live in before it is shown publicly on a rental listing. "
+                    + "Return {\"score\": integer 0-100, \"reasons\": array of up to 3 short strings}. The score is how suitable the comment is to publish: "
+                    + "100 is civil, honest and about the home, even if it is critical; honest criticism of the property or management is fine and must score high. "
+                    + "Score below 70 for abuse, insults, slurs or harassment, threats, discrimination against a person or group, personal data (phone numbers, emails, addresses, "
+                    + "names of private individuals), spam or advertising, or text unrelated to living there. Judge only the text in the input.";
             default -> base;
         };
     }
@@ -104,6 +109,10 @@ public class Capabilities {
                 if (out.path("summary").asText("").isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "The AI assistant gave an answer we couldn't use. Please try again.");
                 if (!guardrails.fairHousing(out.path("summary").asText(), out.path("suggestedReply").asText("")).isEmpty())
                     throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "FAIR_HOUSING", "That suggestion was blocked because its wording may breach fair housing rules. Edit it and try again.");
+            }
+            case "review-moderation" -> {
+                JsonNode sc = out.path("score");
+                if (!sc.isNumber() || sc.asInt() < 0 || sc.asInt() > 100) throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID", "The AI assistant gave an answer we couldn't use. Please try again.");
             }
             case "triage" -> {
                 if (!List.of("PLUMBING", "HVAC", "ELECTRICAL", "APPLIANCE", "PEST", "GENERAL").contains(out.path("category").asText()))

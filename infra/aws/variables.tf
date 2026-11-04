@@ -96,9 +96,27 @@ variable "create_github_oidc_provider" {
 }
 
 variable "ai_provider" {
-  description = "AI_PROVIDER for the ai service: empty = offline rule engine, 'bedrock' or 'openai'."
+  description = "AI_PROVIDER for the ai service: empty = offline rule engine, 'bedrock' or 'openai'. Bedrock uses the task role, so no key is stored."
   type        = string
-  default     = ""
+  default     = "bedrock"
+}
+
+variable "bedrock_region" {
+  description = "BEDROCK_REGION: the region the AI service calls Bedrock in. The default models are not offered in every region (the rest of the stack runs in var.region), and the vision model is a US cross-region profile."
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "bedrock_model_id" {
+  description = "BEDROCK_MODEL_ID: the Bedrock text model for the assistant and review moderation. Used only when ai_provider is 'bedrock'."
+  type        = string
+  default     = "openai.gpt-oss-120b-1:0"
+}
+
+variable "bedrock_vision_model_id" {
+  description = "BEDROCK_VISION_MODEL_ID: the Bedrock model for photo checks. Empty = photo checks use the built-in simulator."
+  type        = string
+  default     = "us.amazon.nova-pro-v1:0"
 }
 
 variable "restrict_alb_to_cloudfront" {
@@ -123,4 +141,22 @@ variable "container_insights" {
   description = "Detailed per-task CloudWatch metrics. They are billed per metric, so they are off by default."
   type        = bool
   default     = false
+}
+
+variable "email_provider" {
+  description = "How the workflow service sends email: 'ses' (Amazon SES) or 'none' (only logs)."
+  type        = string
+  default     = "ses"
+}
+
+variable "email_from" {
+  description = "Sender address of every email. It is created as an SES identity and AWS sends it a verification link to open once."
+  type        = string
+  default     = "ravindra.nalawade56@gmail.com"
+}
+
+variable "email_override_to" {
+  description = "While set, every email goes to this one address instead of its real recipient (the message says who it was meant for). Empty = send to the real recipients, which needs SES production access."
+  type        = string
+  default     = "ravindra.nalawade56@gmail.com"
 }

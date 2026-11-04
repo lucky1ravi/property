@@ -2,9 +2,11 @@
 # Run from anywhere:  powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
 #   -SkipBuild   start the jars that are already built (no Maven)
 #   -Only a,b    build and start just these services (identity-service is always included)
+#   -Pitch       also write the pitch environment (three companies, ratings, a boost, campaigns, a resident moving in; see docs/LOCAL-RUN.md).
+#                Safe to repeat. Only has an effect in demo mode.
 # Postgres runs on host port 5433 so it never clashes with a PostgreSQL already installed on your machine.
 # Prerequisites: Docker Desktop (for Postgres), JDK 21+, Maven 3.9+.
-param([switch]$SkipBuild, [string[]]$Only = @())
+param([switch]$SkipBuild, [string[]]$Only = @(), [switch]$Pitch)
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -112,6 +114,8 @@ if (Test-Path $envFile) {
 # Seven services x 20 = 140 connections, within the 300 the local Postgres allows (infra/docker-compose.yml). Set DB_POOL_SIZE
 # yourself (or in .env.local) to override. AWS is not affected: there the pool size comes from the db_pool_size Terraform variable.
 if (-not $env:DB_POOL_SIZE) { $env:DB_POOL_SIZE = "20" }
+# The pitch environment is opt-in. The services read DEMO_PITCH and also require demo mode, so this does nothing anywhere else.
+if ($Pitch) { $env:DEMO_PITCH = "true"; Write-Host "Pitch environment: on" }
 $env:PGHOST = "localhost"; $env:PGPORT = "5433"; $env:PGDATABASE = "propertyos"
 $env:PGUSER = "postgres"; $env:PGPASSWORD = "postgres"
 

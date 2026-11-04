@@ -6,7 +6,7 @@ Automation rules, workflow definitions, notifications and preferences, conversat
 | --- | --- |
 | Base path | `/api/workflow` through the gateway (port 8080) |
 | Live contract | `/api/workflow/public/v3/api-docs` (OpenAPI 3), browsable in Swagger UI at `/swagger-ui.html` |
-| Endpoints | **28** (0 open to visitors, 3 for platform operators) |
+| Endpoints | **38** (0 open to visitors, 3 for platform operators) |
 | Source | `backend/workflow-service` |
 
 > This page is generated from the controllers by `node scripts/generate-api-docs.js`. Do not edit it by hand: change the controller and regenerate. CI fails when it is out of date.
@@ -21,6 +21,7 @@ Automation rules, workflow definitions, notifications and preferences, conversat
 - [notifications](#notifications) (5)
 - [platform](#platform) (3)
 - [rules](#rules) (6)
+- [webhooks](#webhooks) (10)
 - [workflows](#workflows) (4)
 
 ## automation
@@ -76,6 +77,21 @@ Automation rules, workflow definitions, notifications and preferences, conversat
 | PUT | `/api/workflow/rules/{id}` | `AUTOMATION:CONFIGURE` | Changes an automation rule. | `WorkflowController.updateRule` |
 | DELETE | `/api/workflow/rules/{id}` | `AUTOMATION:CONFIGURE` | Deletes a rule. | `WorkflowController.deleteRule` |
 | POST | `/api/workflow/rules/{id}/toggle` | `AUTOMATION:CONFIGURE` | Turns a rule on or off. | `WorkflowController.toggle` |
+
+## webhooks
+
+| Method | Path | Access | What it does | Handler |
+| --- | --- | --- | --- | --- |
+| GET | `/api/workflow/webhooks` | `WEBHOOK:VIEW` | The company's endpoints with how their recent deliveries went (never the secret). | `WebhookController.list` |
+| POST | `/api/workflow/webhooks` | `WEBHOOK:CREATE` | Adds an endpoint. | `WebhookController.create` |
+| PUT | `/api/workflow/webhooks/{id}` | `WEBHOOK:EDIT` | Changes an endpoint's name, url, events or active flag (false switches it off). | `WebhookController.update` |
+| DELETE | `/api/workflow/webhooks/{id}` | `WEBHOOK:DELETE` | Deletes an endpoint and its delivery log. | `WebhookController.delete` |
+| POST | `/api/workflow/webhooks/{id}/rotate-secret` | `WEBHOOK:EDIT` | Makes a new signing secret and returns it once. | `WebhookController.rotate` |
+| POST | `/api/workflow/webhooks/{id}/test` | `WEBHOOK:EDIT` | Sends a sample event to the endpoint now and reports what it answered. | `WebhookController.test` |
+| GET | `/api/workflow/webhooks/deliveries` | `WEBHOOK:VIEW` | The delivery log, newest first (paged). | `WebhookController.deliveries` |
+| GET | `/api/workflow/webhooks/deliveries/{id}` | `WEBHOOK:VIEW` | One delivery, with the exact JSON that was sent. | `WebhookController.delivery` |
+| POST | `/api/workflow/webhooks/deliveries/{id}/retry` | `WEBHOOK:EDIT` | Queues a failed delivery to be tried again now. | `WebhookController.retry` |
+| GET | `/api/workflow/webhooks/events` | `WEBHOOK:VIEW` | The events an endpoint can subscribe to. | `WebhookController.events` |
 
 ## workflows
 

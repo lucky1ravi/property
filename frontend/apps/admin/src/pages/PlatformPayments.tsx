@@ -96,7 +96,7 @@ export function PlatformPayments() {
   const invCols: Column<any>[] = [
     { key: 'number', header: 'Invoice', render: (r) => <button className="font-semibold text-federal-800 underline" onClick={() => setOpen(r.id)}>{r.number}</button> },
     { key: 'org_name', header: 'Company', render: (r) => <button className="text-left hover:underline" onClick={() => setLedger(r.org_id)}>{r.org_name}</button> },
-    { key: 'period', header: 'For', hideOnMobile: true, render: (r) => r.period ?? 'One-off' },
+    { key: 'period', header: 'For', hideOnMobile: true, render: (r) => r.period ?? (r.kind === 'BOOST' ? 'Listing boost' : 'One-off') },
     { key: 'amount', header: 'Amount', align: 'right', value: (r) => Number(r.amount), render: (r) => fmt.usd(r.amount, true) },
     { key: 'balance', header: 'Balance', align: 'right', value: (r) => Number(r.balance), render: (r) => fmt.usd(r.balance, true) },
     { key: 'due_date', header: 'Due', value: (r) => r.due_date, render: (r) => fmt.date(r.due_date) },
@@ -119,6 +119,7 @@ export function PlatformPayments() {
       <Stat label="Outstanding" value={fmt.usd(s?.outstanding ?? 0, true)} />
       <Stat label="Overdue" value={fmt.usd(s?.overdue ?? 0, true)} sub={`${s?.overdueCompanies ?? 0} companies`} />
       <Stat label="Failed, 30 days" value={s?.failed30d ?? 0} />
+      <Stat label="Boost revenue this month" value={fmt.usd(s?.boostRevenueThisMonth ?? 0, true)} sub={`${s?.activeBoosts ?? 0} active boost${Number(s?.activeBoosts ?? 0) === 1 ? '' : 's'}`} />
     </StatStrip>
     <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
       <Panel title="Billed and collected" description="The last six months." className="lg:col-span-2">
@@ -167,7 +168,8 @@ function Ledger({ orgId, onClose, onOpen }: { orgId: string; onClose: () => void
 export function Subscription() {
   const { data: s } = useApi<any>('/api/identity/billing/subscription');
   const invoices = usePagedApi<any>('/api/identity/billing/invoices');
-  const [open, setOpen] = useState<string | null>(null);
+  // A link from a listing boost opens the invoice to pay straight away.
+  const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get('invoice'));
   const cols: Column<any>[] = [
     { key: 'number', header: 'Invoice', render: (r) => <button className="font-semibold text-federal-800 underline" onClick={() => setOpen(r.id)}>{r.number}</button> },
     { key: 'description', header: 'What it is for', hideOnMobile: true },

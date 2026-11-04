@@ -1,12 +1,24 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { BedDouble, Bath, Ruler, MapPin, Search, UploadCloud, CheckCircle2, CircleAlert, Building2, CalendarDays, CalendarCheck, Car, Waves, Dumbbell, WashingMachine, PawPrint, Snowflake, Flame, Utensils, Sun, Package, ArrowUpDown, Wifi, ShieldCheck, PlugZap, Bike, Layers, Users, Trees, Trash2, Sparkles, DollarSign, Wallet, Home, Sofa, Microwave, Refrigerator, Check, Key, TrendingDown, Phone, Mail, Globe, type LucideIcon } from 'lucide-react';
+import { ChevronDown, BedDouble, Bath, Ruler, MapPin, Search, UploadCloud, CheckCircle2, CircleAlert, Building2, CalendarDays, CalendarCheck, Car, Waves, Dumbbell, WashingMachine, PawPrint, Snowflake, Flame, Utensils, Sun, Package, ArrowUpDown, Wifi, ShieldCheck, PlugZap, Bike, Layers, Users, Trees, Trash2, Sparkles, DollarSign, Wallet, Home, Sofa, Microwave, Refrigerator, Check, Key, TrendingDown, Phone, Mail, Globe, type LucideIcon } from 'lucide-react';
 import { Button, Field, Input, Select, Textarea, Skeleton, Carousel, EmptyState, Panel, AmenityIcon, useApi, useAction, api, fmt, toastError, errorText, Stars } from '@propertyos/ui';
 import { useBase } from '../common';
 import { SearchPage } from './PublicSearch';
 
 /** One fact about the home with its icon: "2 bedrooms", "Built 2005". */
+/** A campaign's tracking link is /homes?cmp=CODE. The code is kept in this browser so it still counts when the visitor browses on before enquiring. */
+const CAMPAIGN_KEY = 'pos.cmp';
+function rememberCampaign() {
+  try {
+    const c = new URLSearchParams(window.location.search).get('cmp');
+    if (c && /^[a-z0-9]{1,16}$/i.test(c)) localStorage.setItem(CAMPAIGN_KEY, c);
+  } catch { /* storage can be blocked; the visitor simply isn't attributed */ }
+}
+function trackedCampaign(): string | undefined {
+  try { return localStorage.getItem(CAMPAIGN_KEY) ?? undefined; } catch { return undefined; }
+}
+
 function Fact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: ReactNode }) {
   return (
     <div className="flex items-center gap-3 rounded-md border border-limestone-200 bg-white p-3">
@@ -14,6 +26,59 @@ function Fact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; v
       <span className="min-w-0"><span className="block text-xs text-graphite-500">{label}</span><span className="block truncate text-sm font-bold text-graphite-950">{value}</span></span>
     </div>
   );
+}
+
+/** Amenities as a dropdown. Closed, it says how many there are and names the first few; open, it lists them all with their icons. */
+function Amenities({ amenities, icons }: { amenities: string[]; icons?: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const preview = amenities.slice(0, 3).join(', ') + (amenities.length > 3 ? ` and ${amenities.length - 3} more` : '');
+  return (<section aria-label="Amenities">
+    <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">
+      <button type="button" id="amenities-toggle" aria-expanded={open} aria-controls="amenities-panel" onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 rounded-md border border-limestone-200 bg-white px-4 py-3 text-left hover:bg-federal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+        <span className="min-w-0">
+          <span className="block">Amenities <span className="font-normal text-graphite-500">({amenities.length})</span></span>
+          {!open && <span className="mt-0.5 block truncate text-sm font-normal text-graphite-600">{preview}</span>}
+        </span>
+        <ChevronDown size={18} aria-hidden className={`shrink-0 text-graphite-600 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+    </h2>
+    <div id="amenities-panel" role="region" aria-labelledby="amenities-toggle" hidden={!open}>
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-3 px-1 sm:grid-cols-3" data-testid="amenities">
+        {amenities.map((a) => <li key={a} className="flex items-center gap-2.5 text-sm text-graphite-800"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-federal-50 text-federal-800"><AmenityIcon icon={icons?.[a]} name={a} size={16} /></span>{a}</li>)}
+      </ul>
+    </div>
+  </section>);
+}
+
+/** What residents say about the building and the home: the average, how the stars are spread, and the latest written comments. */
+function Reviews({ listingId }: { listingId: string }) {
+  const { data } = useApi<any>(`/api/leasing/public/listings/${listingId}/reviews`);
+  if (!data) return null;
+  const groups = [{ key: 'property', title: 'The building', g: data.property }, { key: 'unit', title: 'This home', g: data.unit }].filter((x) => x.g && Number(x.g.count) > 0);
+  if (groups.length === 0) return null;
+  return (<section aria-label="Resident ratings and comments" data-testid="reviews">
+    <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">What residents say</h2>
+    <div className="space-y-5">
+      {groups.map(({ key, title, g }) => {
+        const total = Number(g.count);
+        const comments = (g.comments ?? []) as any[];
+        return (<div key={key} className="rounded-md border border-limestone-200 bg-white p-4" data-testid={`reviews-${key}`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div><div className="text-sm font-semibold text-graphite-900">{title}</div><Stars value={g.average} count={g.count} size={16} className="mt-1" /></div>
+            <div className="w-full max-w-xs space-y-1" role="img" aria-label={`Rating spread for ${title.toLowerCase()}`}>
+              {[5, 4, 3, 2, 1].map((n) => { const c = Number(g.distribution?.[n] ?? 0); return (<div key={n} className="flex items-center gap-2 text-xs text-graphite-600"><span className="w-12 shrink-0 whitespace-nowrap">{n} star</span><span className="h-2 flex-1 overflow-hidden rounded-full bg-limestone-200"><span className="block h-full rounded-full bg-[#C8963E]" style={{ width: `${(c / total) * 100}%` }} /></span><span className="w-5 text-right">{c}</span></div>); })}
+            </div>
+          </div>
+          {comments.length > 0 ? <ul className="mt-4 divide-y divide-limestone-200">{comments.map((c, i) => (<li key={i} className="py-3 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><Stars value={c.stars} size={13} /><span className="text-sm font-semibold text-graphite-900">{c.name}</span><span className="text-xs text-graphite-500">{fmt.date(c.created_at)}</span></div>
+            <p className="mt-1 max-w-[68ch] text-sm leading-relaxed text-graphite-700">{c.comment}</p>
+            {c.reply && <div className="mt-2 max-w-[68ch] rounded border-l-2 border-federal-700 bg-limestone-50 px-3 py-2 text-sm text-graphite-800" data-testid="review-reply"><div className="text-xs font-semibold text-graphite-700">Response from {c.reply_by} · {fmt.date(c.replied_at)}</div>{c.reply}</div>}</li>))}</ul>
+            : <p className="mt-3 text-sm text-graphite-500">Residents have rated this but not written a comment yet.</p>}
+        </div>);
+      })}
+    </div>
+  </section>);
 }
 
 function Detail() {
@@ -24,7 +89,7 @@ function Detail() {
   const [done, setDone] = useState<string | null>(null);
   const [f, setF] = useState<any>({ name: '', email: '', phone: '', message: '', scheduledAt: '' });
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
-  const enquire = useAction(() => api.post<any>(`/api/leasing/public/listings/${id}/enquiries`, { name: f.name, email: f.email, phone: f.phone, message: f.message }), { silent: true, onSuccess: (r) => setDone(r.reply) });
+  const enquire = useAction(() => api.post<any>(`/api/leasing/public/listings/${id}/enquiries`, { name: f.name, email: f.email, phone: f.phone, message: f.message, campaign: trackedCampaign() }), { silent: true, onSuccess: (r) => setDone(r.reply) });
   const tour = useAction(() => api.post<any>(`/api/leasing/public/listings/${id}/showings`, { name: f.name, email: f.email, type: 'SELF_GUIDED', scheduledAt: new Date(f.scheduledAt).toISOString() }), { silent: true, onSuccess: () => setDone('Tour requested. We’ll confirm the time by email.') });
   if (isLoading) return <Skeleton className="h-96" />;
   if (!l) return <EmptyState title="This home is no longer available" action={<Link to={base}><Button>See other homes</Button></Link>} />;
@@ -38,8 +103,10 @@ function Detail() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]">
         <div>
           <Carousel images={l.photos ?? []} alt={l.title} />
+          {(l.photos ?? []).filter(Boolean).length === 0 && <div className="flex aspect-[16/9] items-center justify-center rounded-md bg-limestone-200 text-limestone-500" role="img" aria-label="No photos yet"><Building2 size={48} aria-hidden /></div>}
           <div className="mt-5 flex flex-wrap items-start justify-between gap-3">
             <div>
+              {l.sponsored && <span className="mb-1 inline-block rounded bg-graphite-900/85 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-white" data-testid="sponsored">Sponsored</span>}
               <h1 className="text-2xl font-extrabold text-graphite-950">{l.title}</h1>
               <p className="mt-1 flex items-center gap-1 text-graphite-600"><MapPin size={14} />{l.street}, {l.city}, {l.state} {l.zip}</p>
             </div>
@@ -64,12 +131,7 @@ function Detail() {
           <p className="max-w-[68ch] leading-relaxed text-graphite-700">{l.description}</p>
           {(l.highlights ?? []).length > 0 && <ul className="mt-4 flex flex-wrap gap-2">{(l.highlights ?? []).map((h: string) => <li key={h} className="inline-flex items-center gap-1.5 rounded-full border border-limestone-300 bg-white px-3 py-1 text-sm text-graphite-700"><Sparkles size={13} className="text-[#C8963E]" aria-hidden />{h}</li>)}</ul>}
 
-          {amenities.length > 0 && <>
-            <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">Amenities</h2>
-            <ul className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3" data-testid="amenities">
-              {amenities.map((a) => { return <li key={a} className="flex items-center gap-2.5 text-sm text-graphite-800"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-federal-50 text-federal-800"><AmenityIcon icon={l.amenity_icons?.[a]} name={a} size={16} /></span>{a}</li>; })}
-            </ul>
-          </>}
+          {amenities.length > 0 && <Amenities amenities={amenities} icons={l.amenity_icons} />}
 
           {(l.other_homes ?? []).length > 0 && <>
             <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">Other homes at {l.property_name}</h2>
@@ -82,6 +144,8 @@ function Detail() {
               ))}
             </ul>
           </>}
+
+          <Reviews listingId={String(id)} />
 
           <h2 className="mb-3 mt-7 text-lg font-bold text-graphite-950">Costs</h2>
           <dl className="max-w-md divide-y divide-limestone-200 rounded-md border border-limestone-200 bg-white text-sm">
@@ -141,7 +205,7 @@ function Apply() {
   const [res, setRes] = useState<any>(null);
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const submit = useAction(() => api.post<any>(`/api/leasing/public/listings/${id}/applications`, {
-    ...f, monthlyIncome: Number(f.monthlyIncome), monthsEmployed: f.monthsEmployed ? Number(f.monthsEmployed) : undefined, currentRent: f.currentRent ? Number(f.currentRent) : undefined, occupants: Number(f.occupants),
+    ...f, campaign: trackedCampaign(), monthlyIncome: Number(f.monthlyIncome), monthsEmployed: f.monthsEmployed ? Number(f.monthsEmployed) : undefined, currentRent: f.currentRent ? Number(f.currentRent) : undefined, occupants: Number(f.occupants),
   }), { silent: true, onSuccess: setRes });
   if (res) return (
     <div className="space-y-5">
@@ -239,6 +303,7 @@ function ApplicantDocuments() {
 }
 
 export function PublicSite() {
+  useEffect(rememberCampaign, []);
   return (
     <Routes>
       <Route index element={<SearchPage />} />

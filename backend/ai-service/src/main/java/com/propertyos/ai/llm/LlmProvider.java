@@ -9,7 +9,7 @@ import java.util.Optional;
 
 /**
  * Chooses the model provider from environment variables, so keys never live in code or the database:
- * AI_PROVIDER=openai|bedrock|none, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL, AWS_REGION, BEDROCK_MODEL_ID.
+ * AI_PROVIDER=openai|bedrock|none, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL, AWS_REGION, BEDROCK_REGION, BEDROCK_MODEL_ID.
  * With no key the platform runs in offline mode: every AI feature falls back to rules.
  */
 @Component
@@ -20,13 +20,15 @@ public class LlmProvider {
 
     public LlmProvider(ObjectMapper mapper) {
         String choice = env("AI_PROVIDER", "");
+        // Bedrock models are offered in some regions only, so it can use a different region from the rest of the deployment (BEDROCK_REGION).
+        String bedrockRegion = env("BEDROCK_REGION", env("AWS_REGION", "us-east-1"));
         String openAiKey = env("OPENAI_API_KEY", "");
         Llm built = null;
         try {
             if (("openai".equalsIgnoreCase(choice) || choice.isEmpty()) && !openAiKey.isBlank()) {
                 built = new OpenAiLlm(mapper, openAiKey, env("OPENAI_MODEL", "gpt-4o-mini"), env("OPENAI_BASE_URL", "https://api.openai.com/v1"));
             } else if ("bedrock".equalsIgnoreCase(choice)) {
-                built = new BedrockLlm(mapper, env("AWS_REGION", "us-east-1"), env("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-haiku-20241022-v1:0"));
+                built = new BedrockLlm(mapper, bedrockRegion, env("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-haiku-20241022-v1:0"));
             }
         } catch (Exception e) {
             log.warn("AI provider could not start, running in offline mode: {}", e.getMessage());
@@ -35,7 +37,7 @@ public class LlmProvider {
         Llm v = null;
         try {
             String visionModel = env("BEDROCK_VISION_MODEL_ID", "");
-            if ("bedrock".equalsIgnoreCase(choice) && !visionModel.isBlank()) v = new BedrockLlm(mapper, env("AWS_REGION", "us-east-1"), visionModel, true);
+            if ("bedrock".equalsIgnoreCase(choice) && !visionModel.isBlank()) v = new BedrockLlm(mapper, bedrockRegion, visionModel, true);
             else if (built != null && built.provider().equals("openai") && built.supportsVision()) v = built;
         } catch (Exception e) {
             log.warn("Image model could not start, image checks use the built-in simulator: {}", e.getMessage());

@@ -6,7 +6,7 @@ Owners, properties, units, amenities, listings, leads, showings, applications, l
 | --- | --- |
 | Base path | `/api/leasing` through the gateway (port 8080) |
 | Live contract | `/api/leasing/public/v3/api-docs` (OpenAPI 3), browsable in Swagger UI at `/swagger-ui.html` |
-| Endpoints | **71** (7 open to visitors, 4 for platform operators) |
+| Endpoints | **101** (9 open to visitors, 15 for platform operators) |
 | Source | `backend/leasing-service` |
 
 > This page is generated from the controllers by `node scripts/generate-api-docs.js`. Do not edit it by hand: change the controller and regenerate. CI fails when it is out of date.
@@ -18,17 +18,19 @@ Owners, properties, units, amenities, listings, leads, showings, applications, l
 - [alerts](#alerts) (1)
 - [amenities](#amenities) (5)
 - [applications](#applications) (6)
+- [boosts](#boosts) (2)
+- [campaigns](#campaigns) (9)
 - [deadlines](#deadlines) (1)
 - [leads](#leads) (2)
 - [leases](#leases) (5)
-- [listings](#listings) (7)
+- [listings](#listings) (11)
 - [owners](#owners) (6)
-- [platform](#platform) (4)
+- [platform](#platform) (15)
 - [properties](#properties) (8)
-- [public](#public) (7)
+- [public](#public) (9)
 - [reports](#reports) (6)
 - [residents](#residents) (1)
-- [reviews](#reviews) (4)
+- [reviews](#reviews) (6)
 - [showings](#showings) (2)
 - [units](#units) (6)
 
@@ -58,6 +60,27 @@ Owners, properties, units, amenities, listings, leads, showings, applications, l
 | POST | `/api/leasing/applications/{id}/lease` | `LEASE:CREATE` | Creates a lease from an approved application. | `LeasingController.leaseFromApplication` |
 | POST | `/api/leasing/applications/{id}/screen` | `APPLICATION:EDIT` | Runs screening on an application. | `LeasingController.screen` |
 | POST | `/api/leasing/applications/{id}/upload-link` | `APPLICATION:EDIT` | A link the leasing team can send so the applicant uploads documents without an account. | `LeasingController.uploadLink` |
+
+## boosts
+
+| Method | Path | Access | What it does | Handler |
+| --- | --- | --- | --- | --- |
+| GET | `/api/leasing/boosts/options` | `BOOST:VIEW` | The boost periods and prices on offer, and what a boost does. | `BoostController.options` |
+| GET | `/api/leasing/boosts/quote` | `BOOST:VIEW` | What a period would cost this company, with an optional promo code (query: days, code). | `BoostController.quote` |
+
+## campaigns
+
+| Method | Path | Access | What it does | Handler |
+| --- | --- | --- | --- | --- |
+| GET | `/api/leasing/campaigns` | `CAMPAIGN:VIEW` | The company's campaigns with leads, applications and cost per lead, and the keys that identify them (never the secret). | `CampaignController.list` |
+| POST | `/api/leasing/campaigns` | `CAMPAIGN:CREATE` | Makes a campaign. | `CampaignController.create` |
+| GET | `/api/leasing/campaigns/{id}` | `CAMPAIGN:VIEW` | One campaign with its numbers and its recent activity (never the secret). | `CampaignController.get` |
+| PUT | `/api/leasing/campaigns/{id}` | `CAMPAIGN:EDIT` | Changes a campaign's name, channel, spend or dates. | `CampaignController.update` |
+| POST | `/api/leasing/campaigns/{id}/pause` | `CAMPAIGN:EDIT` | Pauses a campaign: its inbound address and tracking link stop bringing in new leads. | `CampaignController.pause` |
+| POST | `/api/leasing/campaigns/{id}/resume` | `CAMPAIGN:EDIT` | Resumes a paused campaign. | `CampaignController.resume` |
+| POST | `/api/leasing/campaigns/{id}/rotate-key` | `CAMPAIGN:EDIT` | Replaces the signing secret (the old one stops working at once). | `CampaignController.rotate` |
+| POST | `/api/leasing/campaigns/{id}/test-lead` | `CAMPAIGN:EDIT` | Sends a realistic sample lead through the campaign's own signed inbound address, for demonstrations. | `CampaignController.testLead` |
+| GET | `/api/leasing/campaigns/series` | `CAMPAIGN:VIEW` | Leads over time for charts (query: campaignId for one campaign, days, bucket=day or week). | `CampaignController.series` |
 
 ## deadlines
 
@@ -93,6 +116,10 @@ Owners, properties, units, amenities, listings, leads, showings, applications, l
 | DELETE | `/api/leasing/listings/{id}` | `LISTING:DELETE` | Creates a draft listing for a unit. | `LeasingController.deleteListing` |
 | POST | `/api/leasing/listings/{id}/actions/{action}` | `LISTING:VIEW` | Moves a listing through its workflow, for example submit, approve or unpublish. | `LeasingController.listingAction` |
 | POST | `/api/leasing/listings/{id}/ai-assist` | `LISTING:EDIT` | Suggests a rent from comparable units (reduced after 30 days vacant) and drafts listing copy with AI, falling back to rules when no model is available. | `LeasingController.aiAssist` |
+| GET | `/api/leasing/listings/{id}/boosts` | `BOOST:VIEW` | A listing's boosts, newest first: waiting for payment, running, or over. | `BoostController.forListing` |
+| POST | `/api/leasing/listings/{id}/boosts` | `BOOST:CREATE` | Buys a boost (needs BOOST:CREATE, held by company administrators by default) for a live listing. | `BoostController.boost` |
+| GET | `/api/leasing/listings/{id}/ranking` | `LISTING:VIEW` | Explains where a listing ranks in public search: its score out of 100 and the points each factor adds. | `LeasingController.ranking` |
+| GET | `/api/leasing/listings/ranking` | `LISTING:VIEW` | Your company's listings with their ranking score, where each live one sits on the public site and what would help most. | `LeasingController.rankingOverview` |
 
 ## owners
 
@@ -113,6 +140,17 @@ Owners, properties, units, amenities, listings, leads, showings, applications, l
 | POST | `/api/leasing/platform/amenities` | `PLATFORM:CONFIGURE` | &nbsp; | `AmenityController.platformAdd` |
 | PUT | `/api/leasing/platform/amenities/{id}` | `PLATFORM:CONFIGURE` | &nbsp; | `AmenityController.platformChange` |
 | DELETE | `/api/leasing/platform/amenities/{id}` | `PLATFORM:CONFIGURE` | &nbsp; | `AmenityController.platformRemove` |
+| GET | `/api/leasing/platform/boosts` | `PLATFORM:VIEW` | Every company's boosts, newest first (paged: page, size, sort, dir, q). | `BoostAdminController.list` |
+| POST | `/api/leasing/platform/boosts/{id}/cancel` | `PLATFORM:CONFIGURE` | Ends a boost now. | `BoostAdminController.cancel` |
+| GET | `/api/leasing/platform/boosts/eligible` | `PLATFORM:VIEW` | Live listings that could be given a free boost, matching the search text (query: q). | `BoostAdminController.eligible` |
+| POST | `/api/leasing/platform/boosts/grant` | `PLATFORM:CONFIGURE` | Gives a live listing a free boost starting now. | `BoostAdminController.grant` |
+| GET | `/api/leasing/platform/boosts/overview` | `PLATFORM:VIEW` | Boosts running, waiting for payment, granted for free and ending within 3 days. | `BoostAdminController.overview` |
+| GET | `/api/leasing/platform/boosts/prices` | `PLATFORM:VIEW` | Prices agreed with individual companies. | `BoostAdminController.prices` |
+| PUT | `/api/leasing/platform/boosts/prices` | `PLATFORM:CONFIGURE` | Sets what one company pays for one period. | `BoostAdminController.setPrice` |
+| DELETE | `/api/leasing/platform/boosts/prices` | `PLATFORM:CONFIGURE` | Takes a company back to the standard price for a period (query: orgId, days). | `BoostAdminController.removePrice` |
+| GET | `/api/leasing/platform/boosts/promos` | `PLATFORM:VIEW` | Promo codes with their use counts. | `BoostAdminController.promos` |
+| POST | `/api/leasing/platform/boosts/promos` | `PLATFORM:CONFIGURE` | Makes a promo code. | `BoostAdminController.createPromo` |
+| PUT | `/api/leasing/platform/boosts/promos/{code}` | `PLATFORM:CONFIGURE` | Switches a promo code on or off. | `BoostAdminController.promoActive` |
 
 ## properties
 
@@ -132,10 +170,12 @@ Owners, properties, units, amenities, listings, leads, showings, applications, l
 | Method | Path | Access | What it does | Handler |
 | --- | --- | --- | --- | --- |
 | GET | `/api/leasing/public/facets` | open | Public: the choices worth offering in the filters (cities, types, amenities with icons, rent and size ranges). | `PublicController.facets` |
+| POST | `/api/leasing/public/inbound/{campaignKey}` | open | Public, signed: a campaign's inbound address. | `PublicController.inbound` |
 | GET | `/api/leasing/public/listings` | open | Public: lists live rentals one home at a time. | `PublicController.listings` |
 | GET | `/api/leasing/public/listings/{id}` | open | Public: returns one live rental. | `PublicController.listing` |
 | POST | `/api/leasing/public/listings/{id}/applications` | open | Public: submits a rental application. | `PublicController.apply` |
 | POST | `/api/leasing/public/listings/{id}/enquiries` | open | Public: records an enquiry about a rental as a lead. | `PublicController.enquire` |
+| GET | `/api/leasing/public/listings/{id}/reviews` | open | Public: the resident ratings and written comments for a rental's property and unit. | `PublicController.reviews` |
 | POST | `/api/leasing/public/listings/{id}/showings` | open | Public: requests a showing of a rental. | `PublicController.showing` |
 | GET | `/api/leasing/public/properties` | open | Public: lists properties that have matching homes available, each with those homes inside it. | `PublicController.properties` |
 
@@ -161,6 +201,8 @@ Owners, properties, units, amenities, listings, leads, showings, applications, l
 | Method | Path | Access | What it does | Handler |
 | --- | --- | --- | --- | --- |
 | PUT | `/api/leasing/reviews` | `LEASE:VIEW` | Rates the property or the unit, or changes the rating. | `ReviewController.rate` |
+| PUT | `/api/leasing/reviews/{id}/moderation` | `REVIEW:APPROVE` | Staff: shows or hides one comment on the public page whatever the AI scored it, or hands the decision back to the AI. | `ReviewController.moderate` |
+| PUT | `/api/leasing/reviews/{id}/reply` | `REVIEW:EDIT` | Staff: the company's public reply to a review. | `ReviewController.reply` |
 | GET | `/api/leasing/reviews/{type}/{id}` | `LEASE:VIEW` | The ratings of a property or unit that the signed-in person may see. | `ReviewController.list` |
 | DELETE | `/api/leasing/reviews/{type}/{id}` | `LEASE:VIEW` | Takes back the resident's own rating. | `ReviewController.withdraw` |
 | GET | `/api/leasing/reviews/mine` | `LEASE:VIEW` | A resident's home as they can rate it, with the rating they already gave. | `ReviewController.mine` |

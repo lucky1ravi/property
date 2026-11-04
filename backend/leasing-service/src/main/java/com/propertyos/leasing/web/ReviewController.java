@@ -36,6 +36,18 @@ public class ReviewController {
         return Map.of("withdrawn", true);
     }
 
+    /** Staff: the company's public reply to a review. Body: reply (empty removes it). */
+    @PutMapping("/{id}/reply") @RequiresPermission("REVIEW:EDIT")
+    public Map<String, Object> reply(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        return reviews.reply(id, com.propertyos.common.web.Req.str(body, "reply"));
+    }
+
+    /** Staff: shows or hides one comment on the public page whatever the AI scored it, or hands the decision back to the AI. Body: decision (SHOW, HIDE or CLEAR), reason. */
+    @PutMapping("/{id}/moderation") @RequiresPermission("REVIEW:APPROVE")
+    public Map<String, Object> moderate(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        return reviews.moderate(id, com.propertyos.common.web.Req.str(body, "decision"), com.propertyos.common.web.Req.str(body, "reason"));
+    }
+
     /** The ratings of a property or unit that the signed-in person may see. */
     @GetMapping("/{type}/{id}") @RequiresPermission("LEASE:VIEW")
     public Map<String, Object> list(@PathVariable String type, @PathVariable UUID id) {

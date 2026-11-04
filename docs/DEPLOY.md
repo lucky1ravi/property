@@ -29,7 +29,9 @@ You never put secrets in the repository. Set every value below in the host's das
 | `BEDROCK_VISION_MODEL_ID` | optional, Bedrock model for photo checks, e.g. `us.amazon.nova-pro-v1:0` |
 | `API_DOCS_ENABLED` | `false` in production to hide the OpenAPI JSON and Swagger UI (default `true`) |
 
-For Bedrock use `AI_PROVIDER=bedrock`, `AWS_REGION`, `BEDROCK_MODEL_ID` (for example `global.openai.gpt-6-luna`) and either a Bedrock API key in `AWS_BEARER_TOKEN_BEDROCK` or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`.
+On AWS (Terraform in `infra/aws`) Bedrock is the default: `ai_provider = "bedrock"`, `bedrock_model_id = "openai.gpt-oss-120b-1:0"` and `bedrock_vision_model_id = "us.amazon.nova-pro-v1:0"` and `bedrock_region = "us-east-1"` (where those models are offered) are set as environment variables on the services, and the task role is allowed to invoke Bedrock, so no key is stored. Enable both models in the Bedrock console for the deployment region first. Set `ai_provider = ""` for the offline rules.
+
+For Bedrock elsewhere use `AI_PROVIDER=bedrock`, `AWS_REGION`, `BEDROCK_MODEL_ID` (for example `global.openai.gpt-6-luna`) and either a Bedrock API key in `AWS_BEARER_TOKEN_BEDROCK` or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`.
 
 4. Under **Settings, Networking**, click **Generate Domain**. Note the URL, e.g. `https://propertyos-api.up.railway.app`.
 5. Size: with no `SERVICE` variable, the container runs all six services plus the gateway. Give it **2 GB RAM**. First start takes 1 to 2 minutes (migrations and demo data).

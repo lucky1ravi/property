@@ -16,7 +16,7 @@ export function Audit() {
 }
 
 const FEATURE_NAMES: Record<string, [string, string]> = {
-  LEASING: ['Leasing', 'Listings, leads, showings, applications and leases'], PAYMENTS: ['Payments', 'Invoices, rent collection, owner statements, deposits'],
+  LEASING: ['Leasing', 'Listings, leads, showings, applications and leases'], PAYMENTS: ['Payments', 'Invoices, rent collection, owner statements, deposits'], BOOST: ['Listing boosts', 'Pay to boost a listing in public search'], REVIEWS: ['Review replies', 'Public replies to resident reviews and the show or hide decision'], CAMPAIGNS: ['Marketing campaigns', 'Tracking links and signed inbound leads'], WEBHOOKS: ['Webhooks', 'Send events to other systems as signed JSON'],
   MAINTENANCE: ['Maintenance', 'Work orders, vendors, preventive maintenance'], AUTOMATIONS: ['Automations', 'Rules and workflow designer'],
   AI_ASSISTANT: ['AI assistant', 'Chat assistant and AI suggestions'], BROKER_COCKPIT: ['Broker cockpit', 'Daily queue and productivity tools for brokers'],
   OPPORTUNITIES: ['Opportunities', 'Profit and growth insights'], OWNER_PORTAL: ['Owner portal', 'Owners sign in to see their properties'],

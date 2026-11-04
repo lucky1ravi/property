@@ -18,10 +18,12 @@ import java.util.*;
 public class Insights {
     private final Upstream up;
     private final ConfigClient config;
+    private final InsightWording wording;
 
-    public Insights(Upstream up, ConfigClient config) {
+    public Insights(Upstream up, ConfigClient config, InsightWording wording) {
         this.up = up;
         this.config = config;
+        this.wording = wording;
     }
 
     private static Map<String, Object> item(String type, String title, String detail, double impact, String impactKind, String effort, String actionLabel, String path, double confidence) {
@@ -111,6 +113,7 @@ public class Insights {
         }
         out.sort((a, b) -> Long.compare(annual(b), annual(a)));
         long annual = out.stream().mapToLong(Insights::annual).sum();
+        wording.rewrite(out);   // plainer words for the explanations; the figures above are unchanged
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("items", out);
         res.put("totalAnnualImpact", annual);

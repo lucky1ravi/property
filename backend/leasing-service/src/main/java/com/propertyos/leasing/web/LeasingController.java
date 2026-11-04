@@ -20,10 +20,12 @@ public class LeasingController {
     private final ApplicationService applications;
     private final LeaseService leases;
     private final com.propertyos.common.security.SignedLinks signedLinks;
+    private final com.propertyos.leasing.service.RankingService ranking;
 
     public LeasingController(PortfolioService portfolio, ListingService listings, LeadService leads, ApplicationService applications, LeaseService leases,
-                             com.propertyos.common.security.SignedLinks signedLinks) {
+                             com.propertyos.common.security.SignedLinks signedLinks, com.propertyos.leasing.service.RankingService ranking) {
         this.signedLinks = signedLinks;
+        this.ranking = ranking;
         this.portfolio = portfolio;
         this.listings = listings;
         this.leads = leads;
@@ -170,6 +172,18 @@ public class LeasingController {
      */
     @GetMapping("/listings/{id}") @RequiresPermission("LISTING:VIEW")
     public Object listing(@PathVariable UUID id) { return listings.get(id); }
+
+    /**
+     * Your company's listings with their ranking score, where each live one sits on the public site and what would help most.
+     */
+    @GetMapping("/listings/ranking") @RequiresPermission("LISTING:VIEW")
+    public Object rankingOverview() { return ranking.overview(); }
+
+    /**
+     * Explains where a listing ranks in public search: its score out of 100 and the points each factor adds. Only your own company's listings.
+     */
+    @GetMapping("/listings/{id}/ranking") @RequiresPermission("LISTING:VIEW")
+    public Object ranking(@PathVariable UUID id) { return ranking.explain(id); }
 
     /**
      * Creates a draft listing for a unit.

@@ -240,6 +240,56 @@ npx playwright test tests/ui/auth.ui.spec.ts tests/api/auth.api.spec.ts
 
 Tests that create companies or accounts run only in `E2E_MODE=local` (the default). Every journey the suite covers is drawn in [e2e/JOURNEYS.md](../e2e/JOURNEYS.md).
 
+### Optional: the pitch environment
+
+A ready-made story for showing PropertyOS to someone: three companies, one on each plan, with listings, photos, ratings, a running boost, two marketing campaigns and a resident who is about to move in. It is added on top of the normal demo data and is off unless you ask for it.
+
+```powershell
+cd $REPO
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -Pitch
+```
+
+Add `-SkipBuild` to reuse the jars you already built. It works on a fresh database and on one that already has demo data. Running it again is safe: nothing is duplicated, and the only thing that changes is that the running boost is moved forward so it is still running. On any other demo environment, set `DEMO_PITCH=true` before the services start. **It does nothing unless demo mode is also on** (`DEMO_MODE=true`, the local default), so it can never write into a real environment; if the switch is left on there, the services log a warning and write nothing. **Settings > Reset demo data** restores a company's pitch data along with the rest of its demo data.
+
+Everyone signs in at `http://localhost:4173/signin` with the password **`PropertyOS@2026`**. Use the **Password** tab and type the email: the **Demo personas** tab only lists the standard demo people (Sarah, Marcus, Kevin and Alex are in both).
+
+| Email | Company and plan | Role | What to show |
+| --- | --- | --- | --- |
+| `sarah.mitchell@summitridgepg.com` | Summit Ridge, **Enterprise** | Company administrator | Campaigns, the boost, ratings and replies, the ranking panel |
+| `marcus.johnson@summitridgepg.com` | Summit Ridge, Enterprise | Broker | Leads and tours for the Riverside Commons campaigns |
+| `jamie.rivera@example.com` | Summit Ridge, Enterprise | Resident | Open move-in charges: add a bank account (last four 4242) and pay |
+| `kevin.park@harborviewres.com` | Harborview, **Growth** | Company administrator | Campaigns and webhooks are on |
+| `tom.nakamura@harborviewres.com` | Harborview, Growth | Broker | Sees only Bayline Flats |
+| `dolores.kim@cedargrovehomes.com` | Cedar Grove Rentals, **Starter** | Company administrator | Campaigns and webhooks are not in the plan; thin listings the ranking panel suggests improving |
+| `ben.ortiz@cedargrovehomes.com` | Cedar Grove Rentals, Starter | Leasing agent | Sees only Cedar Grove Cottages |
+| `alex.morgan@propertyos.io` | PropertyOS | Platform administrator | Plans, features per company, boost revenue and every company's boosts |
+
+What is in it:
+
+- **Homes.** Riverside Commons (Summit Ridge, Austin), Bayline Flats (Harborview, San Francisco) and Cedar Grove Cottages (Cedar Grove, Round Rock): 11 live homes with photos. Cedar Grove's listings are deliberately thin.
+- **Ratings.** Riverside Commons has 19 ratings averaging 4.5 (so it shows **Top rated**), with replies from the company and one abusive comment held back by moderation (its star still counts). Bayline Flats has 7 ratings averaging 4.1. Cedar Grove has 4.
+- **Boost.** The 1-bedroom 102 at Riverside Commons has a paid 7-day boost running (and an earlier finished one), so it shows **Sponsored** and ranks first. Its invoice is paid, so the platform administrator sees the boost revenue.
+- **Campaigns** (Summit Ridge). *Riverside launch · Facebook ads*: 12 leads, 3 applications, 1 signed lease, $1,850 spent. *Zillow featured homes · Riverside*: 7 leads, 1 application, $2,400 spent. Leads are NEW or RESPONDED, spread over five weeks, with tours booked, attended and requested.
+- **Ready to apply.** Tessa Nguyen (Facebook campaign) toured yesterday, scored 94 and asked how to apply. She has no application yet.
+- **Resident.** Jamie Rivera came from the Facebook campaign; their lease starts in four days and a $1,725 deposit and $1,322.50 of prorated rent are open, made by the normal billing process.
+
+To post a signed lead live: the Facebook campaign is `cmp_pitch_facebook` with secret `whsec_pitch_facebook_demo` (Zillow: `cmp_pitch_zillow`, `whsec_pitch_zillow_demo`). Their tracking links are `/homes?cmp=fbriver26` and `/homes?cmp=zlriver26`. These secrets are public demo values; never reuse them anywhere real.
+
+#### Demoing the integrations
+
+**Inbound: a lead arrives by itself (about two minutes).** Sign in as Sarah. Open *Leasing > Campaigns > Riverside launch · Facebook ads* and show the tracking link and the inbound address. In a second browser window sign in as the leasing agent, `jordan.lee@summitridgepg.com`, and open *Leads*. Back as Sarah, press **Send test lead**. Within a few seconds the lead appears in Jordan's Leads, tagged with the campaign, Jordan's bell shows *New lead from Riverside launch · Facebook ads*, and Sarah's own bell shows *Test lead received*. The campaign page's leads and cost per lead update by themselves. To show it is not just a button, run a real signed request from your laptop, with the signing already done for you:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\send-signed-lead.ps1                  # Facebook campaign (add -Campaign zillow for the other)
+powershell -ExecutionPolicy Bypass -File .\scripts\send-signed-lead.ps1 -Key cmp_... -Secret whsec_...   # a campaign you made yourself
+```
+
+The secret of a campaign you make is shown once, in the dialog after you create it. A wrong secret is refused with a 401 and a clear message.
+
+**Outbound: the platform tells another system (about two minutes).** This needs a plan with webhooks (Growth or Enterprise: sign in as Sarah or Kevin) and a machine that can reach the internet. Open <https://webhook.site> and copy your unique address. In *Administration > Webhooks* choose **Add endpoint**, paste the address, tick *Application submitted* and *Lease signed*, and save. Press **Test** on the endpoint: webhook.site shows the signed request (the `X-PropertyOS-Signature` header and a JSON body with a plain-English `text` line) and the *Delivery log* shows it as Delivered with the response code. For a real event, submit an application on a home on the public site. Addresses must be https and public: `localhost` and private addresses are refused on purpose, so a receiver on your own laptop needs a tunnel such as ngrok.
+
+For a more convincing finish, send the same events to a tool people recognise. A **Slack** incoming-webhook address works as it is, because every payload carries a `text` line, and the message appears in the channel. With **Zapier** or **Make**, start a Zap or scenario with a *Catch Hook* step, paste its address as the endpoint, and add an action such as a Slack message or a Google Sheets row. Set the tool up and send one test event beforehand.
+
 ### Stop everything
 
 ```powershell

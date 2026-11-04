@@ -13,6 +13,10 @@
     "RECURRING_MAINTENANCE": true,
     "MESSAGING": true,
     "DOCUMENTS": true,
+    "BOOST": true,
+    "REVIEWS": true,
+    "CAMPAIGNS": true,
+    "WEBHOOKS": true,
     "ESIGN": true,
     "SELF_GUIDED_SHOWINGS": false,
     "AI_VOICE_AGENT": false
@@ -61,6 +65,7 @@
     "ASSISTANT": { "enabled": true, "tone": "professional" },
     "LEASING_AGENT": { "enabled": true },
     "CONVERSATION_ASSIST": { "enabled": true },
+    "REVIEW_MODERATION": { "enabled": true },
     "SMART_FILING": { "enabled": true },
     "IMAGE_MODERATION": { "enabled": true },
     "LEASE_ABSTRACT": { "enabled": true },
@@ -68,7 +73,8 @@
     "STATEMENT_NARRATIVE": { "enabled": true },
     "RESIDENT_OUTLOOK": { "enabled": true },
     "PHOTO_TRIAGE": { "enabled": true },
-    "FAIR_HOUSING_CHECK": { "enabled": true }
+    "FAIR_HOUSING_CHECK": { "enabled": true },
+    "INSIGHT_WORDING": { "enabled": true }
   },
   "moderation": {
     "autoApproveConfidence": 80,
@@ -78,6 +84,33 @@
     "maxPhotosPerProperty": 30,
     "allowedExtensions": ["jpg", "jpeg", "png", "webp", "gif"],
     "notifyUploaderOnDecision": true
+  },
+  "reviewModeration": { "minPublicScore": 70 },
+  "webhooks": {
+    "maxAttempts": 6,
+    "backoffSeconds": [60, 300, 1800, 7200, 21600],
+    "timeoutSeconds": 5,
+    "maxEndpoints": 10,
+    "autoDisableAfterFailures": 20,
+    "retentionDays": 30
+  },
+  "campaigns": {
+    "inboundPerMinute": 120,
+    "maxPerCompany": 100
+  },
+  "boost": {
+    "onSale": true,
+    "prices": { "7": 49, "14": 89, "30": 149 },
+    "planDiscountPercent": { "STARTER": 0, "GROWTH": 0, "ENTERPRISE": 0 },
+    "bonusPoints": 15,
+    "maxSharePercent": 30,
+    "unpaidExpiryDays": 14
+  },
+  "ranking": {
+    "weights": { "plan": 15, "rating": 35, "freshness": 20, "quality": 30 },
+    "rating": { "priorMean": 4.0, "priorWeight": 5, "unitShare": 0.4 },
+    "freshness": { "halfLifeDays": 30 },
+    "quality": { "photosTarget": 8, "descriptionChars": 300 }
   },
   "notifications": {
     "channels": { "email": true, "sms": true, "inApp": true },

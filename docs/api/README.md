@@ -17,13 +17,13 @@ flowchart LR
 | Service | What it serves | Endpoints | Page |
 | --- | --- | --- | --- |
 | identity | Sign-in, users, roles and permissions, companies, plans, configuration, audit, the public website content and the platform operator console. | 66 | [identity.md](identity.md) |
-| leasing | Owners, properties, units, amenities, listings, leads, showings, applications, leases, reviews, reports and the public homes search. | 71 | [leasing.md](leasing.md) |
+| leasing | Owners, properties, units, amenities, listings, leads, showings, applications, leases, reviews, reports and the public homes search. | 101 | [leasing.md](leasing.md) |
 | billing | Invoices, payments, deposits, expenses, ledger, owner statements, tax forms, and what companies pay PropertyOS. | 33 | [billing.md](billing.md) |
 | maintenance | Work orders, vendors, vendor ratings, preventive maintenance and repair reports. | 20 | [maintenance.md](maintenance.md) |
-| workflow | Automation rules, workflow definitions, notifications and preferences, conversations, and the operator delivery log. | 28 | [workflow.md](workflow.md) |
+| workflow | Automation rules, workflow definitions, notifications and preferences, conversations, and the operator delivery log. | 38 | [workflow.md](workflow.md) |
 | ai | The assistant, the AI studio tools, guardrails and the AI audit. | 12 | [ai.md](ai.md) |
 | document | The document library, versions, photos and moderation, e-signature and document requirements. | 36 | [document.md](document.md) |
-| **Total** | | **266** | |
+| **Total** | | **306** | |
 
 ## How to use it
 

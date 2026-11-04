@@ -8,6 +8,8 @@ import { Enquiries, Features } from './pages/Website';
 import { Plans } from './pages/Plans';
 import { ServiceHealth, CompanyUsage, DeliveryLog } from './pages/Operations';
 import { PlatformPayments, Subscription } from './pages/PlatformPayments';
+import { Boosts } from './pages/Boosts';
+import { Webhooks } from './pages/Webhooks';
 import { ProductDefaults } from './pages/ProductDefaults';
 
 export default function App() {
@@ -21,6 +23,7 @@ export default function App() {
         <Route path="automations" element={<Automations />} />
         <Route path="workflows" element={<Workflows />} />
         <Route path="audit" element={<Audit />} />
+        <Route path="webhooks" element={<Webhooks />} />
         <Route path="platform" element={<Platform />} />
         <Route path="defaults" element={<ProductDefaults />} />
         <Route path="plans" element={<Plans />} />
@@ -28,6 +31,7 @@ export default function App() {
         <Route path="features" element={<Features />} />
         <Route path="amenities" element={<AmenityManager platform />} />
         <Route path="payments" element={<PlatformPayments />} />
+        <Route path="boosts" element={<Boosts />} />
         <Route path="subscription" element={<Subscription />} />
         <Route path="health" element={<ServiceHealth />} />
         <Route path="usage" element={<CompanyUsage />} />

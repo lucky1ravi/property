@@ -94,7 +94,7 @@ export function Stat({ label, value, sub, trend, emphasis, onClick, delay = 0 }:
   return (
     <Comp initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay, ease: EASE }} onClick={onClick} className={clsx('min-w-0 text-left', onClick && 'rounded transition-colors hover:bg-limestone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slateblue-600')}>
       <div className="truncate text-xs font-semibold uppercase tracking-wide text-graphite-500">{label}</div>
-      <div className={clsx('mt-1 font-extrabold tabular-nums tracking-[-0.02em] text-graphite-950', 'text-[26px] leading-8', emphasis && 'text-federal-900')}>{typeof value === 'string' || typeof value === 'number' ? <CountUp value={value} /> : value}</div>
+      <div className={clsx('mt-1 whitespace-nowrap font-extrabold tabular-nums tracking-[-0.02em] text-graphite-950', 'text-[22px] leading-7', emphasis && 'text-federal-900')}>{typeof value === 'string' || typeof value === 'number' ? <CountUp value={value} /> : value}</div>
       {(sub || trend) ? (
         <div className="mt-0.5 flex min-h-4 items-center gap-2 truncate text-xs text-graphite-500">
           {trend && <span className={clsx('font-semibold', trend.good ? 'text-good-700' : 'text-crit-700')}>{trend.value}</span>}
@@ -107,7 +107,7 @@ export function Stat({ label, value, sub, trend, emphasis, onClick, delay = 0 }:
 
 /** A horizontal strip of figures separated by rules (instead of a grid of identical cards). */
 export function StatStrip({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={clsx('grid grid-cols-2 divide-limestone-200 rounded-md border border-limestone-200 bg-white shadow-panel md:flex md:divide-x [&>*]:px-5 [&>*]:py-3 md:[&>*]:flex-1 max-md:[&>*:nth-child(n+3)]:border-t max-md:[&>*:nth-child(even)]:border-l max-md:[&>*]:border-limestone-200', className)}>{withDelays(children, 0.07)}</div>;
+  return <div className={clsx('grid grid-cols-2 divide-limestone-200 rounded-md border border-limestone-200 bg-white shadow-panel md:flex md:flex-wrap md:divide-x [&>*]:px-4 [&>*]:py-3 md:[&>*]:min-w-[11rem] md:[&>*]:flex-1max-md:[&>*:nth-child(n+3)]:border-t max-md:[&>*:nth-child(even)]:border-l max-md:[&>*]:border-limestone-200', className)}>{withDelays(children, 0.07)}</div>;
 }
 
 /**

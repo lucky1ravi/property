@@ -13,10 +13,12 @@ import java.util.Map;
 public class InternalController {
     private final Db db;
     private final com.propertyos.leasing.service.ApplicationService applications;
+    private final com.propertyos.leasing.service.BoostService boosts;
 
-    public InternalController(Db db, com.propertyos.leasing.service.ApplicationService applications) {
+    public InternalController(Db db, com.propertyos.leasing.service.ApplicationService applications, com.propertyos.leasing.service.BoostService boosts) {
         this.db = db;
         this.applications = applications;
+        this.boosts = boosts;
     }
 
     /** Automation hook: runs screening as the system as soon as an application arrives. */
@@ -30,6 +32,12 @@ public class InternalController {
     @Transactional(readOnly = true)
     public Map<String, Object> unitCount() {
         return Map.of("units", db.value(Long.class, "select count(*) from leasing.unit where archived_at is null"));
+    }
+
+    /** Service-to-service: how many listing boosts are running now, across all companies (the platform operator's figure). */
+    @GetMapping("/boosts/summary")
+    public Map<String, Object> boostSummary() {
+        return Map.of("active", boosts.activeCount());
     }
 
     /**

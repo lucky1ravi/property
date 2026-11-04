@@ -21,9 +21,15 @@ public class PublicService {
     private final com.propertyos.common.security.SignedLinks links;
 
     private final PublicCatalog catalog;
+    private final ReviewModeration moderation;
 
-    public PublicService(Db db, EventPublisher events, LeadService leads, PlatformTransactionManager tm, com.propertyos.common.security.SignedLinks links, PublicCatalog catalog) {
+    private final CampaignLookup campaigns;
+
+    public PublicService(Db db, EventPublisher events, LeadService leads, PlatformTransactionManager tm, com.propertyos.common.security.SignedLinks links, PublicCatalog catalog,
+                         ReviewModeration moderation, CampaignLookup campaigns) {
+        this.campaigns = campaigns;
         this.catalog = catalog;
+        this.moderation = moderation;
         this.links = links;
         this.tx = new TransactionTemplate(tm);
         this.db = db;
@@ -64,6 +70,64 @@ public class PublicService {
         });
     }
 
+    /**
+     * Public: what residents say about the home and its building: for the property and for the unit, the average, how the stars are spread
+     * and the latest written comments. Names are shortened ("Rae R.") and nothing else about the resident is shown.
+     *
+     * @throws ApiException (404) when the listing is not live
+     */
+    public Map<String, Object> reviews(UUID listingId) {
+        return asSystem(() -> {
+            Map<String, Object> l = db.one("Listing", "select l.property_id, l.unit_id, l.org_id from leasing.listing l where l.id = ? and l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))",
+                    listingId, suspendedCsv());
+            Map<String, Object> out = new LinkedHashMap<>();
+            String company = String.valueOf(catalog.branding((UUID) l.get("org_id")).get("name"));
+            int min = moderation.minScore((UUID) l.get("org_id"));
+            out.put("property", reviewSummary("PROPERTY", (UUID) l.get("property_id"), company, min));
+            out.put("unit", reviewSummary("UNIT", (UUID) l.get("unit_id"), company, min));
+            return out;
+        });
+    }
+
+    private Map<String, Object> reviewSummary(String type, UUID subject, String company, int minScore) {
+        Map<String, Object> s = db.list("select count(*) as count, coalesce(round(avg(stars), 1), 0) as average from leasing.review where subject_type = ? and subject_id = ?", type, subject).get(0);
+        Map<Integer, Long> distribution = new TreeMap<>(Comparator.reverseOrder());
+        for (int i = 1; i <= 5; i++) distribution.put(i, 0L);
+        for (Map<String, Object> r : db.list("select stars, count(*) as n from leasing.review where subject_type = ? and subject_id = ? group by stars", type, subject))
+            distribution.put(((Number) r.get("stars")).intValue(), ((Number) r.get("n")).longValue());
+        List<Map<String, Object>> comments = new ArrayList<>();
+        // Only comments the AI scored at or above the minimum are shown. Older comments with no score yet are scored here, the first time they would be shown.
+        for (Map<String, Object> r : db.list("""
+                select id, rater_name, stars, comment, created_at, reply, replied_at, ai_score, moderation_override from leasing.review
+                where subject_type = ? and subject_id = ? and comment is not null and btrim(comment) <> ''
+                  and (moderation_override = 'SHOW' or (moderation_override is null and (ai_score is null or ai_score >= ?)))
+                order by created_at desc limit 40""", type, subject, minScore)) {
+            if (comments.size() >= 20) break;
+            Integer score = r.get("ai_score") == null ? null : ((Number) r.get("ai_score")).intValue();
+            String override = (String) r.get("moderation_override");
+            if (score == null && override == null) {
+                ReviewModeration.Result mod = moderation.score(String.valueOf(r.get("comment")));
+                db.update("update leasing.review set ai_score = ?, ai_source = ?, ai_reasons = ? where id = ?", mod.score(), mod.source(), String.join(" ", mod.reasons()), r.get("id"));
+                score = mod.score();
+            }
+            if (!ReviewModeration.visible(score, override, minScore)) continue;
+            Map<String, Object> c = new LinkedHashMap<>();
+            c.put("name", ListingRanking.publicName((String) r.get("rater_name")));
+            c.put("stars", r.get("stars"));
+            c.put("comment", r.get("comment"));
+            c.put("created_at", r.get("created_at"));
+            // The reply is signed with the company's public name, never with the staff member's.
+            if (r.get("reply") != null) { c.put("reply", r.get("reply")); c.put("reply_by", company); c.put("replied_at", r.get("replied_at")); }
+            comments.add(c);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("count", s.get("count"));
+        out.put("average", s.get("average"));
+        out.put("distribution", distribution);
+        out.put("comments", comments);
+        return out;
+    }
+
     Map<String, Object> findLive(UUID id) {
         return db.one("Listing", """
                 select l.id, l.org_id as org_ref, l.property_id as property_ref, l.title, l.description, l.rent, l.deposit, l.available_date, l.photos, l.highlights,
@@ -71,6 +135,7 @@ public class PublicService {
                        p.type as property_type, p.year_built, u.number as unit_number, u.features,
                        (select round(avg(r.stars), 1) from leasing.review r where r.subject_type = 'PROPERTY' and r.subject_id = p.id) as property_rating,
                        (select count(*) from leasing.review r where r.subject_type = 'PROPERTY' and r.subject_id = p.id) as property_rating_count,
+                       exists (select 1 from leasing.listing_boost bo where bo.listing_id = l.id and bo.status = 'ACTIVE' and bo.starts_at <= now() and bo.ends_at > now()) as sponsored,
                        (select round(avg(r.stars), 1) from leasing.review r where r.subject_type = 'UNIT' and r.subject_id = u.id) as unit_rating,
                        (select count(*) from leasing.review r where r.subject_type = 'UNIT' and r.subject_id = u.id) as unit_rating_count
                 from leasing.listing l join leasing.property p on p.id = l.property_id join leasing.unit u on u.id = l.unit_id
@@ -99,6 +164,14 @@ public class PublicService {
     }
 
     Map<String, Object> doApply(UUID listingId, Map<String, Object> b) {
+        return doApply(listingId, b, "WEBSITE", null, true);
+    }
+
+    /**
+     * Stores an application. {@code source} says where it came from (WEBSITE, or a campaign's channel) and {@code campaignId} which campaign, if any; a website
+     * tracking code ({@code campaign} in the body) supplies the campaign when none is given. {@code announce} is false when the caller sends its own notice.
+     */
+    Map<String, Object> doApply(UUID listingId, Map<String, Object> b, String source, UUID campaignId, boolean announce) {
         Map<String, Object> li = db.one("Listing", """
                 select l.*, u.number, p.name as pname from leasing.listing l join leasing.unit u on u.id = l.unit_id
                 join leasing.property p on p.id = l.property_id where l.id = ? and l.status = 'LIVE' and l.org_id::text <> all (string_to_array(?, ','))""", listingId, suspendedCsv());
@@ -121,18 +194,19 @@ public class PublicService {
                     Req.str(b, "employer"), Req.integer(b, "monthsEmployed"));
         }
         UUID id = UUID.randomUUID();
+        UUID campaign = campaignId != null ? campaignId : campaigns.forTrackingCode(Req.str(b, "campaign"), orgId);
         db.update("""
                 insert into leasing.application (id, org_id, listing_id, unit_id, property_id, owner_id, applicant_id, applicant_name, applicant_email, unit_label,
-                    status, monthly_income, employer, months_employed, current_rent, landlord_reference, occupants, pets, move_in_date, documents, fee_paid)
-                values (?,?,?,?,?,?,?,?,?,?,'SUBMITTED',?,?,?,?,?,?,?,?,?::jsonb,true)""",
+                    status, monthly_income, employer, months_employed, current_rent, landlord_reference, occupants, pets, move_in_date, documents, fee_paid, source, campaign_id)
+                values (?,?,?,?,?,?,?,?,?,?,'SUBMITTED',?,?,?,?,?,?,?,?,?::jsonb,true,?,?)""",
                 id, orgId, listingId, li.get("unit_id"), li.get("property_id"), li.get("owner_id"), personId, first + " " + last, email,
                 li.get("pname") + " " + li.get("number"), Req.money(b, "monthlyIncome"), Req.str(b, "employer"), Req.integer(b, "monthsEmployed"),
                 Req.money(b, "currentRent"), Req.str(b, "landlordReference"), Optional.ofNullable(Req.integer(b, "occupants")).orElse(1),
-                Req.str(b, "pets"), Req.date(b, "moveInDate"), db.json(Req.strings(b, "documents")));
+                Req.str(b, "pets"), Req.date(b, "moveInDate"), db.json(Req.strings(b, "documents")), source, campaign);
         events.publish(orgId, "ApplicationSubmitted", "Application", id,
                 Map.of("listingId", listingId.toString(), "applicantName", first + " " + last, "applicantEmail", email, "unit", li.get("number").toString()));
         // The leasing team hears about it straight away; the applicant has no account, so this is the only way staff learn of a new application.
-        events.publish(orgId, "NotificationRequested", "Notification", UUID.randomUUID(), Map.of("audience", "ROLE", "target", "PROPERTY_MANAGER",
+        if (announce) events.publish(orgId, "NotificationRequested", "Notification", UUID.randomUUID(), Map.of("audience", "ROLE", "target", "PROPERTY_MANAGER",
                 "title", "New application: " + first + " " + last, "body", "Applied for " + li.get("pname") + " " + li.get("number") + ". Screening starts automatically.",
                 "link", "/leasing/applications/" + id, "priority", "NORMAL", "category", "LEASING"));
         // A signed link lets the applicant (who has no account) add documents to this one application.

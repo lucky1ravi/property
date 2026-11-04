@@ -11,11 +11,11 @@ type View = 'properties' | 'homes';
 
 const SORTS: Record<View, { value: string; label: string }[]> = {
   properties: [
-    { value: 'published_at:desc', label: 'Newest' }, { value: 'min_rent:asc', label: 'Rent: low to high' }, { value: 'min_rent:desc', label: 'Rent: high to low' },
+    { value: 'score:desc', label: 'Recommended' }, { value: 'rating_rank:desc', label: 'Top rated' }, { value: 'published_at:desc', label: 'Newest' }, { value: 'min_rent:asc', label: 'Rent: low to high' }, { value: 'min_rent:desc', label: 'Rent: high to low' },
     { value: 'units_available:desc', label: 'Most homes available' }, { value: 'next_available:asc', label: 'Available soonest' }, { value: 'name:asc', label: 'Name A to Z' },
   ],
   homes: [
-    { value: 'published_at:desc', label: 'Newest' }, { value: 'rent:asc', label: 'Rent: low to high' }, { value: 'rent:desc', label: 'Rent: high to low' },
+    { value: 'score:desc', label: 'Recommended' }, { value: 'rating_rank:desc', label: 'Top rated' }, { value: 'published_at:desc', label: 'Newest' }, { value: 'rent:asc', label: 'Rent: low to high' }, { value: 'rent:desc', label: 'Rent: high to low' },
     { value: 'sqft:desc', label: 'Largest first' }, { value: 'available_date:asc', label: 'Available soonest' },
   ],
 };
@@ -46,8 +46,17 @@ function Photos({ photos, alt }: { photos: string[]; alt: string }) {
   return <Carousel images={photos} alt={alt} aspect="aspect-[4/3]" className="!rounded-none" />;
 }
 
+/** Marks a home whose company paid to boost it. Always shown, so visitors can tell paid placement from the rest. */
+function Sponsored() {
+  return <span className="absolute left-2 top-2 rounded bg-graphite-900/85 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-white" data-testid="sponsored">Sponsored</span>;
+}
+
+/** A home or building is "Top rated" with at least 3 ratings averaging 4.5 stars or more. */
+const isTopRated = (avg: any, count: any) => Number(count) >= 3 && Number(avg) >= 4.5;
+
 function Rating({ avg, count }: { avg: any; count: any }) {
-  return Number(count) > 0 ? <Stars value={avg} count={count} size={13} /> : <span className="text-xs text-graphite-500">No ratings yet</span>;
+  if (!(Number(count) > 0)) return <span className="text-xs text-graphite-500">No ratings yet</span>;
+  return (<span className="inline-flex flex-wrap items-center justify-end gap-1.5"><Stars value={avg} count={count} size={13} />{isTopRated(avg, count) && <Badge tone="good">Top rated</Badge>}</span>);
 }
 
 function Company({ name }: { name?: string }) {
@@ -63,7 +72,7 @@ function PropertyCard({ p, base }: { p: any; base: string }) {
   const only = units.length === 1 ? units[0] : null;
   return (
     <article className="overflow-hidden rounded-md border border-limestone-200 bg-white shadow-panel" data-testid="property-card" aria-label={p.name}>
-      <Photos photos={p.photos ?? []} alt={p.name} />
+      <div className="relative"><Photos photos={p.photos ?? []} alt={p.name} />{p.sponsored && <Sponsored />}</div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <h2 className="min-w-0 text-base font-extrabold text-graphite-950">{only ? <Link to={`${base}/${only.id}`} className="hover:underline">{p.name}</Link> : p.name}</h2>
@@ -102,7 +111,7 @@ function PropertyCard({ p, base }: { p: any; base: string }) {
 function HomeCard({ l, base }: { l: any; base: string }) {
   return (
     <article className="overflow-hidden rounded-md border border-limestone-200 bg-white shadow-panel" data-testid="home-card" aria-label={l.title}>
-      <Photos photos={l.photos ?? []} alt={l.title} />
+      <div className="relative"><Photos photos={l.photos ?? []} alt={l.title} />{l.sponsored && <Sponsored />}</div>
       <Link to={`${base}/${l.id}`} className="block p-4 hover:bg-federal-50/40">
         <div className="flex items-baseline justify-between gap-2"><span className="text-xl font-extrabold text-graphite-950">{fmt.usd(l.rent)}<span className="text-sm font-medium text-graphite-500"> /mo</span></span><span className="text-xs text-graphite-500">Available {l.available_date ? fmt.shortDate(l.available_date) : 'now'}</span></div>
         <div className="mt-1 text-sm font-semibold text-graphite-800">{l.property_name}{l.unit_number ? <span className="font-normal text-graphite-500"> · #{l.unit_number}</span> : null}</div>

@@ -63,11 +63,21 @@ export function RatingForm({ initial, onSave, saving, label = 'Your rating', sav
  * The ratings of one thing (a property, a unit, a vendor) in a drawer: the average, how the stars are spread, and what people wrote.
  * Pass `rate` to let the signed-in person add their own rating from here.
  */
-export function ReviewsDrawer({ title, subtitle, endpoint, onClose, rate }: {
+export function ReviewsDrawer({ title, subtitle, endpoint, onClose, rate, reply, moderate }: {
   title: ReactNode; subtitle?: ReactNode; endpoint: string; onClose: () => void;
   rate?: { send: (stars: number, comment: string) => Promise<unknown>; prompt?: ReactNode };
+  /** Lets staff answer a review in public. Pass it only to people allowed to; an empty text removes the reply. */
+  reply?: (reviewId: string, text: string) => Promise<unknown>;
+  /** Lets staff override the AI moderation of a comment: SHOW it, HIDE it, or CLEAR the override. SHOW and HIDE need a reason. Pass it only to people allowed to. */
+  moderate?: (reviewId: string, decision: 'SHOW' | 'HIDE' | 'CLEAR', reason: string) => Promise<unknown>;
 }) {
   const { data, isLoading, refetch } = useApi<any>(endpoint);
+  const [replying, setReplying] = useState<string | null>(null);
+  const [text, setText] = useState('');
+  const [deciding, setDeciding] = useState<{ id: string; decision: 'SHOW' | 'HIDE' } | null>(null);
+  const [why, setWhy] = useState('');
+  const decide = useAction((v: { id: string; decision: 'SHOW' | 'HIDE' | 'CLEAR'; reason: string }) => moderate!(v.id, v.decision, v.reason), { success: 'Saved', onSuccess: () => { setDeciding(null); setWhy(''); void refetch(); } });
+  const sendReply = useAction((v: { id: string; text: string }) => reply!(v.id, v.text), { success: 'Reply saved', onSuccess: () => { setReplying(null); void refetch(); } });
   const save = useAction((v: { stars: number; comment: string }) => rate!.send(v.stars, v.comment), { success: 'Thank you. Your rating is saved.', onSuccess: () => refetch() });
   const total = Number(data?.count ?? 0);
   const rows: any[] = data?.rows ?? data?.items ?? [];
@@ -94,7 +104,22 @@ export function ReviewsDrawer({ title, subtitle, endpoint, onClose, rate }: {
                   <li key={r.id} className="space-y-1 px-3 py-3">
                     <div className="flex items-center justify-between gap-3"><span className="text-sm font-semibold text-graphite-900">{r.rater_name}{r.rater_role ? <span className="ml-2 text-xs font-normal text-graphite-500">{String(r.rater_role).toLowerCase()}</span> : null}</span><Stars value={r.stars} size={12} /></div>
                     {r.comment && <p className="text-sm text-graphite-700">{r.comment}</p>}
+                    {r.hidden_from_public && <div className="rounded bg-warn-50 px-2 py-1.5 text-xs text-graphite-800" role="note" data-testid="hidden-comment"><strong>Hidden from visitors.</strong> {r.ai_score == null ? 'Not checked yet.' : `Moderation score ${r.ai_score} is under the ${data.min_score} needed.`}{r.ai_reasons ? ` ${r.ai_reasons}` : ''}</div>}
+                    {r.moderation_override && <div className="text-xs text-graphite-600" data-testid="moderation-override">{r.moderation_override === 'SHOW' ? 'Shown' : 'Hidden'} by {r.override_by} on {fmt.date(r.override_at)}: {r.override_reason}</div>}
                     <div className="text-2xs text-graphite-500">{fmt.date(r.created_at)}</div>
+                    {moderate && r.comment && !deciding && <div className="flex flex-wrap gap-2">
+                      {r.hidden_from_public && r.moderation_override !== 'SHOW' && <Button size="sm" variant="secondary" aria-label={`Show ${r.rater_name}'s comment anyway`} onClick={() => { setDeciding({ id: r.id, decision: 'SHOW' }); setWhy(''); }}>Show anyway</Button>}
+                      {!r.hidden_from_public && <Button size="sm" variant="secondary" aria-label={`Hide ${r.rater_name}'s comment from visitors`} onClick={() => { setDeciding({ id: r.id, decision: 'HIDE' }); setWhy(''); }}>Hide from visitors</Button>}
+                      {r.moderation_override && <Button size="sm" variant="quiet" aria-label={`Let the AI decide for ${r.rater_name}'s comment`} loading={decide.isPending} onClick={() => decide.mutate({ id: r.id, decision: 'CLEAR', reason: '' })}>Back to the AI decision</Button>}
+                    </div>}
+                    {moderate && deciding && deciding.id === r.id && <div className="mt-2 space-y-2">
+                      <Textarea rows={2} value={why} maxLength={300} onChange={(e) => setWhy(e.target.value)} aria-label={`Reason for ${deciding.decision === 'SHOW' ? 'showing' : 'hiding'} ${r.rater_name}'s comment`} placeholder="Why? This is kept in the audit trail." />
+                      <div className="flex gap-2"><Button size="sm" variant="primary" disabled={!why.trim()} loading={decide.isPending} onClick={() => decide.mutate({ id: r.id, decision: deciding.decision, reason: why })}>{deciding.decision === 'SHOW' ? 'Show to visitors' : 'Hide from visitors'}</Button><Button size="sm" variant="quiet" onClick={() => setDeciding(null)}>Cancel</Button></div></div>}
+                    {r.reply && replying !== r.id && <div className="mt-2 rounded border-l-2 border-federal-700 bg-limestone-50 px-3 py-2 text-sm text-graphite-800"><div className="text-2xs font-semibold text-graphite-600">Public reply · {fmt.date(r.replied_at)}</div>{r.reply}</div>}
+                    {reply && replying !== r.id && <Button size="sm" variant="quiet" aria-label={`${r.reply ? 'Edit reply to' : 'Reply to'} ${r.rater_name}`} onClick={() => { setReplying(r.id); setText(r.reply ?? ''); }}>{r.reply ? 'Edit reply' : 'Reply publicly'}</Button>}
+                    {reply && replying === r.id && <div className="mt-2 space-y-2">
+                      <Textarea rows={3} value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} aria-label={`Public reply to ${r.rater_name}`} placeholder="Everyone who views this listing will see your reply." />
+                      <div className="flex gap-2"><Button size="sm" variant="primary" loading={sendReply.isPending} onClick={() => sendReply.mutate({ id: r.id, text })}>{text.trim() ? 'Post reply' : 'Remove reply'}</Button><Button size="sm" variant="quiet" onClick={() => setReplying(null)}>Cancel</Button></div></div>}
                   </li>
                 ))}
               </ul>

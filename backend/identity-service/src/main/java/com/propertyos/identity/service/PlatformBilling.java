@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.propertyos.common.audit.AuditService;
 import com.propertyos.common.client.ServiceClient;
 import com.propertyos.common.demo.DemoData;
+import com.propertyos.common.events.EventPublisher;
 import com.propertyos.common.events.Notifier;
 import com.propertyos.common.rls.SqlPaging;
 import com.propertyos.common.rls.Tx;
@@ -41,12 +42,14 @@ public class PlatformBilling {
     private final ServiceClient client;
     private final Notifier notifier;
     private final AuditService audit;
+    private final EventPublisher events;
 
     /** Whether the nightly timer bills companies by itself. On in demo environments; in production the operator turns it on deliberately. */
     private final boolean automatic;
 
-    public PlatformBilling(JdbcTemplate jdbc, Tx tx, ServiceClient client, Notifier notifier, AuditService audit,
+    public PlatformBilling(JdbcTemplate jdbc, Tx tx, ServiceClient client, Notifier notifier, AuditService audit, EventPublisher events,
                            @Value("${propertyos.platform-billing.auto:${propertyos.demo.enabled:true}}") boolean automatic) {
+        this.events = events;
         this.automatic = automatic;
         this.jdbc = jdbc;
         this.tx = tx;
@@ -147,10 +150,14 @@ public class PlatformBilling {
 
     /** The figures for the operator's payments page. */
     public Map<String, Object> summary() {
-        return tx.read(() -> {
+        Map<String, Object> out = tx.read(() -> {
             Map<String, Object> m = new LinkedHashMap<>();
             String period = YearMonth.now().toString();
             m.put("period", period);
+            // Money from listing boosts, which are one-off invoices of kind BOOST, counted when the payment succeeded.
+            m.put("boostRevenueThisMonth", num("""
+                    select coalesce(sum(p.amount),0) from identity.platform_payment p join identity.platform_invoice i on i.id = p.invoice_id
+                    where p.status = 'SUCCEEDED' and i.kind = 'BOOST' and to_char(p.created_at, 'YYYY-MM') = ?""", period));
             m.put("billedThisMonth", num("select coalesce(sum(amount),0) from identity.platform_invoice where status <> 'VOID' and to_char(created_at, 'YYYY-MM') = ?", period));
             m.put("collectedThisMonth", num("select coalesce(sum(amount),0) from identity.platform_payment where status = 'SUCCEEDED' and to_char(created_at, 'YYYY-MM') = ?", period));
             m.put("collected30d", num("select coalesce(sum(amount),0) from identity.platform_payment where status = 'SUCCEEDED' and created_at > now() - interval '30 days'"));
@@ -171,6 +178,18 @@ public class PlatformBilling {
                     group by o.id, o.name order by owing desc limit 5"""));
             return m;
         });
+        // How many boosts are running now is leasing's to say; the page still works if it cannot be reached.
+        out.put("activeBoosts", activeBoosts());
+        return out;
+    }
+
+    private long activeBoosts() {
+        try {
+            JsonNode n = UserContextHolder.runAsSystem(null, () -> client.get(ServiceClient.Service.LEASING, "/internal/leasing/boosts/summary"));
+            return n == null ? 0 : n.path("active").asLong(0);
+        } catch (RuntimeException e) {
+            return 0;
+        }
     }
 
     private BigDecimal num(String sql, Object... args) {
@@ -256,6 +275,28 @@ public class PlatformBilling {
         return invoice(id, null);
     }
 
+    /**
+     * Service-to-service: raises a one-off invoice for a company on another service's behalf (a listing boost). The company then pays it the
+     * usual way from its Subscription page. Unlike {@link #createCharge} it needs no operator, and it is always for the stated company.
+     *
+     * @param kind short invoice kind, for example BOOST
+     * @return the new invoice's id, number and amount
+     */
+    public Map<String, Object> raiseInvoice(UUID org, String kind, BigDecimal amount, String description, int dueInDays) {
+        if (amount.signum() <= 0) throw ApiException.badRequest("The amount must be more than zero.");
+        UUID id = UUID.randomUUID();
+        String[] number = new String[1];
+        tx.run(() -> {
+            if (jdbc.queryForObject("select count(*) from identity.organization where id = ? and status = 'ACTIVE'", Long.class, org) == 0) throw ApiException.notFound("Company");
+            number[0] = "PO-" + YearMonth.now().toString().replace("-", "") + "-" + String.format("%04d", jdbc.queryForObject("select nextval('identity.platform_invoice_seq')", Long.class));
+            jdbc.update("insert into identity.platform_invoice (id, org_id, number, kind, description, amount, due_date, created_by) values (?,?,?,?,?,?,?,?)",
+                    id, org, number[0], kind, description, amount, LocalDate.now().plusDays(dueInDays), "Listing boost");
+            audit.record("PlatformInvoice", id, "PLATFORM_INVOICE_CREATED", null, "OPEN", Map.of("org", org.toString(), "amount", amount.toString(), "description", description, "kind", kind));
+        });
+        tellCompany(org, "New PropertyOS charge", description + ": $" + amount + ". Pay it from Subscription.", "invoice-" + id);
+        return Map.of("id", id, "number", number[0], "amount", amount);
+    }
+
     /** Cancels an invoice that was made in error. A reason is required and an invoice with payments cannot be cancelled. */
     public Map<String, Object> voidInvoice(UUID id, String reason) {
         if (reason == null || reason.isBlank()) throw ApiException.badRequest("A reason is required to void an invoice.");
@@ -300,7 +341,10 @@ public class PlatformBilling {
                     pid, org, invoiceId, amount, method, last4, reference, declined ? "FAILED" : "SUCCEEDED", declined ? "Insufficient funds" : null, note, by);
             if (!declined) {
                 BigDecimal paid = ((BigDecimal) inv.get("paid")).add(amount);
-                jdbc.update("update identity.platform_invoice set paid = ?, status = ?, updated_at = now() where id = ?", paid, paid.compareTo((BigDecimal) inv.get("amount")) >= 0 ? "PAID" : "PARTIAL", invoiceId);
+                boolean full = paid.compareTo((BigDecimal) inv.get("amount")) >= 0;
+                jdbc.update("update identity.platform_invoice set paid = ?, status = ?, updated_at = now() where id = ?", paid, full ? "PAID" : "PARTIAL", invoiceId);
+                // Whatever was bought with this invoice (a listing boost) starts only now. A declined payment never reaches here, so nothing starts.
+                if (full) events.publish(org, "PlatformInvoicePaid", "PlatformInvoice", invoiceId, Map.of("invoiceId", invoiceId.toString(), "kind", String.valueOf(inv.get("kind")), "number", String.valueOf(inv.get("number"))));
             }
             audit.record("PlatformInvoice", invoiceId, declined ? "PLATFORM_PAYMENT_FAILED" : "PLATFORM_PAYMENT_RECORDED", (String) inv.get("status"), null,
                     Map.of("amount", amount.toString(), "method", method, "reference", reference, "by", by));
