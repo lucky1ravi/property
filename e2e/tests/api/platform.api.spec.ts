@@ -176,7 +176,7 @@ test.describe('Platform administration', () => {
     const platform = await apiAs('platform');
     const c = await onboardCompany();
     const owner = (await c.api.post('/api/leasing/owners', { name: `Owner ${c.sfx}` })).body.id;
-    const prop = (await c.api.post('/api/leasing/properties', { ownerId: owner, name: `Home ${c.sfx}`, street: '1 Test St', city: 'Austin', state: 'TX', zip: '78701', type: 'MULTIFAMILY' })).body.id;
+    const prop = (await c.api.post('/api/leasing/properties', { ownerId: owner, name: `Home ${c.sfx}`, street: '1 Test St', city: 'Austin', state: 'TX', zip: '78701', type: 'MULTIFAMILY', photoUrl: 'https://example.com/home.jpg' })).body.id;
     const unit = (await c.api.post(`/api/leasing/properties/${prop}/units`, { number: '1', beds: 2, baths: '1', sqft: 800, marketRent: 1500 })).body.id;
     const listing = (await c.api.post('/api/leasing/listings', { unitId: unit })).body.id;
     await c.api.post(`/api/leasing/listings/${listing}/ai-assist`, {});

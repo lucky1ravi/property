@@ -202,6 +202,7 @@ test.describe('The listing page', () => {
     await expect(facts.getByText('2 bedrooms')).toBeVisible();
     await expect(facts.getByText('2008')).toBeVisible();
     expect(await facts.locator('svg').count(), 'each fact has an icon').toBeGreaterThanOrEqual(9);
+    await page.getByRole('button', { name: /^Amenities/ }).click();   // the amenities are a dropdown
     const amenities = page.getByTestId('amenities');
     await expect(amenities.locator('li')).toHaveCount(9);
     expect(await amenities.locator('li svg').count(), 'each amenity has an icon').toBe(9);

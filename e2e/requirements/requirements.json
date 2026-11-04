@@ -1248,5 +1248,80 @@
     "id": "CONSOLE-10",
     "area": "Platform console",
     "text": "Details asks why, then shows the whole recipient and the subject, and says it was recorded"
+  },
+  {
+    "id": "CAMP-01",
+    "area": "Campaigns",
+    "text": "A campaign is made with a name and channel, its secret is shown once, and residents cannot make one"
+  },
+  {
+    "id": "CAMP-02",
+    "area": "Campaigns",
+    "text": "A signed lead or application is accepted and counted; a wrong, missing or altered signature is refused; a repeat is not entered twice"
+  },
+  {
+    "id": "CAMP-03",
+    "area": "Campaigns",
+    "text": "A paused campaign takes nothing, and rotating the secret stops the old one at once"
+  },
+  {
+    "id": "CAMP-04",
+    "area": "Campaigns",
+    "text": "A visitor who arrives by the tracking link and asks, tours or applies is counted for the campaign, and each makes a lead"
+  },
+  {
+    "id": "CAMP-05",
+    "area": "Campaigns",
+    "text": "The campaigns list and a campaign's page show Leads, Tours and Applications together"
+  },
+  {
+    "id": "CAMP-06",
+    "area": "Campaigns",
+    "text": "The sender page signs a lead in the browser and posts it; a wrong secret is refused; the campaign counts it"
+  },
+  {
+    "id": "HOOK-01",
+    "area": "Webhooks",
+    "text": "An endpoint needs a name, a web address and events; its secret is shown once; residents and other companies cannot touch it"
+  },
+  {
+    "id": "HOOK-02",
+    "area": "Webhooks",
+    "text": "A delivery is signed so the receiver can check it, and the log shows it"
+  },
+  {
+    "id": "HOOK-03",
+    "area": "Webhooks",
+    "text": "A real application reaches the endpoint with the applicant's details in the message"
+  },
+  {
+    "id": "HOOK-04",
+    "area": "Webhooks",
+    "text": "A receiver that fails is tried again, and a failed delivery can be retried by hand"
+  },
+  {
+    "id": "HOOK-05",
+    "area": "Webhooks",
+    "text": "A company on a plan without webhooks cannot use them"
+  },
+  {
+    "id": "HOOK-06",
+    "area": "Webhooks",
+    "text": "Each endpoint is one clean row: its events in a chip, last-day counts, Test and Edit up front and the rest in a menu"
+  },
+  {
+    "id": "BOOST-01",
+    "area": "Listing boosts",
+    "text": "A boost is bought, paid, starts, shows as Sponsored, and the operator can end it"
+  },
+  {
+    "id": "BOOST-02",
+    "area": "Listing boosts",
+    "text": "The operator can agree a price with one company, make a promo code and give a free boost"
+  },
+  {
+    "id": "MAIL-01",
+    "area": "Lead replies",
+    "text": "Sending a reply to a lead emails the prospect, and the delivery log shows it as sent"
   }
 ]

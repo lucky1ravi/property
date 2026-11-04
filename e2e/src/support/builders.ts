@@ -15,7 +15,7 @@ export interface Portfolio { ownerId: string; propertyId: string; unitId: string
 export async function buildPortfolio(c: Company): Promise<Portfolio> {
   const sfx = SUFFIX();
   const ownerId = (await c.api.post('/api/leasing/owners', { name: `Maple ${sfx}`, contact: 'Olivia Owner', email: `olivia.${sfx}@e2e.test`, phone: '5125550101', managementFeePct: 7.5, approvalLimit: 750 })).body.id;
-  const propertyId = (await c.api.post('/api/leasing/properties', { ownerId, name: `Court ${sfx}`, street: '10 Main St', city: 'Austin', state: 'TX', zip: '78701', type: 'MULTIFAMILY', yearBuilt: 2005 })).body.id;
+  const propertyId = (await c.api.post('/api/leasing/properties', { ownerId, name: `Court ${sfx}`, street: '10 Main St', city: 'Austin', state: 'TX', zip: '78701', type: 'MULTIFAMILY', yearBuilt: 2005, photoUrl: `https://example.com/court-${sfx}.jpg` })).body.id;
   const unitId = (await c.api.post(`/api/leasing/properties/${propertyId}/units`, { number: '1A', beds: 2, baths: '1.5', sqft: 900, marketRent: 1800 })).body.id;
   const unit2Id = (await c.api.post(`/api/leasing/properties/${propertyId}/units`, { number: '2B', beds: 1, baths: '1', sqft: 650, marketRent: 1400 })).body.id;
   return { ownerId, propertyId, unitId, unit2Id, sfx };

@@ -225,6 +225,21 @@ class NewFeaturesIT {
             Flow.ok(workflow.post(admin, "/api/workflow/webhooks/" + goodId + "/test", Map.of()), "test delivery");
             assertFalse(received.isEmpty(), "the receiver got the event");
             assertTrue(received.get(0).toLowerCase().contains("signature"), "it carried a signature header");
+            // The message reads well on its own: a headline, then the details (the test event carries a sample application).
+            String firstBody = received.get(0);
+            assertTrue(firstBody.contains("[Test] New application: Maya Patel applied for unit 4B"), "headline: " + firstBody);
+            assertTrue(firstBody.contains("Applicant: Maya Patel") && firstBody.contains("maya.patel@example.com"), "applicant line: " + firstBody);
+            assertTrue(firstBody.contains("Rent $1,850.00 a month") && firstBody.contains("Came from: Facebook ads"), "home and source lines: " + firstBody);
+
+            // A real application sent through the public site reaches the endpoint with the applicant's own details.
+            String listingId = liveListings(admin).get(0).path("id").asText();
+            String applicant = "wendy." + UUID.randomUUID().toString().substring(0, 6) + "@example.com";
+            Flow.ok(leasing.post(null, "/api/leasing/public/listings/" + listingId + "/applications", Flow.map("firstName", "Wendy", "lastName", "Hook", "email", applicant,
+                    "phone", "5125550188", "monthlyIncome", 8000, "employer", "Hook Industries", "occupants", 3, "pets", "Two dogs", "consent", true)), "real application");
+            eventually("the real application to reach the receiver", () -> received.stream().filter(r -> r.contains(applicant)).findFirst().orElse(null), r -> r != null);
+            String real = received.stream().filter(r -> r.contains(applicant)).findFirst().orElseThrow();
+            for (String part : List.of("New application: Wendy Hook applied for unit", "Applicant: Wendy Hook", "5125550188", "Income: $8,000.00 a month", "Employer Hook Industries", "3 occupants", "Pets: Two dogs", "Came from: Public website"))
+                assertTrue(real.contains(part), "the message has \"" + part + "\": " + real);
             Flow.ok(workflow.post(admin, "/api/workflow/webhooks/" + badId + "/test", Map.of()), "test failing delivery");
             JsonNode log = Flow.rows(Flow.ok(workflow.get(admin, "/api/workflow/webhooks/deliveries?endpointId=" + badId), "log of the failing one"));
             assertTrue(log.size() >= 1, "the failed delivery is logged");

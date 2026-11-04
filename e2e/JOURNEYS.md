@@ -413,6 +413,23 @@ sequenceDiagram
 
 Spec: `tests/ui/amenities.ui.spec.ts`. The API rules behind it (names, icons, permissions, filters, paging, no internal ids) are in `PublicCatalogIT`.
 
+## 18. Campaigns, webhooks, boosts and lead replies (CAMP-01 to 06, HOOK-01 to 06, BOOST-01, 02, MAIL-01)
+
+```mermaid
+flowchart LR
+    AD([Ad platform]) -->|signed lead or application| IN[Campaign inbound address]
+    V([Visitor]) -->|tracking link, then asks, tours or applies| IN2[Public site]
+    IN --> C[(Campaign)]
+    IN2 --> C
+    C --> L[Leads, Tours and Applications counted together]
+    S([Leasing agent]) -->|Send reply| E[Email to the prospect]
+    B([Company admin]) -->|buys and pays a boost| SP[Listing shows Sponsored]
+    OP([Operator]) -->|prices, promo codes, free boosts, ends a boost| SP
+    EV[Application, lease, payment, work order] -->|signed JSON| W[Webhook receiver, such as Slack or a CRM]
+```
+
+Anything not properly signed is refused, a repeat is not entered twice, and a company only ever sees its own campaigns and endpoints. A tour request or an application also makes a lead for that person and home, so every prospect shows on the Leads page and in the campaign's count.
+
 ## Where each test id lives
 
 | Prefix | File |
@@ -427,6 +444,10 @@ Spec: `tests/ui/amenities.ui.spec.ts`. The API rules behind it (names, icons, pe
 | CONSOLE-01 to 03, 09 / 04 to 08, 10 | `tests/api/platform-console.api.spec.ts` / `tests/ui/platform-console.ui.spec.ts` |
 | FEES-01 to 04 | `tests/api/platform-billing.api.spec.ts` |
 | RATE-01 to 04 | `tests/api/ratings.api.spec.ts` |
+| CAMP-01 to 04 / 05, 06 | `tests/api/campaigns.api.spec.ts` / `tests/ui/campaigns.ui.spec.ts` |
+| HOOK-01 to 05 / 06 | `tests/api/webhooks.api.spec.ts` / `tests/ui/webhooks.ui.spec.ts` |
+| BOOST-01, 02 | `tests/api/boosts.api.spec.ts` |
+| MAIL-01 | `tests/api/lead-email.api.spec.ts` |
 | REP-01 to 06 | `tests/api/reports-center.api.spec.ts` |
 | BRAND, INV, RATE-UI, LIST, REP-UI, FEES-UI | `tests/ui/features.ui.spec.ts` |
 | GUIDE, PAGE, TOAST, ROW | `tests/ui/guide.ui.spec.ts` |

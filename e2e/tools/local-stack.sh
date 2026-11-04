@@ -8,6 +8,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUN="$ROOT/e2e/.run"; mkdir -p "$RUN"
 export PGHOST="${PGHOST:-localhost}" PGPORT="${PGPORT:-5432}" PGUSER="${PGUSER:-postgres}" PGPASSWORD="${PGPASSWORD:-postgres}" PGDATABASE="${PGDATABASE:-e2e}"
 export DEMO_MODE=true DB_POOL_SIZE=5 TZ=UTC
+# Webhook tests deliver to a receiver on this machine, which the address guard only allows when told to (never set this anywhere real).
+export PROPERTYOS_WEBHOOKS_ALLOW_PRIVATE_NETWORK=true
 export RATE_LIMIT_USER_PER_MINUTE=1000000 RATE_LIMIT_PUBLIC_PER_MINUTE=1000000
 export IDENTITY_URL=http://localhost:8081 LEASING_URL=http://localhost:8082 BILLING_URL=http://localhost:8083 MAINTENANCE_URL=http://localhost:8084
 export WORKFLOW_URL=http://localhost:8085 AI_URL=http://localhost:8086 DOCUMENTS_URL=http://localhost:8087
