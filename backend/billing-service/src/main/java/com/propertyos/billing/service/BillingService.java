@@ -295,7 +295,16 @@ public class BillingService {
                 values (?,?,?,?,?,?,?,?,?,'SUCCEEDED',?,?::jsonb,?,?)""", pid, first.get("org_id"), first.get("property_id"), first.get("owner_id"), tenantId,
                 first.get("tenant_name"), amount, method, last4, ref, db.json(allocations), source, convFee);
         ledger(pctx, "PAYMENT", amount.negate(), "Payment " + ref, "PAYMENT", pid);
-        events.publish("PaymentReceived", "Payment", pid, Map.of("tenantId", tenantId.toString(), "amount", amount.toString(), "reference", ref));
+        Map<String, Object> received = new HashMap<>();
+        received.put("tenantId", tenantId.toString());
+        received.put("amount", amount.toString());
+        received.put("reference", ref);
+        if (first.get("tenant_name") != null) received.put("tenantName", first.get("tenant_name").toString());
+        if (method != null) received.put("method", method);
+        if (last4 != null) received.put("last4", last4);
+        received.put("appliedTo", allocations.stream().map(a -> String.valueOf(a.get("kind"))).distinct().collect(java.util.stream.Collectors.joining(", ")));
+        if (convFee != null && convFee.signum() > 0) received.put("fee", convFee.toString());
+        events.publish("PaymentReceived", "Payment", pid, received);
         notifier.toParty(tenantId, "Payment received", "We received your payment of $" + amount + (convFee.signum() > 0 ? " plus a $" + convFee + " processing fee" : "") + ". Reference " + ref + ".", "/payments");
         return Map.of("id", pid, "reference", ref, "status", "SUCCEEDED", "applied", allocations, "fee", convFee, "totalCharged", amount.add(convFee));
     }

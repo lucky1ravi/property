@@ -134,15 +134,43 @@ class WebhookCoreTest {
         for (WebhookEventTypes.Type t : WebhookEventTypes.ALL) {
             Map<String, Object> sample = WebhookEventTypes.sample(t.key());
             JsonNode n = M.readTree(WebhookEvents.envelope(M, "evt_1", t.key(), OffsetDateTime.now(), UUID.randomUUID(), sample, false));
-            assertThat(n.get("text").asText()).as(t.key()).isNotBlank().doesNotContain("null").hasSizeLessThan(200);
+            assertThat(n.get("text").asText()).as(t.key()).isNotBlank().doesNotContain("null").hasSizeLessThan(900);
             assertThat(M.readTree(WebhookEvents.envelope(M, "evt_2", t.key(), OffsetDateTime.now(), UUID.randomUUID(), sample, true)).get("text").asText()).startsWith("[Test] ");
         }
-        assertThat(WebhookEventTypes.summary("application.submitted", Map.of("applicantName", "Wendy Hook", "unit", "B"), false)).isEqualTo("New application: Wendy Hook applied for unit B");
-        assertThat(WebhookEventTypes.summary("lease.signed", Map.of("tenantName", "Maya Patel", "unitLabel", "Unit 4B", "signedBy", "TENANT"), false)).isEqualTo("Maya Patel signed the lease for Unit 4B");
-        assertThat(WebhookEventTypes.summary("lease.signed", Map.of("unitLabel", "Unit 4B", "signedBy", "MANAGER"), false)).isEqualTo("Lease for Unit 4B is fully signed and active");
-        assertThat(WebhookEventTypes.summary("payment.received", Map.of("amount", "1850.00", "reference", "PAY-1"), false)).isEqualTo("Payment received: $1850.00 (PAY-1)");
-        assertThat(WebhookEventTypes.summary("work_order.created", Map.of("title", "Leaky tap"), false)).isEqualTo("New work order: Leaky tap");
-        assertThat(WebhookEventTypes.summary("lease.sent", Map.of(), false)).isEqualTo("Lease sent to the tenant for the home");   // missing facts never print "null"
+        assertThat(first(WebhookEventTypes.summary("application.submitted", Map.of("applicantName", "Wendy Hook", "unit", "B"), false))).isEqualTo("New application: Wendy Hook applied for unit B");
+        assertThat(first(WebhookEventTypes.summary("lease.signed", Map.of("tenantName", "Maya Patel", "unitLabel", "Unit 4B", "signedBy", "TENANT"), false))).isEqualTo("Maya Patel signed the lease for Unit 4B");
+        assertThat(first(WebhookEventTypes.summary("lease.signed", Map.of("unitLabel", "Unit 4B", "signedBy", "MANAGER"), false))).isEqualTo("Lease for Unit 4B is fully signed and active");
+        assertThat(first(WebhookEventTypes.summary("payment.received", Map.of("amount", "1850.00", "reference", "PAY-1"), false))).isEqualTo("Payment received: $1850.00 (PAY-1)");
+        assertThat(first(WebhookEventTypes.summary("work_order.created", Map.of("title", "Leaky tap"), false))).isEqualTo("New work order: Leaky tap");
+        assertThat(first(WebhookEventTypes.summary("lease.sent", Map.of(), false))).isEqualTo("Lease sent to the tenant for the home");   // missing facts never print "null"
+    }
+
+    private static String first(String text) {
+        return text.lines().findFirst().orElse("");
+    }
+
+    @Test
+    @DisplayName("the text is a headline with a bullet for each group of facts, in Slack-friendly lines")
+    void detailedText() {
+        String app = WebhookEventTypes.summary("application.submitted", WebhookEventTypes.sample("application.submitted"), false);
+        assertThat(app.lines().toList()).containsExactly(
+                "New application: Maya Patel applied for unit 4B",
+                "\u2022 Applicant: Maya Patel \u00b7 maya.patel@example.com \u00b7 512-555-0142",
+                "\u2022 Home: The Domain Lofts 4B \u00b7 Rent $1,850.00 a month",
+                "\u2022 Income: $6,500.00 a month \u00b7 Employer Acme Robotics",
+                "\u2022 Move-in: Dec 1, 2026 \u00b7 2 occupants \u00b7 Pets: One cat",
+                "\u2022 Came from: Facebook ads");
+        String paid = WebhookEventTypes.summary("payment.received", WebhookEventTypes.sample("payment.received"), false);
+        assertThat(paid).contains("\u2022 From: Maya Patel", "\u2022 Paid with: Card ending 4242", "\u2022 Applied to: RENT");
+        String lease = WebhookEventTypes.summary("lease.signed", WebhookEventTypes.sample("lease.signed"), false);
+        assertThat(lease).contains("\u2022 Money: Rent $1,850.00 a month \u00b7 Deposit $1,850.00", "\u2022 Term: Dec 1, 2026 to Nov 30, 2027",
+                "\u2022 Status: Signed by the tenant, waiting for the company to countersign");
+        String job = WebhookEventTypes.summary("work_order.created", WebhookEventTypes.sample("work_order.created"), true);
+        assertThat(job).startsWith("[Test] New work order: Kitchen faucet is leaking at The Domain Lofts, Domain Lofts 4B");
+        assertThat(job).contains("\u2022 Reported by: Maya Patel (resident)", "\u2022 Details: Water pools under the sink after using the tap.", "\u2022 Permission to enter: Yes");
+        // An event with few facts adds no empty bullets, and one occupant is singular.
+        assertThat(WebhookEventTypes.summary("application.submitted", Map.of("applicantName", "Wendy Hook", "occupants", 1), false))
+                .isEqualTo("New application: Wendy Hook applied\n\u2022 Move-in: 1 occupant");
     }
 
     @Test
