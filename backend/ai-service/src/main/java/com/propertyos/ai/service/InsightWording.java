@@ -19,6 +19,8 @@ import java.util.regex.Pattern;
 public class InsightWording {
     private static final Pattern NUMBER = Pattern.compile("\\d[\\d,]*(?:\\.\\d+)?");
     private static final int MAX_LENGTH = 200;
+    /** Only the top cards are reworded, so the model's reply stays short enough to arrive complete. */
+    static final int MAX_CARDS = 6;
     private static final int CACHE_SIZE = 500;
 
     private final ModelRunner runner;
@@ -41,10 +43,11 @@ public class InsightWording {
     /** Replaces {@code detail} on each item with a plainer version when one passes the check, and marks the item's {@code wording}. */
     public void rewrite(List<Map<String, Object>> items) {
         if (items.isEmpty() || !config.flag("ai/INSIGHT_WORDING/enabled", true)) return;
+        List<Map<String, Object>> top = items.subList(0, Math.min(MAX_CARDS, items.size()));
         List<Integer> todo = new ArrayList<>();
-        for (int i = 0; i < items.size(); i++) if (!cache.containsKey(detail(items.get(i)))) todo.add(i);
-        if (!todo.isEmpty()) ask(items, todo);
-        for (Map<String, Object> m : items) {
+        for (int i = 0; i < top.size(); i++) if (!cache.containsKey(detail(top.get(i)))) todo.add(i);
+        if (!todo.isEmpty()) ask(top, todo);
+        for (Map<String, Object> m : top) {
             String plain = cache.get(detail(m));
             if (plain == null) continue;
             m.put("detail", plain);
