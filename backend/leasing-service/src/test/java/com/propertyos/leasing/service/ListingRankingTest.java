@@ -167,4 +167,13 @@ class ListingRankingTest {
         assertThat(ListingRanking.publicName("  ")).isEqualTo("A resident");
         assertThat(ListingRanking.publicName(null)).isEqualTo("A resident");
     }
+
+    @Test
+    @DisplayName("with no plan tiers the plan factor is a plain 0, never a CASE with no WHEN (invalid SQL that made the public search fail)")
+    void noTiersIsValidSql() {
+        String none = ListingRanking.joins(ListingRanking.settings(null), Map.of());
+        assertThat(none).contains("0::numeric as f_plan").doesNotContain("case l.org_id");
+        String some = ListingRanking.joins(ListingRanking.settings(null), Map.of(UUID.randomUUID(), 0.4));
+        assertThat(some).contains("case l.org_id::text when '").contains("else 0 end::numeric as f_plan");
+    }
 }
