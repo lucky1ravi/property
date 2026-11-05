@@ -78,6 +78,12 @@ resource "aws_service_discovery_service" "svc" {
     }
   }
   health_check_custom_config {}
+
+  # AWS does not keep an empty health_check_custom_config, so every plan saw a difference and replaced all of these, which drops every service from the
+  # directory until it is redeployed (an outage). Ignoring it stops that; the services register fine without it.
+  lifecycle {
+    ignore_changes = [health_check_custom_config]
+  }
 }
 
 resource "aws_cloudwatch_log_group" "svc" {
