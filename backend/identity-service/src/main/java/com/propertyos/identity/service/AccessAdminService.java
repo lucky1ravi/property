@@ -24,12 +24,14 @@ public class AccessAdminService {
     private final AuditService audit;
     private final EventPublisher events;
     private final ObjectMapper mapper;
+    private final AccountEmails emails;
 
-    public AccessAdminService(IdentityStore store, AuditService audit, EventPublisher events, ObjectMapper mapper) {
+    public AccessAdminService(IdentityStore store, AuditService audit, EventPublisher events, ObjectMapper mapper, AccountEmails emails) {
         this.store = store;
         this.audit = audit;
         this.events = events;
         this.mapper = mapper;
+        this.emails = emails;
     }
 
     // ---------------- users ----------------
@@ -78,6 +80,8 @@ public class AccessAdminService {
         store.setUserProperties(id, orgId, uuids(body.get("propertyIds")));
         audit.record("User", id, "USER_CREATED", null, "ACTIVE", Map.of("email", email, "roles", String.valueOf(body.get("roleIds"))));
         events.publish("UserCreated", "User", id, Map.of("email", email));
+        // The password is shown to the creator below and also emailed to the new person (the workflow service erases it once sent).
+        emails.welcome(orgId, null, email, req(body, "name"), temporaryPassword);
         return Map.of("id", id, "temporaryPassword", temporaryPassword);
     }
 
@@ -90,10 +94,12 @@ public class AccessAdminService {
     @Transactional
     public Map<String, Object> resetPassword(UUID id) {
         if (id.equals(UserContextHolder.require().userId())) throw ApiException.badRequest("You can't reset your own password here. Use Change password when you sign in.");
-        store.user(id).orElseThrow(() -> ApiException.notFound("User"));
+        Map<String, Object> target = store.user(id).orElseThrow(() -> ApiException.notFound("User"));
         String temporaryPassword = AuthService.temporaryPassword();
         store.setTemporaryPassword(id, AuthService.hashPassword(temporaryPassword));
         audit.record("User", id, "USER_PASSWORD_RESET", null, null, Map.of());
+        if (target.get("email") != null && target.get("org_id") != null)
+            emails.passwordReset((UUID) target.get("org_id"), String.valueOf(target.get("email")), String.valueOf(target.get("name")), temporaryPassword);
         return Map.of("temporaryPassword", temporaryPassword);
     }
 

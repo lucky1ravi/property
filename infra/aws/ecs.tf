@@ -32,6 +32,7 @@ locals {
       DB_POOL_SIZE                      = tostring(var.db_pool_size)
       DEMO_MODE                         = tostring(var.demo_mode)
       ALLOWED_ORIGINS                   = "https://${aws_cloudfront_distribution.main.domain_name}"
+      APP_URL                           = "https://${aws_cloudfront_distribution.main.domain_name}"
       JAVA_OPTS                         = "-XX:+UseSerialGC -Xss512k -XX:MaxRAMPercentage=70"
       LOGGING_STRUCTURED_FORMAT_CONSOLE = "ecs"
       AWS_REGION                        = var.region

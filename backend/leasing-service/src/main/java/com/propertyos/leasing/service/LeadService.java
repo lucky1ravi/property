@@ -158,8 +158,18 @@ public class LeadService {
                 id, li.get("org_id"), listingId, li.get("property_id"), li.get("owner_id"), name, email, at,
                 Optional.ofNullable(Req.str(b, "type")).orElse("BROKER_LED"), Req.str(b, "notes"), campaign);
         if (publicRequest) ensureLead(li, name, email, Req.str(b, "phone"), "Asked for a tour on " + at.toLocalDate() + ".", "WEBSITE", campaign, 80, "BOOK_SHOWING");
-        events.publish((UUID) li.get("org_id"), "ShowingRequested", "Showing", id, Map.of("listingId", listingId.toString(), "at", at.toString()));
+        events.publish((UUID) li.get("org_id"), "ShowingRequested", "Showing", id, showingFacts(listingId, li, name, email, at));
         return Map.of("id", id);
+    }
+
+    private static Map<String, Object> showingFacts(UUID listingId, Map<String, Object> li, String name, String email, OffsetDateTime at) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("listingId", listingId.toString());
+        m.put("at", at.toString());
+        m.put("prospectName", name);
+        m.put("prospectEmail", email);
+        if (li.get("title") != null) m.put("listingTitle", li.get("title").toString());
+        return m;
     }
 
     /**
@@ -189,6 +199,17 @@ public class LeadService {
         if ("CONFIRM".equals(action))
             db.update("update leasing.showing set broker_user_id = ?, broker_name = ? where id = ?",
                     UserContextHolder.require().userId(), UserContextHolder.require().name(), id);
-        return db.one("Showing", "select * from leasing.showing where id = ?", id);
+        Map<String, Object> shown = db.one("Showing", "select * from leasing.showing where id = ?", id);
+        if ("CONFIRM".equals(action)) {
+            List<Map<String, Object>> home = db.list("select title from leasing.listing where id = ?", shown.get("listing_id"));
+            Map<String, Object> m = new HashMap<>();
+            m.put("listingId", String.valueOf(shown.get("listing_id")));
+            m.put("at", String.valueOf(shown.get("scheduled_at")));
+            m.put("prospectName", String.valueOf(shown.get("prospect_name")));
+            m.put("prospectEmail", String.valueOf(shown.get("prospect_email")));
+            if (!home.isEmpty() && home.get(0).get("title") != null) m.put("listingTitle", home.get(0).get("title").toString());
+            events.publish("ShowingConfirmed", "Showing", id, m);
+        }
+        return shown;
     }
 }

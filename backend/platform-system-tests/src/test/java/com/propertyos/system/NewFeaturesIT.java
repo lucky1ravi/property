@@ -283,4 +283,62 @@ class NewFeaturesIT {
         }, d -> d != null && "SENT".equals(d.path("status").asText()));
         assertTrue(sent.path("subject").asText().startsWith("Re: your enquiry about"), "the subject names the home");
     }
+
+    // ----------------------------------------------------------------------------------------------- account and applicant emails
+
+    private JsonNode emailTo(String admin, String address, String subject) throws Exception {
+        return eventually("the email \"" + subject + "\" to " + address, () -> {
+            for (JsonNode d : Flow.rows(workflow.get(admin, "/api/workflow/deliveries"))) {
+                if ("EMAIL".equals(d.path("channel").asText()) && address.equals(d.path("recipient").asText()) && subject.equals(d.path("subject").asText())) return d;
+            }
+            return null;
+        }, d -> d != null && "SENT".equals(d.path("status").asText()));
+    }
+
+    @Test
+    void newAccountsAndApplicantsAreEmailedAndAPasswordIsNeverKeptInTheLog() throws Exception {
+        String admin = Flow.token("ORG_ADMIN");
+        String sfx = UUID.randomUUID().toString().substring(0, 6);
+
+        // A new user: the one-time password is still returned (shown on screen) and is also emailed; the log keeps no password.
+        String roleId = null;
+        for (JsonNode r : Flow.rows(Flow.ok(identity.get(admin, "/api/identity/roles"), "roles"))) if ("TENANT".equals(r.path("role_key").asText())) roleId = r.path("id").asText();
+        assertNotNull(roleId, "the company has a resident role");
+        String person = "newuser." + sfx + "@example.com";
+        Reply created = Flow.ok(identity.post(admin, "/api/identity/users", Flow.map("email", person, "name", "Nora Newuser", "roleIds", List.of(roleId))), "create user");
+        String temporary = created.body().path("temporaryPassword").asText();
+        assertFalse(temporary.isBlank(), "the password is still shown on screen");
+        JsonNode welcome = emailTo(admin, person, "Welcome to Summit Ridge Property Group on PropertyOS");
+        assertFalse(welcome.toString().contains(temporary), "the delivery log never shows the password");
+
+        // An administrator resets it: a new password on screen and in an email.
+        String userId = created.body().path("id").asText();
+        Reply reset = Flow.ok(identity.post(admin, "/api/identity/users/" + userId + "/reset-password", Map.of()), "reset password");
+        assertFalse(reset.body().path("temporaryPassword").asText().isBlank());
+        emailTo(admin, person, "Your PropertyOS password was reset");
+
+        // The person chooses a password: a security notice.
+        Flow.ok(identity.post(null, "/api/identity/public/change-password", Flow.map("email", person, "currentPassword", reset.body().path("temporaryPassword").asText(),
+                "newPassword", "Chosen-Pass-" + sfx + "!")), "first sign-in");
+        emailTo(admin, person, "Your PropertyOS password was changed");
+
+        // An applicant is told their application arrived and what was decided; a prospect is told about their tour.
+        String listing = liveListings(admin).get(1).path("id").asText();
+        String applicant = "applicant." + sfx + "@example.com";
+        Reply applied = Flow.ok(leasing.post(null, "/api/leasing/public/listings/" + listing + "/applications", Flow.map("firstName", "Ann", "lastName", "Applicant", "email", applicant,
+                "consent", true, "monthlyIncome", 7000)), "application");
+        emailTo(admin, applicant, "We received your application");
+        String applicationId = applied.body().path("id").asText();
+        eventually("the application to be screened", () -> leasing.get(admin, "/api/leasing/applications/" + applicationId).body().path("status").asText(), st -> !"SUBMITTED".equals(st));
+        Flow.ok(leasing.post(admin, "/api/leasing/applications/" + applicationId + "/actions/REJECT", Flow.map("reason", "Income too low")), "decline");
+        JsonNode declined = emailTo(admin, applicant, "An update on your application");
+        assertFalse(declined.path("body").asText().contains("Income too low"), "the reason for the decision is not put in the email");
+
+        String tourist = "tourist." + sfx + "@example.com";
+        String when = java.time.OffsetDateTime.now().plusDays(30 + (long) (Math.random() * 60)).withMinute(0).withSecond(0).withNano(0).toString();
+        Reply tour = Flow.ok(leasing.post(null, "/api/leasing/public/listings/" + listing + "/showings", Flow.map("name", "Tina Tourist", "email", tourist, "type", "BROKER_LED", "scheduledAt", when)), "tour");
+        emailTo(admin, tourist, "We got your tour request");
+        Flow.ok(leasing.post(admin, "/api/leasing/showings/" + tour.body().path("id").asText() + "/actions/CONFIRM", Map.of()), "confirm tour");
+        emailTo(admin, tourist, "Your tour is confirmed");
+    }
 }
