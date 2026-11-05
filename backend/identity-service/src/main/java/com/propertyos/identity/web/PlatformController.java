@@ -19,6 +19,7 @@ import java.util.*;
 @RequestMapping("/api/identity/platform")
 @RequiresPermission("PLATFORM:VIEW")
 public class PlatformController {
+    private final com.propertyos.identity.service.AccountEmails accountEmails;
     private final IdentityStore store;
     private final IdentitySeeder seeder;
     private final AuditService audit;
@@ -29,7 +30,8 @@ public class PlatformController {
     private final com.propertyos.common.events.EventPublisher events;
     private final com.propertyos.common.security.SuspendedOrgs suspended;
 
-    public PlatformController(IdentityStore store, IdentitySeeder seeder, AuditService audit, JdbcTemplate jdbc, Tx tx, com.propertyos.identity.service.ConfigService config, com.propertyos.identity.service.PlanService plans, com.propertyos.common.events.EventPublisher events, com.propertyos.common.security.SuspendedOrgs suspended) {
+    public PlatformController(IdentityStore store, IdentitySeeder seeder, AuditService audit, JdbcTemplate jdbc, Tx tx, com.propertyos.identity.service.ConfigService config, com.propertyos.identity.service.PlanService plans, com.propertyos.common.events.EventPublisher events, com.propertyos.common.security.SuspendedOrgs suspended, com.propertyos.identity.service.AccountEmails accountEmails) {
+        this.accountEmails = accountEmails;
         this.events = events;
         this.suspended = suspended;
         this.config = config;
@@ -98,6 +100,8 @@ public class PlatformController {
             // Other services give the new company what it starts with (for example the automation rule library).
             events.publish(orgId, "OrganizationOnboarded", "Organization", orgId, Map.of("name", name));
         });
+        // Emailed to the new administrator as well (the workflow service erases the password once sent).
+        accountEmails.welcome(orgId, name, adminEmail, adminName, temporaryPassword);
         // Shown once to the platform operator, who passes it to the new administrator. Only its hash is stored.
         return Map.of("orgId", orgId, "adminUserId", adminId, "defaultRoles", DefaultRoles.TEMPLATES.size(), "temporaryPassword", temporaryPassword);
     }

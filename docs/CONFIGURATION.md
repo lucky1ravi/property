@@ -19,6 +19,9 @@ Defaults are in each service's `application.yml` and `platform-common/src/main/r
 | `BEDROCK_MODEL_ID`, `BEDROCK_VISION_MODEL_ID` | | Bedrock text and vision models |
 | `IDENTITY_URL`, `LEASING_URL`, `BILLING_URL`, `MAINTENANCE_URL`, `WORKFLOW_URL`, `AI_URL`, `DOCUMENTS_URL` | localhost ports | Where the gateway and services find each other |
 | `PUBLIC_API_URL` | | Public base URL used in emailed links |
+| `APP_URL` | `http://localhost:4173` | Where the web app lives, for the Sign in and Open buttons in emails (set from the CloudFront address on AWS) |
+| `EMAIL_PROVIDER`, `EMAIL_FROM`, `EMAIL_REGION` | `none` | `ses` sends through Amazon SES (the sender must be verified there, in this region); `none` only logs |
+| `EMAIL_OVERRIDE_TO` | the test address | While set, every email goes to this one address instead of its real recipient |
 | `SERVICE`, `SERVICE_HEAP` | | Container: run one service; heap per service in all-in-one mode |
 | `VITE_API_URL` | | Frontend build: gateway URL |
 

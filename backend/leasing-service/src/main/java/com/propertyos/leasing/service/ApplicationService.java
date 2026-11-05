@@ -135,8 +135,12 @@ public class ApplicationService {
         if (List.of("APPROVED", "REJECTED").contains(o.to())) {
             db.update("update leasing.application set decision_reason = ?, decided_by = ?, decided_at = now() where id = ?", reason,
                     com.propertyos.common.security.UserContextHolder.require().name(), id);
-            events.publish("ApplicationDecided", "Application", id, Map.of("decision", o.to(), "applicantEmail", a.get("applicant_email").toString(),
-                    "applicantName", a.get("applicant_name").toString()));
+            Map<String, Object> decided = new HashMap<>();
+            decided.put("decision", o.to());
+            decided.put("applicantEmail", a.get("applicant_email").toString());
+            decided.put("applicantName", a.get("applicant_name").toString());
+            if (a.get("unit_label") != null) decided.put("unitLabel", a.get("unit_label").toString());
+            events.publish("ApplicationDecided", "Application", id, decided);
             if ("REJECTED".equals(o.to())) {
                 // Adverse action notice is required in the US when a decision relies on a consumer report.
                 db.update("update leasing.application set decision_reason = ? where id = ?",

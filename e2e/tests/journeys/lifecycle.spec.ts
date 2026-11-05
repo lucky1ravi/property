@@ -201,7 +201,7 @@ test.describe('The whole life of a company', () => {
       contexts.push(ctx);
       const page = await ctx.newPage();
       track(page);
-      await page.goto('/homes');
+      await page.goto(`/homes?keyword=${encodeURIComponent(`Elm Court ${sfx}`)}`);   // the list is ranked and long, so the visitor searches for the home by name
       await expect(page.locator('main')).toContainText(`Elm Court ${sfx}`);
       await page.goto(`/homes/${listingId}`);
       await page.getByRole('button', { name: 'Ask a question' }).click();

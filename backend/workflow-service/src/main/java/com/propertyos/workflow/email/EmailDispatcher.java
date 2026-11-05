@@ -15,8 +15,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Sends the queued emails that carry a rendered page. A send that fails is tried again on the next ticks, up to {@link #MAX_ATTEMPTS} times in all, then marked
- * FAILED with the reason, which the delivery log shows. A claim moves a row's attempt count first, so two servers never send the same email.
+ * Sends the queued emails that carry a rendered page and are due (an email held until a person's quiet hours end is not due yet). A send that fails is tried
+ * again on the next ticks, up to {@link #MAX_ATTEMPTS} times in all, then marked FAILED with the reason, which the delivery log shows. A claim moves a row's
+ * attempt count first, so two servers never send the same email. An email that carries a secret has its text erased once it is sent or has finally failed.
  */
 @Component
 public class EmailDispatcher {
@@ -41,9 +42,9 @@ public class EmailDispatcher {
         try {
             List<Map<String, Object>> due = UserContextHolder.runAsSystem(null, () -> tx.execute(st -> db.list("""
                     update workflow.delivery set attempts = attempts + 1
-                    where id in (select id from workflow.delivery where channel = 'EMAIL' and status = 'QUEUED' and html is not null and attempts < ?
-                                 order by created_at limit ? for update skip locked)
-                    returning id, org_id, recipient, subject, body, html, attempts""", MAX_ATTEMPTS, BATCH)));
+                    where id in (select id from workflow.delivery where channel = 'EMAIL' and status = 'QUEUED' and html is not null and attempts < ? and send_after <= now()
+                                 order by send_after limit ? for update skip locked)
+                    returning id, org_id, recipient, subject, body, html, text_body, attempts""", MAX_ATTEMPTS, BATCH)));
             if (due != null) for (Map<String, Object> d : due) deliver(d);
         } catch (RuntimeException e) {
             log.warn("Email timer failed: {}", e.getMessage());
@@ -54,9 +55,10 @@ public class EmailDispatcher {
         UUID id = (UUID) d.get("id"), org = (UUID) d.get("org_id");
         int attempts = ((Number) d.get("attempts")).intValue();
         String to = overrideTo.isEmpty() ? (String) d.get("recipient") : overrideTo;
+        String text = d.get("text_body") != null ? (String) d.get("text_body") : (String) d.get("body");
         String status, note;
         try {
-            sender.send(to, (String) d.get("subject"), (String) d.get("html"), (String) d.get("body"));
+            sender.send(to, (String) d.get("subject"), (String) d.get("html"), text);
             status = "SENT";
             note = sender.name().equals("ses") ? "Sent with Amazon SES" + (overrideTo.isEmpty() ? "" : " to the test address") : "Simulated delivery (nothing was sent)";
         } catch (Exception e) {
@@ -66,7 +68,11 @@ public class EmailDispatcher {
             log.warn("Email {} to {} failed (try {}): {}", id, to, attempts, e.getMessage());
         }
         String s = status, n = note;
-        UserContextHolder.runAsSystem(org, () -> tx.execute(st -> db.update("update workflow.delivery set status = ?, note = ? where id = ?", s, n, id)));
+        // Once an email is done with (sent, or out of tries), a secret in it is erased. While it waits for a retry it must stay, to be sent.
+        UserContextHolder.runAsSystem(org, () -> tx.execute(st -> db.update("""
+                update workflow.delivery set status = ?, note = ?,
+                    html = case when sensitive and ? <> 'QUEUED' then null else html end,
+                    text_body = case when sensitive and ? <> 'QUEUED' then null else text_body end where id = ?""", s, n, s, s, id)));
     }
 
     private static String clip(String s) {

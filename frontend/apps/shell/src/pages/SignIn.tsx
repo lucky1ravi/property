@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, KeyRound, ShieldCheck } from 'lucide-react';
@@ -84,7 +84,10 @@ export function SignIn() {
 
         <div className="relative z-10 mx-auto flex min-h-screen max-w-[1320px] flex-col gap-10 px-6 py-8 lg:flex-row lg:items-start lg:justify-between lg:py-10">
           <motion.div style={{ y: headlineY, opacity: headlineOpacity }} className="max-w-xl pt-2 text-white lg:pt-6">
-            <Logo light />
+            <div className="flex items-center justify-between gap-4">
+              <Link to="/" aria-label="PropertyOS home" className="rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"><Logo light /></Link>
+              <Link to="/" className="text-sm font-semibold text-federal-100 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">&larr; Back to home</Link>
+            </div>
             <h1 className="mt-16 text-[44px] font-black leading-[1.02] tracking-[-0.035em] sm:text-[60px]">
               One broker.<br />Hundreds of doors.
             </h1>
@@ -217,7 +220,7 @@ function HowItWorks() {
           ))}
         </div>
         <footer className="mt-20 flex flex-wrap items-center justify-between gap-4 border-t border-limestone-300 pt-6 text-sm text-graphite-500">
-          <Logo />
+          <Link to="/" aria-label="PropertyOS home"><Logo /></Link>
           <span>Built for US residential property management.</span>
         </footer>
       </div>

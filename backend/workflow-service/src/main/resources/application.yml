@@ -28,3 +28,5 @@ propertyos:
     region: ${EMAIL_REGION:}
     # For now every email goes to this one address instead of its real recipient. Set EMAIL_OVERRIDE_TO to a space to send to the real recipients.
     override-to: ${EMAIL_OVERRIDE_TO:ravindra.nalawade56@gmail.com}
+  # Where the web app lives, for the buttons in emails (sign in, open a page).
+  app-url: ${APP_URL:http://localhost:4173}

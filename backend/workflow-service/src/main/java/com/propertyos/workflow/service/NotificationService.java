@@ -8,24 +8,36 @@ import com.propertyos.common.events.EventHandler;
 import com.propertyos.common.rls.Db;
 import com.propertyos.common.security.UserContext;
 import com.propertyos.common.security.UserContextHolder;
+import com.propertyos.workflow.email.EmailQueue;
+import com.propertyos.workflow.email.EmailTemplates;
+import com.propertyos.workflow.email.CompanyNames;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.*;
 
-/** Delivers NotificationRequested events: in-app inbox plus simulated email and SMS, honouring channel and quiet-hours settings. */
+/**
+ * Delivers NotificationRequested events: the in-app inbox, a real email, and a simulated SMS, honouring channel, preference and quiet-hours settings.
+ * A real email goes to a resident, owner or vendor (a notification addressed to a party), and to staff only when it is urgent; every other staff
+ * notification stays in the inbox, so a busy manager is not buried in mail. An email that arrives in a person's quiet hours goes out when they end.
+ */
 @Component
 public class NotificationService implements EventHandler {
     private final Db db;
     private final ServiceClient client;
     private final ConfigClient config;
+    private final EmailQueue emails;
+    private final CompanyNames companies;
 
-    public NotificationService(Db db, ServiceClient client, ConfigClient config) {
+    public NotificationService(Db db, ServiceClient client, ConfigClient config, EmailQueue emails, CompanyNames companies) {
         this.db = db;
         this.client = client;
         this.config = config;
+        this.emails = emails;
+        this.companies = companies;
     }
 
     /**
@@ -77,13 +89,19 @@ public class NotificationService implements EventHandler {
                 db.update("insert into workflow.notification (id, org_id, user_id, title, body, link, priority, category) values (?,?,?,?,?,?,?,?)", nid, e.orgId(), u, title, body, link, priority, category);
             if (!deliverInApp && !deliverEmail && !deliverSms) continue;
             String addr = "user-" + u.toString().substring(0, 8) + "@example.com";
+            boolean known = false;
             try {
                 JsonNode usr = client.get(ServiceClient.Service.IDENTITY, "/internal/users/" + u);
-                if (usr.hasNonNull("email")) addr = usr.path("email").asText();
+                if (usr.hasNonNull("email")) { addr = usr.path("email").asText(); known = true; }
             } catch (Exception ignored) {
             }
             UUID did = deliverInApp ? nid : null;
-            if (deliverEmail) delivery(e, did, "EMAIL", addr, title, body, quiet && !"HIGH".equals(priority));
+            if (deliverEmail) {
+                boolean real = known && ("PARTY".equals(audience) || "HIGH".equals(priority));
+                boolean held = quiet && !"HIGH".equals(priority);
+                if (real) realEmail(e, u, addr, title, body, link, held ? nextQuietEnd(qEnd) : null);
+                else delivery(e, did, "EMAIL", addr, title, body, held);
+            }
             if (deliverSms && "HIGH".equals(priority)) delivery(e, did, "SMS", "+1 (555) 010-" + String.format("%04d", Math.abs(u.hashCode() % 10000)), null, shorten(title + ": " + body), false);
         }
     }
@@ -103,6 +121,24 @@ public class NotificationService implements EventHandler {
         if (link.startsWith("/messages")) return "MESSAGES";
         if (link.startsWith("/documents")) return "DOCUMENTS";
         return "GENERAL";
+    }
+
+    /** Puts a real, branded email in line for this person (see the class note); the id makes a repeat of the same notification for the same person a no-op. */
+    private void realEmail(DomainEvent e, UUID user, String to, String title, String body, String link, OffsetDateTime sendAfter) {
+        String path = link == null || link.isBlank() ? null : (link.startsWith("/app") ? link : "/app" + (link.startsWith("/") ? link : "/" + link));
+        EmailTemplates.Mail mail = EmailTemplates.notification(companies.of(e.orgId()), title, body, emails.link(path), emails.intendedFor(to));
+        emails.queue(EmailQueue.idFor("notification-email", e.id() + ":" + user), e.orgId(), to, mail, false, sendAfter, sendAfter == null ? null : "Held until quiet hours end");
+    }
+
+    /** The next time quiet hours end, in the company's usual time zone. */
+    static OffsetDateTime nextQuietEnd(String end) {
+        try {
+            java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.of("America/Chicago"));
+            java.time.ZonedDateTime at = now.with(LocalTime.parse(end)).withSecond(0).withNano(0);
+            return (at.isAfter(now) ? at : at.plusDays(1)).toOffsetDateTime();
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     private void delivery(DomainEvent e, UUID nid, String channel, String to, String subject, String body, boolean heldForQuiet) {

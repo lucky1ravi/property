@@ -92,7 +92,7 @@ sequenceDiagram
 
 ## 5. Browser end-to-end (Playwright)
 
-381 tests in 46 spec files, in `e2e/`, driving the real screens and the real API role by role. Every test title starts with the requirement it proves (`[AMEN-01]`), and `requirements/requirements.json` and the generated [TRACEABILITY](../e2e/requirements/TRACEABILITY.md) show what is covered.
+386 tests in 47 spec files, in `e2e/`, driving the real screens and the real API role by role. Every test title starts with the requirement it proves (`[AMEN-01]`), and `requirements/requirements.json` and the generated [TRACEABILITY](../e2e/requirements/TRACEABILITY.md) show what is covered.
 
 | Folder | What it covers |
 | --- | --- |

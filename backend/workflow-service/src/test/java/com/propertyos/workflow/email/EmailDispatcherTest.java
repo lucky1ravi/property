@@ -32,7 +32,7 @@ class EmailDispatcherTest {
     void sent() throws Exception {
         dispatcher("", 1).tick();
         Mockito.verify(sender).send("tessa@example.com", "Re: your enquiry", "<p>hi</p>", "plain");
-        Mockito.verify(db).update(anyString(), eq("SENT"), eq("Sent with Amazon SES"), eq(id));
+        Mockito.verify(db).update(anyString(), eq("SENT"), eq("Sent with Amazon SES"), eq("SENT"), eq("SENT"), eq(id));
     }
 
     @Test
@@ -41,7 +41,7 @@ class EmailDispatcherTest {
         dispatcher("owner@example.com", 1).tick();
         Mockito.verify(sender).send(eq("owner@example.com"), anyString(), anyString(), anyString());
         Mockito.verify(sender, Mockito.never()).send(eq("tessa@example.com"), anyString(), anyString(), anyString());
-        Mockito.verify(db).update(anyString(), eq("SENT"), eq("Sent with Amazon SES to the test address"), eq(id));
+        Mockito.verify(db).update(anyString(), eq("SENT"), eq("Sent with Amazon SES to the test address"), eq("SENT"), eq("SENT"), eq(id));
     }
 
     @Test
@@ -49,10 +49,10 @@ class EmailDispatcherTest {
     void failures() throws Exception {
         Mockito.doThrow(new RuntimeException("Email address is not verified")).when(sender).send(anyString(), anyString(), anyString(), anyString());
         dispatcher("", 1).tick();
-        Mockito.verify(db).update(anyString(), eq("QUEUED"), eq("Try 1 failed, will retry: Email address is not verified"), eq(id));
+        Mockito.verify(db).update(anyString(), eq("QUEUED"), eq("Try 1 failed, will retry: Email address is not verified"), eq("QUEUED"), eq("QUEUED"), eq(id));
 
         Mockito.clearInvocations(db);
         dispatcher("", EmailDispatcher.MAX_ATTEMPTS).tick();
-        Mockito.verify(db).update(anyString(), eq("FAILED"), eq("Failed after 3 tries: Email address is not verified"), eq(id));
+        Mockito.verify(db).update(anyString(), eq("FAILED"), eq("Failed after 3 tries: Email address is not verified"), eq("FAILED"), eq("FAILED"), eq(id));
     }
 }

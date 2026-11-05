@@ -175,6 +175,30 @@ These are the shipped defaults (`defaults.json`). Plans and prices are data mana
 * Every screen exercised end to end: [Browser journeys](../e2e/JOURNEYS.md).
 * What changed recently: [Changelog](CHANGELOG.md).
 
+## Emails
+
+PropertyOS emails people wherever it is genuinely useful, in one branded layout (the PropertyOS header, the company's name, the message, a button and a quiet footer). Each email shows in the company's **Delivery log**, which never shows a password.
+
+| Who | When | Email |
+| --- | --- | --- |
+| A new user, or a new company's first administrator | An account is made | A welcome with their email, the one-time password and a Sign in button. The password is **also still shown on screen** to whoever made it. |
+| A user | An administrator resets their password | The new one-time password |
+| A user | They choose a new password | A security notice ("If this was not you, ask your administrator") |
+| A prospect | Staff send a reply to their enquiry | The reply |
+| A prospect | They ask for a tour, and when staff confirm it | The home and the time (Central time) |
+| An applicant | They apply, and when the application is decided | That it arrived; then approved, or an update that says where to find their rights under the Fair Credit Reporting Act. The reason is never put in the email. |
+| A resident, owner or vendor | Anything the app tells them (a payment received, a repair update, a lease ready to sign, a statement) | The same message, with a button that opens the right page |
+| Staff | Only an **urgent** notification | The same message. Ordinary staff notifications stay in the inbox, so a busy manager is not buried in mail. |
+
+Rules that apply to all of them:
+
+* **Preferences and quiet hours.** A person's notification preferences and the company's channel switch apply. An email that arrives in quiet hours is held and sent when they end.
+* **A password is never kept.** The one-time password goes to the workflow service in a direct call (not an event, because events are kept). Its email is stored only until it is sent, then its text is erased; the log shows only "Sign-in details (not kept after they are sent)".
+* **Failures never undo anything.** If an email cannot be queued, the account is still made and the password is still on screen. A send that fails is retried up to three times and then shown as Failed with the reason.
+* **Nothing about the past.** Applicant and prospect emails are sent for events from the last six hours only, so turning this on never emails people about old applications.
+* **Test mode.** While `EMAIL_OVERRIDE_TO` is set, every email goes to that one address with a "Test mode: this was meant for ..." banner. Clear it to send to the real recipients.
+* **Spam.** A message sent as a Gmail address through Amazon SES usually lands in spam, because Gmail cannot confirm it came from Gmail. A sender on your own verified domain (with DKIM) fixes that; see [Terraform pipeline](TERRAFORM-PIPELINE.md).
+
 ## Boosting a listing
 
 A company administrator can pay to boost a live listing for 7, 14 or 30 days (prices are the operator's `boost` setting). Choosing a period raises an invoice on the company's PropertyOS account; the company pays it from Subscription like any other (a test card ending 4242 is approved, 0002 is declined). The boost starts the moment the invoice is paid in full, and a declined payment starts nothing. A boosted listing is labelled Sponsored on its card and its page, and earns a ranking bonus, but only up to the configured share of a results page, so paid homes cannot fill it. The company is told when the boost starts and 24 hours before it ends; an unpaid boost is cancelled, and its invoice voided, after 14 days. The operator sees boost revenue for the month and the number of active boosts on the Payments page.

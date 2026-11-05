@@ -31,7 +31,7 @@ class LeadEmailsTest {
     private LeadEmails handler(String override) throws Exception {
         JsonNode names = M.readTree("{\"" + org + "\":\"Summit Ridge Property Group\"}");
         Mockito.when(client.get(any(ServiceClient.Service.class), anyString())).thenReturn(names);
-        return new LeadEmails(db, client, override);
+        return new LeadEmails(new EmailQueue(db, override, "http://localhost:4173"), new CompanyNames(client));
     }
 
     @Test
@@ -39,7 +39,7 @@ class LeadEmailsTest {
     void queued() throws Exception {
         handler("").handle(event(7, "{\"email\":\"tessa@example.com\",\"name\":\"Tessa Nguyen\",\"listing\":\"2-bedroom\",\"reply\":\"Hi Tessa, welcome.\"}"));
         ArgumentCaptor<Object> args = ArgumentCaptor.forClass(Object.class);
-        Mockito.verify(db).update(contains("insert into workflow.delivery"), args.capture(), args.capture(), args.capture(), args.capture(), args.capture(), args.capture());
+        Mockito.verify(db).update(contains("insert into workflow.delivery"), args.capture(), args.capture(), args.capture(), args.capture(), args.capture(), args.capture(), args.capture(), args.capture(), args.capture(), args.capture());
         assertThat(args.getAllValues()).contains("tessa@example.com", "Re: your enquiry about 2-bedroom");
         assertThat(args.getAllValues().stream().map(String::valueOf).anyMatch(s -> s.contains("Summit Ridge Property Group") && s.contains("<html"))).isTrue();
     }
@@ -53,7 +53,7 @@ class LeadEmailsTest {
         h.handle(event(7, p));
         h.handle(event(8, p));
         ArgumentCaptor<Object> id = ArgumentCaptor.forClass(Object.class);
-        Mockito.verify(db, Mockito.times(3)).update(contains("insert into workflow.delivery"), id.capture(), any(), any(), any(), any(), any());
+        Mockito.verify(db, Mockito.times(3)).update(contains("insert into workflow.delivery"), id.capture(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         assertThat(id.getAllValues().get(0)).isEqualTo(id.getAllValues().get(1)).isNotEqualTo(id.getAllValues().get(2));
     }
 

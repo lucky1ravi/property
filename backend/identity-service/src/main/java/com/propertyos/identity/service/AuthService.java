@@ -35,6 +35,7 @@ public class AuthService {
      */
     private static final Duration TTL = Duration.ofHours(12);
 
+    private final AccountEmails emails;
     private final IdentityStore store;
     private final JwtService jwt;
     private final ObjectMapper mapper;
@@ -46,7 +47,8 @@ public class AuthService {
 
     public AuthService(IdentityStore store, JwtService jwt, ObjectMapper mapper, AuditService audit,
                        PlatformTransactionManager tm, @Value("${propertyos.demo.enabled:true}") boolean demoMode,
-                       @Value("${propertyos.demo.password:PropertyOS@2026}") String demoPassword) {
+                       @Value("${propertyos.demo.password:PropertyOS@2026}") String demoPassword, AccountEmails emails) {
+        this.emails = emails;
         this.demoPassword = demoPassword;
         this.store = store;
         this.jwt = jwt;
@@ -198,6 +200,7 @@ public class AuthService {
         });
         UserContext ctx = buildContext(id);
         UserContextHolder.runAs(ctx, () -> tx.executeWithoutResult(s -> audit.record("User", id, "PASSWORD_CHANGED", null, null, Map.of())));
+        if (emails != null && user.get("org_id") != null) emails.passwordChanged((UUID) user.get("org_id"), normalized, String.valueOf(user.get("name")));
         return issue(id, "PASSWORD_CHANGED");
     }
 
