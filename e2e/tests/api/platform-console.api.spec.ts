@@ -72,7 +72,7 @@ test.describe('Platform operator console', () => {
     const platform = await apiAs('platform');
     const c = await onboardCompany();
     await platform.post('/api/identity/platform/billing/run', {}); // the company's administrator is told their invoice is ready
-    const listed = await until(() => platform.get(`/api/workflow/platform/deliveries?orgId=${c.orgId}&page=1&size=10`), (r) => rows(r).length > 0);
+    const listed = await until(() => platform.get(`/api/workflow/platform/deliveries?orgId=${c.orgId}&page=1&size=10`), (r) => rows(r).filter((x: any) => x.channel === 'EMAIL').length >= 3);   // the welcome email, the password notice from first sign-in, then the invoice notice
     const row = rows(listed).find((x: any) => x.channel === 'EMAIL') ?? rows(listed)[0];
     expect(row.recipient, 'the list still masks it').toContain('*');
     const url = `/api/workflow/platform/deliveries/${row.id}/reveal`;
@@ -81,7 +81,13 @@ test.describe('Platform operator console', () => {
     expect((await platform.post(url, { reason: 'x'.repeat(301) })).status).toBe(400);
     expect((await platform.post(`/api/workflow/platform/deliveries/${'00000000-0000-0000-0000-000000000000'}/reveal`, { reason: 'Support request 4411' })).status).toBe(404);
 
-    const shown = await platform.post(url, { reason: 'Support request 4411: the administrator says no invoice email arrived' });
+    // The company now has several emails (a welcome, a password notice, the invoice), so the one about the invoice is looked for among them.
+    const reason = 'Support request 4411: the administrator says no invoice email arrived';
+    let shown = await platform.post(url, { reason });
+    for (const other of rows(listed).filter((x: any) => x.channel === 'EMAIL' && x.id !== row.id)) {
+      if (/invoice/i.test(shown.body.subject ?? '')) break;
+      shown = await platform.post(`/api/workflow/platform/deliveries/${other.id}/reveal`, { reason });
+    }
     expect(shown.status).toBe(200);
     expect(shown.body.recipient).not.toContain('*');
     expect(shown.body.recipient).toMatch(/@/);

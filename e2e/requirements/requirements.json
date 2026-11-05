@@ -1323,5 +1323,30 @@
     "id": "MAIL-01",
     "area": "Lead replies",
     "text": "Sending a reply to a lead emails the prospect, and the delivery log shows it as sent"
+  },
+  {
+    "id": "EMAIL-01",
+    "area": "Emails",
+    "text": "A new user gets a welcome email with the one-time password, the password is still shown on screen, and the log never shows it; a reset and a changed password are emailed too"
+  },
+  {
+    "id": "EMAIL-02",
+    "area": "Emails",
+    "text": "A new company's first administrator is emailed their sign-in details when the company is onboarded"
+  },
+  {
+    "id": "EMAIL-03",
+    "area": "Emails",
+    "text": "An applicant is emailed when they apply and when it is decided, and a prospect when they ask for a tour and when it is confirmed"
+  },
+  {
+    "id": "EMAIL-04",
+    "area": "Emails",
+    "text": "A resident is emailed what the app tells them, such as that their lease is ready to sign"
+  },
+  {
+    "id": "AUTH-16",
+    "area": "Sign-in",
+    "text": "The sign-in page has a way back to the public home page, on the logo and as a Back to home link"
   }
 ]

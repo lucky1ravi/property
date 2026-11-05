@@ -45,6 +45,16 @@ test.describe('Sign in and out', () => {
     expect(await page.getByRole('alert').innerText()).toBe(unknown); // an unknown email reads the same as a wrong password
   });
 
+  test('[AUTH-16] the sign-in page has a way back to the public home page, on the logo and as a Back to home link', async ({ page }) => {
+    await page.goto('/signin');
+    await page.getByRole('link', { name: 'Back to home' }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole('link', { name: 'Sign in' }).first()).toBeVisible();
+    await page.goto('/signin');
+    await page.getByRole('link', { name: 'PropertyOS home' }).first().click();
+    await expect(page).toHaveURL(/\/$/);
+  });
+
   test('[AUTH-11] a signed-in person who opens the sign-in page is sent to the app', async ({ pageAs }) => {
     const page = await pageAs('admin', '/signin');
     await page.waitForURL(/\/app/);

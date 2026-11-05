@@ -1,7 +1,7 @@
 # PropertyOS end-to-end tests
 
 A Playwright + TypeScript suite that covers the whole product through the real screens and the real API, role by role.
-It is separate from the Java tests: it needs a running platform and drives it from the outside. It currently holds **381 tests in 46 spec files**. It runs on demand (locally, or through the manual *End-to-end tests* workflow against a runner or a live environment) rather than on every pull request; see [Testing](../docs/TESTING.md#5-browser-end-to-end-playwright).
+It is separate from the Java tests: it needs a running platform and drives it from the outside. It currently holds **386 tests in 47 spec files**. It runs on demand (locally, or through the manual *End-to-end tests* workflow against a runner or a live environment) rather than on every pull request; see [Testing](../docs/TESTING.md#5-browser-end-to-end-playwright).
 
 ## What is covered
 
