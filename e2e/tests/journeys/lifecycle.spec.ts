@@ -133,7 +133,7 @@ test.describe('The whole life of a company', () => {
     });
 
     await test.step('the administrator adds the property, its units and a vendor, and publishes a listing', async () => {
-      propertyId = (await admin.post('/api/leasing/properties', { ownerId, name: `Elm Court ${sfx}`, street: '42 Elm St', city: 'Austin', state: 'TX', zip: '78701', type: 'MULTIFAMILY', yearBuilt: 2008 })).body.id;
+      propertyId = (await admin.post('/api/leasing/properties', { ownerId, name: `Elm Court ${sfx}`, street: '42 Elm St', city: 'Austin', state: 'TX', zip: '78701', type: 'MULTIFAMILY', yearBuilt: 2008, photoUrl: `https://example.com/elm-court-${sfx}.jpg` })).body.id;
       unitId = (await admin.post(`/api/leasing/properties/${propertyId}/units`, { number: '3C', beds: 2, baths: '2', sqft: 950, marketRent: 1900 })).body.id;
       unit2Id = (await admin.post(`/api/leasing/properties/${propertyId}/units`, { number: '4D', beds: 1, baths: '1', sqft: 640, marketRent: 1450 })).body.id;
       const vEmail = `vic.${sfx}@e2e.test`;

@@ -75,9 +75,11 @@ final class ListingRanking {
      * @param tiers plan tier by company id; a company not listed counts as tier 0
      */
     static String joins(Settings s, Map<UUID, Double> tiers) {
-        StringBuilder plan = new StringBuilder("case l.org_id::text");
+        // With no tiers to apply (none known yet, or the plan lookup returned nothing) every company counts as tier 0. A CASE with no WHEN is invalid SQL,
+        // which would make the public search and the staff ranking fail, so that case is written as a plain 0.
+        StringBuilder plan = new StringBuilder(tiers.isEmpty() ? "0" : "case l.org_id::text");
         tiers.forEach((org, t) -> plan.append(" when '").append(org).append("' then ").append(n(t)));
-        plan.append(" else 0 end");
+        if (!tiers.isEmpty()) plan.append(" else 0 end");
         String smooth = "(%s * %s + coalesce(%%s.s, 0)) / (%s + coalesce(%%s.n, 0))".formatted(n(s.priorWeight()), n(s.priorMean()), n(s.priorWeight()));
         String prop = smooth.formatted("rp", "rp"), unit = smooth.formatted("ru", "ru");
         return """

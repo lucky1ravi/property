@@ -9,7 +9,7 @@ flowchart TB
   subgraph L5[5. Browser end-to-end: 360 Playwright tests]
     E1["Screens, long journeys, sad paths, two-company isolation,<br/>phone layouts, AI with a stand-in model, API contracts"]
   end
-  subgraph L4[4. System: platform-system-tests, 67 tests]
+  subgraph L4[4. System: platform-system-tests, 71 tests]
     E2["All 8 services as real processes behind the gateway,<br/>every persona over HTTP, merged coverage gate"]
   end
   subgraph L3[3. Integration: per-service IT classes]
@@ -92,12 +92,12 @@ sequenceDiagram
 
 ## 5. Browser end-to-end (Playwright)
 
-360 tests in 40 spec files, in `e2e/`, driving the real screens and the real API role by role. Every test title starts with the requirement it proves (`[AMEN-01]`), and `requirements/requirements.json` and the generated [TRACEABILITY](../e2e/requirements/TRACEABILITY.md) show what is covered.
+381 tests in 46 spec files, in `e2e/`, driving the real screens and the real API role by role. Every test title starts with the requirement it proves (`[AMEN-01]`), and `requirements/requirements.json` and the generated [TRACEABILITY](../e2e/requirements/TRACEABILITY.md) show what is covered.
 
 | Folder | What it covers |
 | --- | --- |
-| `tests/api` | Every service through the gateway: sign-in, roles, isolation, platform console, portfolio, leasing, billing, maintenance, workflow, AI, reports, ratings |
-| `tests/ui` | Every screen: public site and homes search, sign-in, menus for every persona, every page per role, leasing, payments, maintenance, admin, platform, amenities, AI, files |
+| `tests/api` | Every service through the gateway: sign-in, roles, isolation, platform console, portfolio, leasing, billing, maintenance, workflow, AI, reports, ratings, campaigns, webhooks, listing boosts, lead replies by email |
+| `tests/ui` | Every screen: public site and homes search, sign-in, menus for every persona, every page per role, leasing, payments, maintenance, admin, platform, amenities, AI, files, campaigns and the sender page, webhooks |
 | `tests/journeys` | Whole stories in a browser, including **a company's whole life**, hardship, and a resident on a phone ([JOURNEYS](../e2e/JOURNEYS.md)) |
 
 Properties of the suite worth knowing:
@@ -106,6 +106,9 @@ Properties of the suite worth knowing:
 * **Sad paths and isolation.** Refusals, validation messages, a second company seeing nothing, a resident refused a manager page.
 * **Phone layouts.** Pages are checked for sideways scroll and cut-off content at phone width.
 * **AI with a stand-in model.** `E2E_FAKE_AI=1` points the AI service at `e2e/tools/fake-openai.mjs`, so AI features are tested with real answers and no key.
+* **A receiver on this machine.** Webhook tests start a small HTTP receiver in the test (`e2e/src/support/receiver.ts`) and check the signature, the message text and the retries. The stack allows deliveries to this machine only because `tools/local-stack.sh` sets `PROPERTYOS_WEBHOOKS_ALLOW_PRIVATE_NETWORK`; the system tests set it for the workflow service for the same reason. It is never set anywhere real.
+* **Dates matter to two journeys.** `[JRNY-06]` and `[JRNY-08]` walk billing through the month and assume it is early in the month, before late fees apply. Run late in the month they can fail on a late fee that is correct.
+* **Local timezone.** On a machine whose timezone Java reports as `Asia/Calcutta`, PostgreSQL 16 refuses the connection in the identity integration tests; run them with `TZ=UTC` and `JAVA_TOOL_OPTIONS=-Duser.timezone=UTC` (CI is already UTC).
 * **Local or live.** `E2E_MODE=live` runs only read-only checks against a deployed environment.
 
 Run it: build the jars and the front end, start PostgreSQL, `npm run stack:start` in `e2e/`, then `npm test` (details in [e2e/README](../e2e/README.md)).

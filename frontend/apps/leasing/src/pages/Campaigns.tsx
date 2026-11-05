@@ -93,6 +93,7 @@ export function Campaigns() {
     { key: 'state', header: 'State', render: (c) => <Badge tone={TONE[c.state] ?? 'neutral'}>{STATE[c.state] ?? WORD(c.state)}</Badge> },
     { key: 'spend', header: 'Spend', align: 'right', value: (c) => Number(c.spend), render: (c) => fmt.usd(c.spend, true) },
     { key: 'leads', header: 'Leads', align: 'right', value: (c) => Number(c.leads) },
+    { key: 'showings', header: 'Tours', align: 'right', hideOnMobile: true, value: (c) => Number(c.showings) },
     { key: 'applications', header: 'Applications', align: 'right', hideOnMobile: true, value: (c) => Number(c.applications) },
     { key: 'leases', header: 'Leases', align: 'right', hideOnMobile: true, value: (c) => Number(c.leases) },
     { key: 'cost_per_lead', header: 'Cost per lead', align: 'right', hideOnMobile: true, value: (c) => Number(c.cost_per_lead ?? 0), render: (c) => (c.cost_per_lead == null ? '–' : fmt.usd(c.cost_per_lead, true)) },
@@ -103,7 +104,7 @@ export function Campaigns() {
   ];
   const hasChart = (series?.keys ?? []).length > 0;
   return (<>
-    <PageHeader title="Campaigns" description="See which marketing brings in leads, applications and leases. Open a campaign for its links and a way to test it." actions={can('CAMPAIGN:CREATE') && <Button variant="primary" icon={<Plus size={14} />} onClick={() => setEdit('new')}>New campaign</Button>} />
+    <PageHeader title="Campaigns" description="See which marketing brings in leads, tours, applications and leases. Open a campaign for its links and a way to test it." actions={can('CAMPAIGN:CREATE') && <Button variant="primary" icon={<Plus size={14} />} onClick={() => setEdit('new')}>New campaign</Button>} />
     {hasChart && <Panel title="Leads over time" description="New leads each week, for your busiest campaigns." className="mb-6">
       <div aria-label="Chart of new leads each week for each campaign"><CompareChart data={series.rows} x="label" format="num" height={220} bars={series.keys.map((k: any) => ({ key: k.key, label: k.name }))} /></div>
     </Panel>}
@@ -157,7 +158,7 @@ await fetch('${url}', {
 });`;
   const cols: Column<any>[] = [
     { key: 'created_at', header: 'When', value: (a) => a.created_at, render: (a) => fmt.dateTime(a.created_at) },
-    { key: 'kind', header: 'Type', render: (a) => <Badge tone={a.kind === 'APPLICATION' ? 'brand' : 'neutral'}>{a.kind === 'APPLICATION' ? 'Application' : 'Lead'}</Badge> },
+    { key: 'kind', header: 'Type', render: (a) => <Badge tone={a.kind === 'APPLICATION' ? 'brand' : a.kind === 'SHOWING' ? 'good' : 'neutral'}>{a.kind === 'APPLICATION' ? 'Application' : a.kind === 'SHOWING' ? 'Tour' : 'Lead'}</Badge> },
     { key: 'name', header: 'Person', render: (a) => (<div><div className="font-semibold">{a.name}</div><div className="text-xs text-graphite-500">{a.email}</div></div>) },
     { key: 'listing_title', header: 'Home', hideOnMobile: true },
     { key: 'status', header: 'Status', render: (a) => WORD(a.status) },
@@ -172,6 +173,7 @@ await fetch('${url}', {
     <StatStrip className="mb-6">
       <Stat label="Spend" value={fmt.usd(c.spend, true)} emphasis />
       <Stat label="Leads" value={c.leads} />
+      <Stat label="Tours" value={c.showings} />
       <Stat label="Applications" value={c.applications} />
       <Stat label="Leases" value={c.leases} sub="Signed by the tenant" />
       <Stat label="Cost per lead" value={c.cost_per_lead == null ? '–' : fmt.usd(c.cost_per_lead, true)} />
@@ -182,8 +184,8 @@ await fetch('${url}', {
         <Panel title="Leads over time" description="New leads each day, last 30 days.">
           <div aria-label="Chart of new leads each day"><TrendChart data={series?.rows ?? []} x="label" y="total" format="num" height={200} /></div>
         </Panel>
-        <Panel title="Recent activity" description="The newest leads and applications from this campaign. This list refreshes by itself." padded={false}>
-          <DataTable rows={c.activity ?? []} columns={cols} rowKey={(a) => `${a.kind}-${a.id}`} empty={{ title: 'Nothing yet', body: 'Leads and applications appear here as they come in. Try Send test lead.' }} />
+        <Panel title="Recent activity" description="The newest leads, tours and applications from this campaign. This list refreshes by itself." padded={false}>
+          <DataTable rows={c.activity ?? []} columns={cols} rowKey={(a) => `${a.kind}-${a.id}`} empty={{ title: 'Nothing yet', body: 'Leads, tours and applications appear here as they come in. Try Send test lead.' }} />
         </Panel>
       </div>
       <div className="space-y-6">

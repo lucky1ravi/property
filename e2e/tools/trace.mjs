@@ -2,8 +2,9 @@
 // that no test points at an unknown requirement, and writes requirements/TRACEABILITY.md.
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url)); // not .pathname, which is /D:/... on Windows
 const reqs = JSON.parse(readFileSync(join(root, 'requirements/requirements.json'), 'utf8'));
 const files = [];
 (function walk(d) { for (const f of readdirSync(d)) { const p = join(d, f); statSync(p).isDirectory() ? walk(p) : p.endsWith('.spec.ts') && files.push(p); } })(join(root, 'tests'));

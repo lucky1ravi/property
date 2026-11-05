@@ -86,7 +86,8 @@ public class GatewayApplication {
         List<String> list = Arrays.stream(origins.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
         c.setAllowedOriginPatterns(list);
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        c.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Correlation-Id"));
+        // X-Signature lets a browser page (the campaign sender demo) post a signed lead; real senders call from a server and never need CORS.
+        c.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Correlation-Id", "X-Signature"));
         c.setExposedHeaders(List.of("X-Correlation-Id", "X-RateLimit-Remaining", "Retry-After", "Content-Disposition"));
         c.setMaxAge(Duration.ofHours(1));
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();

@@ -203,8 +203,23 @@ public class PublicService {
                 li.get("pname") + " " + li.get("number"), Req.money(b, "monthlyIncome"), Req.str(b, "employer"), Req.integer(b, "monthsEmployed"),
                 Req.money(b, "currentRent"), Req.str(b, "landlordReference"), Optional.ofNullable(Req.integer(b, "occupants")).orElse(1),
                 Req.str(b, "pets"), Req.date(b, "moveInDate"), db.json(Req.strings(b, "documents")), source, campaign);
-        events.publish(orgId, "ApplicationSubmitted", "Application", id,
-                Map.of("listingId", listingId.toString(), "applicantName", first + " " + last, "applicantEmail", email, "unit", li.get("number").toString()));
+        leads.ensureLead(li, first + " " + last, email, Req.str(b, "phone"), "Submitted an application.", source, campaign, 90, "APPLY");
+        Map<String, Object> submitted = new HashMap<>();
+        submitted.put("listingId", listingId.toString());
+        submitted.put("applicantName", first + " " + last);
+        submitted.put("applicantEmail", email);
+        submitted.put("unit", li.get("number").toString());
+        submitted.put("propertyName", String.valueOf(li.get("pname")));
+        submitted.put("unitLabel", li.get("pname") + " " + li.get("number"));
+        if (li.get("rent") != null) submitted.put("rent", li.get("rent").toString());
+        submitted.put("source", source);
+        if (Req.str(b, "phone") != null) submitted.put("applicantPhone", Req.str(b, "phone"));
+        if (Req.money(b, "monthlyIncome") != null) submitted.put("monthlyIncome", Req.money(b, "monthlyIncome").toPlainString());
+        if (Req.str(b, "employer") != null) submitted.put("employer", Req.str(b, "employer"));
+        if (Req.date(b, "moveInDate") != null) submitted.put("moveInDate", Req.date(b, "moveInDate").toString());
+        if (Req.integer(b, "occupants") != null) submitted.put("occupants", Req.integer(b, "occupants"));
+        if (Req.str(b, "pets") != null) submitted.put("pets", Req.str(b, "pets"));
+        events.publish(orgId, "ApplicationSubmitted", "Application", id, submitted);
         // The leasing team hears about it straight away; the applicant has no account, so this is the only way staff learn of a new application.
         if (announce) events.publish(orgId, "NotificationRequested", "Notification", UUID.randomUUID(), Map.of("audience", "ROLE", "target", "PROPERTY_MANAGER",
                 "title", "New application: " + first + " " + last, "body", "Applied for " + li.get("pname") + " " + li.get("number") + ". Screening starts automatically.",

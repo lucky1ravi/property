@@ -62,4 +62,14 @@ class GatewayResilienceTest {
         web.get().uri("/actuator/health/readiness").exchange().expectStatus().isOk();
         web.get().uri("/actuator/prometheus").exchange().expectStatus().isOk();
     }
+
+    @Test
+    void aBrowserMayPostASignedLead() {
+        // The campaign sender demo page posts from the browser with an X-Signature header, so the preflight must allow it.
+        org.springframework.mock.http.server.reactive.MockServerHttpRequest req = org.springframework.mock.http.server.reactive.MockServerHttpRequest.options("http://localhost:8080/api/leasing/public/inbound/cmp_x")
+                .header("Origin", "http://localhost:4173").header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "content-type,x-signature").build();
+        org.springframework.mock.web.server.MockServerWebExchange exchange = org.springframework.mock.web.server.MockServerWebExchange.from(req);
+        new GatewayApplication().corsWebFilter("*").filter(exchange, e -> reactor.core.publisher.Mono.empty()).block();
+        assertThat(exchange.getResponse().getHeaders().getFirst("Access-Control-Allow-Headers").toLowerCase()).contains("content-type", "x-signature");
+    }
 }

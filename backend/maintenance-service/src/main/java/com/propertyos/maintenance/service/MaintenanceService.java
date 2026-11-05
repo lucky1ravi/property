@@ -136,6 +136,8 @@ public class MaintenanceService {
         if (ref.get("property_name") != null) created.put("propertyName", String.valueOf(ref.get("property_name")));
         if (ref.get("unit_label") != null) created.put("unitLabel", String.valueOf(ref.get("unit_label")));
         created.put("source", "TENANT".equals(ctx.scope()) ? "TENANT" : "STAFF");
+        if (ref.get("tenant_name") != null) created.put("tenantName", String.valueOf(ref.get("tenant_name")));
+        created.put("permissionToEnter", b.get("permissionToEnter") == null || Req.bool(b, "permissionToEnter"));
         events.publish("WorkOrderCreated", "WorkOrder", id, created);
         triage(id);
         return get(id);

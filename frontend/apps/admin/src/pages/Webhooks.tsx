@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Copy, Plus, Send } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Copy, MoreHorizontal, Plus, Send } from 'lucide-react';
 import {
-  PageHeader, Panel, DataTable, type Column, useApi, usePagedApi, useAction, api, fmt, Button, Badge, Field, Input, Select, Modal, Drawer, Tabs, ConfirmDialog, useSession, toast,
+  PageHeader, Panel, DataTable, type Column, useApi, usePagedApi, useAction, api, fmt, Button, Badge, Field, Input, Select, Modal, Drawer, Tabs, ConfirmDialog, useSession, toast, RowActions,
 } from '@propertyos/ui';
 
 /**
@@ -91,6 +92,51 @@ function DeliveryDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   </Drawer>);
 }
 
+
+/** The events an endpoint listens to: one chip when it takes every event, otherwise the first two and a count, with the whole list as a tooltip. */
+function EventChips({ keys, total, label }: { keys: string[]; total: number; label: (k: string) => string }) {
+  const all = keys.map(label).join(', ');
+  if (total > 0 && keys.length === total) return <span title={all}><Badge>All {total} events</Badge></span>;
+  return (<div className="flex items-center gap-1" title={all}>
+    {keys.slice(0, 2).map((k) => <Badge key={k}>{label(k)}</Badge>)}
+    {keys.length > 2 && <span className="text-xs font-semibold text-graphite-600">+{keys.length - 2} more</span>}</div>);
+}
+
+/** How the last day went: delivered, then anything failed or still waiting on its own line. */
+function Last24({ e }: { e: any }) {
+  const ok = Number(e.delivered_24h), bad = Number(e.failed_24h), wait = Number(e.pending);
+  if (ok + bad + wait === 0) return <span className="text-sm text-graphite-500">No activity</span>;
+  return (<div className="text-sm leading-5">
+    <div><span className="font-semibold tabular-nums text-good-700">{ok}</span> <span className="text-graphite-600">delivered</span></div>
+    {bad > 0 && <div className="text-xs font-semibold text-crit-700">{bad} failed</div>}
+    {wait > 0 && <div className="text-xs text-graphite-500">{wait} waiting</div>}</div>);
+}
+
+/** A "more actions" button that opens a small menu next to it. The menu is positioned on screen, so the table's own scrolling never clips it. */
+function MoreMenu({ name, items }: { name: string; items: { label: string; onClick: () => void; tone?: 'crit' }[] }) {
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const close = () => setAt(null);
+  useEffect(() => {
+    if (!at) return;
+    const key = (ev: KeyboardEvent) => { if (ev.key === 'Escape') close(); };
+    // Moving the page would leave a fixed menu behind, so scrolling by hand closes it (focusing its first item must not, so this listens to the wheel, not to scroll).
+    window.addEventListener('keydown', key); window.addEventListener('wheel', close, { passive: true }); window.addEventListener('resize', close);
+    return () => { window.removeEventListener('keydown', key); window.removeEventListener('wheel', close); window.removeEventListener('resize', close); };
+  }, [at]);
+  return (<>
+    <button type="button" aria-label={`More actions for ${name}`} aria-haspopup="menu" aria-expanded={!!at}
+      className="flex h-8 w-8 items-center justify-center rounded-md border border-limestone-300 text-graphite-700 hover:bg-limestone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      onClick={(ev) => { const r = ev.currentTarget.getBoundingClientRect(); setAt(at ? null : { top: r.bottom + 4, left: Math.max(8, r.right - 176) }); }}>
+      <MoreHorizontal size={16} aria-hidden /></button>
+    {at && createPortal(<>
+      <div className="fixed inset-0 z-40" onClick={close} aria-hidden />
+      <div role="menu" aria-label={`Actions for ${name}`} style={{ top: at.top, left: at.left }} className="fixed z-50 w-44 overflow-hidden rounded-md border border-limestone-200 bg-white py-1 shadow-panel">
+        {items.map((i) => (<button key={i.label} type="button" role="menuitem" autoFocus={i === items[0]}
+          className={`block w-full px-3 py-2 text-left text-sm hover:bg-limestone-100 focus-visible:bg-limestone-100 focus-visible:outline-none ${i.tone === 'crit' ? 'text-crit-700' : 'text-graphite-900'}`}
+          onClick={() => { close(); i.onClick(); }}>{i.label}</button>))}</div></>, document.body)}
+  </>);
+}
+
 export function Webhooks() {
   const { can } = useSession();
   const [tab, setTab] = useState<'endpoints' | 'log'>('endpoints');
@@ -112,15 +158,17 @@ export function Webhooks() {
 
   const cols: Column<any>[] = [
     { key: 'name', header: 'Endpoint', render: (e) => (<div><div className="font-semibold">{e.name}</div><div className="text-xs text-graphite-500" title={e.url}>{host(e.url)}</div></div>) },
-    { key: 'events', header: 'Events', sortable: false, hideOnMobile: true, render: (e) => <div className="flex flex-wrap gap-1">{e.events.map((k: string) => <Badge key={k}>{label(k)}</Badge>)}</div> },
+    { key: 'events', header: 'Events', sortable: false, hideOnMobile: true, render: (e) => <EventChips keys={e.events} total={events?.length ?? 0} label={label} /> },
     { key: 'active', header: 'State', render: (e) => (e.active ? <Badge tone="good">Active</Badge> : <div><Badge tone="warn">Switched off</Badge>{e.disabled_reason && <div className="mt-0.5 max-w-[16rem] text-2xs text-graphite-500">{e.disabled_reason}</div>}</div>) },
-    { key: 'delivered_24h', header: 'Last 24 hours', hideOnMobile: true, value: (e) => Number(e.delivered_24h), render: (e) => <span>{e.delivered_24h} delivered{Number(e.failed_24h) > 0 && <span className="text-crit-700">, {e.failed_24h} failed</span>}{Number(e.pending) > 0 && <span className="text-graphite-500">, {e.pending} waiting</span>}</span> },
-    { key: 'actions', header: '', sortable: false, render: (e) => (can('WEBHOOK:EDIT') ? <div className="flex flex-wrap justify-end gap-1">
-      <Button size="sm" variant="quiet" aria-label={`Send a test event to ${e.name}`} onClick={() => setTesting(e)}>Test</Button>
-      <Button size="sm" variant="quiet" aria-label={`Edit ${e.name}`} onClick={() => setEdit(e)}>Edit</Button>
-      <Button size="sm" variant="quiet" aria-label={`${e.active ? 'Switch off' : 'Switch on'} ${e.name}`} loading={toggle.isPending} onClick={() => toggle.mutate(e)}>{e.active ? 'Switch off' : 'Switch on'}</Button>
-      <Button size="sm" variant="quiet" aria-label={`Rotate the secret for ${e.name}`} onClick={() => rotate.mutate(e)}>Rotate secret</Button>
-      {can('WEBHOOK:DELETE') && <Button size="sm" variant="quiet" aria-label={`Delete ${e.name}`} onClick={() => setDeleting(e)}>Delete</Button>}</div> : null) },
+    { key: 'delivered_24h', header: 'Last 24 hours', hideOnMobile: true, value: (e) => Number(e.delivered_24h), render: (e) => <Last24 e={e} /> },
+    { key: 'actions', header: '', sortable: false, width: '11rem', render: (e) => (can('WEBHOOK:EDIT') ? <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+      <Button size="sm" variant="secondary" icon={<Send size={13} />} aria-label={`Send a test event to ${e.name}`} onClick={() => setTesting(e)}>Test</Button>
+      <RowActions name={e.name} onEdit={() => setEdit(e)} />
+      <MoreMenu name={e.name} items={[
+        { label: e.active ? 'Switch off' : 'Switch on', onClick: () => toggle.mutate(e) },
+        { label: 'Rotate secret', onClick: () => rotate.mutate(e) },
+        ...(can('WEBHOOK:DELETE') ? [{ label: 'Delete', tone: 'crit' as const, onClick: () => setDeleting(e) }] : []),
+      ]} /></div> : null) },
   ];
   const logCols: Column<any>[] = [
     { key: 'created_at', header: 'When', value: (d) => d.created_at, render: (d) => fmt.dateTime(d.created_at) },
